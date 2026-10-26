@@ -447,3 +447,76 @@
   gap: var(--space-1) var(--space-2);
   margin: var(--space-2) 0;
 }
+
+/* ---- Geo results on a map (v0.4 F11): offline SVG, bundled outline, tokens only ---- */
+.geo-map .geo-actions {
+  display: inline-flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.geo-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  aspect-ratio: 2 / 1;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-2);
+}
+.geo-sea {
+  fill: var(--surface-alt);
+}
+.geo-land {
+  fill: var(--pane);
+  stroke: var(--rule-strong);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.geo-grid line {
+  stroke: var(--rule);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.geo-area ellipse,
+.geo-area rect {
+  fill: var(--signal-tint);
+  fill-opacity: 0.35;
+  stroke: var(--signal);
+  stroke-dasharray: 4 3;
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+}
+.geo-center {
+  fill: var(--graphite);
+}
+.geo-point {
+  fill: var(--signal);
+  stroke: var(--bg);
+  stroke-width: 1px;
+  vector-effect: non-scaling-stroke;
+  cursor: pointer;
+}
+.geo-point.selected {
+  fill: var(--amber);
+}
+.geo-point:focus-visible {
+  outline: none;
+  stroke: var(--ink);
+  stroke-width: 2px;
+}
+.geo-label {
+  fill: var(--ink);
+  font-family: var(--font-mono);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  vector-effect: non-scaling-stroke;
+}
+.geo-table tr.selected td {
+  background: var(--signal-tint);
+}
+.geo-table tbody tr {
+  cursor: pointer;
+}
+

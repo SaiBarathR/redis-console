@@ -670,7 +670,7 @@ export function ConsoleResultBlock({
           )}
           {response &&
             (showRich ? (
-              <RichReply kind={kind!} reply={response.reply} onOpen={open} onRaw={() => setRichChoice(false)} />
+              <RichReply kind={kind!} reply={response.reply} argv={response.argv} onOpen={open} onRaw={() => setRichChoice(false)} />
             ) : view === "tree" ? (
               <div className="result-tree">
                 <TreeReply reply={response.reply} />

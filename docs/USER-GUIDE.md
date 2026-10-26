@@ -175,6 +175,8 @@ INFO memory
 
 Write several commands, one per line, and press **Run script** (Ctrl/⌘ + Enter). Lines starting with `#` or `//` are comments. Each command is checked and run separately, and you get one result per line. Leave **Stop on first error** on, so that a mistake halts the rest of the script. There are no transactions: `MULTI`/`EXEC` are not supported. To stop a running script, press **Ctrl+C** or **Cancel**: no further line is sent, and the result shows which lines finished, which line was running when you cancelled (Redis may still have run it) and which were not run.
 
+Some results get a richer view next to the plain reply (switch between them above the result): a **Table** for `FT.SEARCH` and `FT.AGGREGATE`, a **Chart** for `TS.RANGE`/`TS.MRANGE`, a **Plan** for `FT.EXPLAIN` and `FT.PROFILE`, and a **Map** for `GEOSEARCH` or `GEORADIUS` with `WITHCOORD`, and for `GEOPOS`. The map draws the points over a world outline that ships with the console (nothing is loaded from the internet), zooms to fit them (**World** shows the whole map), outlines the search radius or box when the command names a centre, and lists every point with its coordinates and distance. Click a point or press Enter on it to highlight its row. Up to 2,000 points are drawn; the plain reply always has all of them.
+
 ## Diagnostics
 
 - **Slow log**: commands that took longer than the server threshold. Look here when "Redis is slow". Admins see the server's real threshold (`slowlog-log-slower-than`) and length (`slowlog-max-len`); other roles see why they are not shown. Choose how many entries to read, an automatic refresh, and µs or ms. Admins can reset it.

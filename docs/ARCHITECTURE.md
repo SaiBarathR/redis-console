@@ -304,7 +304,9 @@ account, and every Redis command they send goes through the same execute path as
   from data. Key names render as typed segments (`components/anatomy.tsx`) with invisible and bidi characters made
   visible. Formatters (`lib/format.ts`, `msgpack.ts`, `javaser.ts`, `phpser.ts`) parse bytes into inert, bounded trees;
   Java and PHP payloads are never deserialized; gzip/deflate inflate locally up to 4 MiB. Charts are uPlot canvases;
-  rich console results (search tables, time-series charts, query plans) are built-in text renderers.
+  rich console results (search tables, time-series charts, query plans, geo maps) are built-in text renderers. The
+  geo map is an SVG over a bundled public-domain land outline (`assets/world-110m.ts`, loaded on first use), at most
+  2,000 points, with no tiles or other fetches.
 - **Byte-exact data:** values travel as `Bin` (UTF-8 text or base64 bytes), so display, copy, download, re-run and
   write-back keep the stored bytes, including big integers, CRLF, BOM and invalid UTF-8.
 - **Storage:** Redis data, console history, drafts and scan state live in React memory scoped to the signed-in session

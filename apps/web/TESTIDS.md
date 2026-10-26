@@ -108,7 +108,9 @@ All selectors use `data-testid`. Accessible names are also maintained. Database 
   `analysis-report-select`, `analysis-compare`, `analysis-comparison`, `analysis-report`, `analysis-coverage`,
   `analysis-recommendations`, `analysis-recommendation` (`data-rule` = rule id, `data-severity`), `analysis-make-searchable`.
 - Console / workbench results: `result-rich-toggle` (per result: Table|Chart|Plan|Profile vs Reply/Tree), `result-rich`
-  (`data-kind` = search | aggregate | series | multiSeries | explain | profile), `rich-table`, `plan-tree`.
+  (`data-kind` = search | aggregate | series | multiSeries | explain | profile | geo), `rich-table`, `plan-tree`.
+- Geo map (v0.4, `data-kind="geo"`): `geo-map`, `geo-count`, `geo-fit`, `geo-world`, `geo-land` (the bundled outline),
+  `geo-point` (focusable, `aria-pressed` when selected), `geo-table`, `geo-row`.
 - Guided mode tabs (`?tab=` holds only `tutorials` or `import`): `guided-tab-tasks`, `guided-tab-tutorials`, `guided-tab-import`;
   `workbench-tutorials` (workbench link).
 - Tutorials: `tutorial-<id>` (search, json, streams, timeseries, spring-cache, node-cache), `tutorial`, `tutorial-step`,

@@ -10,6 +10,7 @@ import {
   MAX_SERIES,
   aggregateTable,
   explainPlan,
+  geoView,
   multiSeriesOf,
   profileView,
   replyText,
@@ -22,6 +23,7 @@ import {
 } from "../lib/richReply.ts";
 import { displayBin, visibleText } from "../lib/format.ts";
 import { Chart } from "./Chart.tsx";
+import { GeoMap } from "./GeoMap.tsx";
 import { KeyName } from "./anatomy.tsx";
 import "../styles/insight.css";
 
@@ -260,11 +262,14 @@ export function PlanTree({ node, root = true }: { node: PlanNode; root?: boolean
 export function RichReply({
   kind,
   reply,
+  argv = [],
   onOpen,
   onRaw,
 }: {
   kind: RichKind;
   reply: Reply;
+  /** The command that ran (geo views read its flags and GEOPOS member names). */
+  argv?: readonly string[];
   onOpen?: (key: Bin) => void;
   /** Switches the result to the raw reply view; offered when a bounded view leaves something out. */
   onRaw?: () => void;
@@ -291,6 +296,14 @@ export function RichReply({
         {list.length ? list.map((s, i) => <SeriesBlock key={i} series={s} single={kind === "series"} />) : <p className="muted">No series matched.</p>}
       </div>
     );
+  }
+  if (kind === "geo") {
+    const view = geoView(argv, reply);
+    return view ? (
+      <div data-testid="result-rich" data-kind={kind}>
+        <GeoMap view={view} />
+      </div>
+    ) : null;
   }
   if (kind === "explain") {
     const plan = explainPlan(reply);

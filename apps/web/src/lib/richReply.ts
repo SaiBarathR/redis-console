@@ -6,9 +6,9 @@
  * Both reply shapes are understood: RESP3 maps (what the server negotiates) and the RESP2-style arrays some module
  * versions still send. Anything that does not have the expected shape returns undefined, and the generic view stays.
  */
-import type { Bin, Reply } from "@rconsole/shared";
+import { bytesFromBin, type Bin, type Reply } from "@rconsole/shared";
 
-export type RichKind = "search" | "aggregate" | "series" | "multiSeries" | "explain" | "profile";
+export type RichKind = "search" | "aggregate" | "series" | "multiSeries" | "explain" | "profile" | "geo";
 
 /** One table row: an optional document id (exact bytes) and its fields in reply order. */
 export interface RichRow {
@@ -303,6 +303,128 @@ export function profileView(reply: Reply): ProfileView | undefined {
   return view.shards.length ? view : undefined;
 }
 
+// ---------------------------------------------------------------------------
+// v0.4 (F11): geo results on a map. GEOSEARCH / GEORADIUS* with WITHCOORD and GEOPOS.
+
+export const MAX_GEO_POINTS = 2000;
+const GEO_SEARCH = new Set(["GEOSEARCH", "GEORADIUS", "GEORADIUS_RO", "GEORADIUSBYMEMBER", "GEORADIUSBYMEMBER_RO"]);
+const UNIT_M: Record<string, number> = { M: 1, KM: 1000, MI: 1609.344, FT: 0.3048 };
+
+export interface GeoPoint {
+  /** The member (from the reply), or for GEOPOS the name as it was typed (argv). */
+  member?: Bin;
+  label?: string;
+  lon: number;
+  lat: number;
+  /** WITHDIST, in the query's unit. */
+  dist?: string;
+  hash?: string;
+}
+export interface GeoView {
+  points: GeoPoint[];
+  /** Positions the reply had beyond the renderer's bound, and GEOPOS members that do not exist. */
+  omitted: number;
+  missing: string[];
+  unit?: string;
+  /** The search area when the command names it: a centre with a radius or a box (metres). */
+  center?: { lon: number; lat: number };
+  radiusM?: number;
+  boxM?: { width: number; height: number };
+}
+
+const geoNumber = (r: Reply | undefined): number | undefined => {
+  if (!r) return undefined;
+  const t = r.t === "str" ? new TextDecoder().decode(bytesFromBin(r.v)) : r.t === "dbl" || r.t === "int" ? r.v : undefined;
+  if (t === undefined) return undefined;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : undefined;
+};
+const coord = (r: Reply | undefined): { lon: number; lat: number } | undefined => {
+  if (!r || r.t !== "arr" || r.v.length < 2) return undefined;
+  const lon = geoNumber(r.v[0]);
+  const lat = geoNumber(r.v[1]);
+  return lon !== undefined && lat !== undefined && Math.abs(lon) <= 180 && Math.abs(lat) <= 90 ? { lon, lat } : undefined;
+};
+const word = (argv: readonly string[], token: string) => argv.findIndex((a, i) => i > 1 && a.toUpperCase() === token);
+
+/** The search area a GEOSEARCH / GEORADIUS command names, in metres (undefined parts when it does not say). */
+function geoArea(name: string, argv: readonly string[]): Pick<GeoView, "center" | "radiusM" | "boxM" | "unit"> {
+  const out: Pick<GeoView, "center" | "radiusM" | "boxM" | "unit"> = {};
+  const lonlat = (i: number) => {
+    const lon = Number(argv[i]);
+    const lat = Number(argv[i + 1]);
+    if (Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lon) <= 180 && Math.abs(lat) <= 90) out.center = { lon, lat };
+  };
+  if (name === "GEOSEARCH") {
+    const from = word(argv, "FROMLONLAT");
+    if (from > 0) lonlat(from + 1);
+    const radius = word(argv, "BYRADIUS");
+    const box = word(argv, "BYBOX");
+    if (radius > 0) {
+      const unit = (argv[radius + 2] ?? "").toUpperCase();
+      if (UNIT_M[unit]) (out.radiusM = Number(argv[radius + 1]) * UNIT_M[unit]!), (out.unit = unit.toLowerCase());
+    } else if (box > 0) {
+      const unit = (argv[box + 3] ?? "").toUpperCase();
+      if (UNIT_M[unit]) {
+        out.boxM = { width: Number(argv[box + 1]) * UNIT_M[unit]!, height: Number(argv[box + 2]) * UNIT_M[unit]! };
+        out.unit = unit.toLowerCase();
+      }
+    }
+  } else if (name === "GEORADIUS" || name === "GEORADIUS_RO") {
+    lonlat(2);
+    const unit = (argv[5] ?? "").toUpperCase();
+    if (UNIT_M[unit]) (out.radiusM = Number(argv[4]) * UNIT_M[unit]!), (out.unit = unit.toLowerCase());
+  } else {
+    const unit = (argv[4] ?? "").toUpperCase();
+    if (UNIT_M[unit]) (out.radiusM = Number(argv[3]) * UNIT_M[unit]!), (out.unit = unit.toLowerCase());
+  }
+  if (out.radiusM !== undefined && !(out.radiusM > 0)) delete out.radiusM;
+  if (out.boxM && !(out.boxM.width > 0 && out.boxM.height > 0)) delete out.boxM;
+  return out;
+}
+
+/** The points of a geo reply, or undefined when it has no coordinates to draw. */
+export function geoView(argv: readonly string[], reply: Reply): GeoView | undefined {
+  const name = (argv[0] ?? "").toUpperCase();
+  if (reply.t !== "arr") return undefined;
+  if (name === "GEOPOS") {
+    const names = argv.slice(2);
+    const points: GeoPoint[] = [];
+    const missing: string[] = [];
+    reply.v.forEach((r, i) => {
+      const c = coord(r);
+      if (c && points.length < MAX_GEO_POINTS) points.push({ label: names[i] ?? `#${i + 1}`, ...c });
+      else if (!c) missing.push(names[i] ?? `#${i + 1}`);
+    });
+    const omitted = Math.max(0, reply.v.length - points.length - missing.length) + (reply.more ?? 0);
+    return points.length ? { points, omitted, missing } : undefined;
+  }
+  if (!GEO_SEARCH.has(name)) return undefined;
+  // STORE / STOREDIST write the result to a key and reply with a count.
+  if (word(argv, "STORE") > 0 || word(argv, "STOREDIST") > 0 || word(argv, "WITHCOORD") < 0) return undefined;
+  const withDist = word(argv, "WITHDIST") > 0;
+  const withHash = word(argv, "WITHHASH") > 0;
+  // Each item is [member, dist?, hash?, [lon, lat]] in this order whatever order the flags were typed in.
+  const points: GeoPoint[] = [];
+  for (const item of reply.v) {
+    if (points.length >= MAX_GEO_POINTS) break;
+    if (item.t !== "arr" || item.v[0]?.t !== "str") continue;
+    let i = 1;
+    const dist = withDist ? item.v[i++] : undefined;
+    const hash = withHash ? item.v[i++] : undefined;
+    const c = coord(item.v[i]);
+    if (!c) continue;
+    points.push({
+      member: item.v[0].v,
+      ...c,
+      ...(dist ? { dist: replyText(dist) } : {}),
+      ...(hash ? { hash: replyText(hash) } : {}),
+    });
+  }
+  if (!points.length) return undefined;
+  return { points, omitted: reply.v.length - points.length + (reply.more ?? 0), missing: [], ...geoArea(name, argv) };
+}
+
 /** Which rich view a reply of this command has (undefined: the generic view only). */
 export function richKind(argv: readonly string[], reply: Reply): RichKind | undefined {
   if (reply.t === "err" || reply.t === "truncated" || reply.t === "nil") return undefined;
@@ -314,6 +436,7 @@ export function richKind(argv: readonly string[], reply: Reply): RichKind | unde
   if (name === "TS.MRANGE" || name === "TS.MREVRANGE") return multiSeriesOf(reply) ? "multiSeries" : undefined;
   if (name === "FT.EXPLAIN" || name === "FT.EXPLAINCLI") return explainPlan(reply) ? "explain" : undefined;
   if (name === "FT.PROFILE") return profileView(reply) ? "profile" : undefined;
+  if (name === "GEOPOS" || GEO_SEARCH.has(name)) return geoView(argv, reply) ? "geo" : undefined;
   return undefined;
 }
 
@@ -324,4 +447,5 @@ export const RICH_LABEL: Record<RichKind, string> = {
   multiSeries: "Chart",
   explain: "Plan",
   profile: "Profile",
+  geo: "Map",
 };
