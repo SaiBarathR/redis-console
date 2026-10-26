@@ -367,6 +367,8 @@ export type KeyValue =
   | { type: 'stream'; entries: StreamEntry[]; total: number; lastId: string; groups: number }
   | { type: 'json'; json: string; truncated: boolean }
   | { type: 'timeseries'; info: Record<string, unknown>; samples: [number, string][] }
+  /** v0.4: summary and the first page of members (further pages: POST /vectorset/members). */
+  | { type: 'vectorset'; info: VectorSetInfo; page: VectorSetPage }
   | { type: 'unsupported'; message: string };
 
 export interface StreamEntry { id: string; fields: { field: Bin; value: Bin; truncated?: true; ref?: ElementRef }[] }
@@ -473,6 +475,150 @@ export interface EditConflict {
   };
 }
 
+// ---------------------------------------------------------------------------
+// v0.4 vector sets (stream S2, F23). Reads: `key/read` (summary + first page) and the `vectorset/*` routes below.
+// Writes: the `vset.*` typed ops of POST /databases/:db/ops. Every bound below is enforced by the server.
+
+/** Members per page (`VRANGE … count`): default and maximum. */
+export const VSET_PAGE_DEFAULT = 100;
+export const VSET_PAGE_MAX = 500;
+/** Members whose attributes one `vectorset/attributes` request reads (the rows on screen). */
+export const VSET_ATTR_ROWS_MAX = 100;
+/** Bytes of each attribute a members row shows; the element panel reads up to the server's `maxValueBytes`. */
+export const VSET_ATTR_PREVIEW_BYTES = 1024;
+/** Largest member name accepted in a request (paging start, element, search by member, edits). */
+export const VSET_MEMBER_MAX_BYTES = 65_536;
+/** Embeddings of sets with more dimensions than this are not read (VEMB has no range). */
+export const VSET_EMBED_MAX_DIM = 16_384;
+/** Values of an embedding returned to the browser; the rest are counted (`embedding.truncated`). */
+export const VSET_EMBED_PREVIEW_VALUES = 4096;
+/** Neighbours listed per HNSW layer (`VLINKS`), and layers listed. */
+export const VSET_LINKS_PER_LAYER_MAX = 64;
+export const VSET_LINK_LAYERS_MAX = 32;
+/** Similarity search bounds: results (`COUNT`), `EF`, filter expression length and filter effort (`FILTER-EF`). */
+export const VSET_SEARCH_COUNT_MAX = 100;
+export const VSET_SEARCH_EF_MAX = 1000;
+export const VSET_FILTER_MAX_CHARS = 1024;
+export const VSET_FILTER_EF_MAX = 100_000;
+/** Coordinates in a query vector or a new element (`VALUES n …`). */
+export const VSET_VALUES_MAX = VSET_EMBED_MAX_DIM;
+/** A finite decimal coordinate as Redis parses it (no inf/nan, no hex). */
+export const VSET_NUMBER = /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d{1,3})?$/;
+
+const zVsetNumber = z.string().max(40).regex(VSET_NUMBER, 'not a finite decimal number');
+const zVsetValues = z.array(zVsetNumber).min(1).max(VSET_VALUES_MAX);
+
+/** `VINFO` fields the inspector shows (absent when this Redis does not report them), plus `VCARD` and `VDIM`. */
+export interface VectorSetInfo {
+  /** VCARD */
+  size: number;
+  /** VDIM (after any REDUCE projection). */
+  dim: number;
+  /** `quant-type`: `f32` (NOQUANT), `int8` (Q8, the default) or `bin` (BIN). */
+  quantization?: string;
+  /** `hnsw-m`: links per node per layer (layer 0 has twice as many). */
+  hnswM?: number;
+  /** `max-level`: highest HNSW layer. */
+  maxLevel?: number;
+  /** `attributes-count`: members with attributes. */
+  attributesCount?: number;
+  /** `projection-input-dim`: the input dimension when the set was created with REDUCE (0 = no projection). */
+  projectionInputDim?: number;
+}
+/**
+ * One member in a page. `member` is cut at KEY_ELEMENT_PREVIEW_BYTES when longer (`truncated`): such a row cannot be
+ * opened, edited or removed from the inspector.
+ */
+export interface VectorSetMember { member: Bin; truncated?: true }
+/**
+ * A page of members in lexicographic (byte) order, from `VRANGE key start end count`. `next`: pass as `after` to
+ * read the following page (absent on the last page). `prefix`: the applied prefix filter. `nextUnavailable`: the
+ * page's last member is longer than VSET_MEMBER_MAX_BYTES, so the following page cannot be addressed from here.
+ */
+export interface VectorSetPage { members: VectorSetMember[]; next?: Bin; prefix?: Bin; nextUnavailable?: true }
+
+/** POST /databases/:db/vectorset/members (read-only): one page of members, optionally with a byte prefix. */
+export const zVsetMembersRequest = z
+  .object({ key: zBin, after: zBin.optional(), prefix: zBin.optional(), count: z.number().int().min(1).max(VSET_PAGE_MAX).default(VSET_PAGE_DEFAULT) })
+  .strict();
+export type VsetMembersRequest = z.input<typeof zVsetMembersRequest>;
+export interface VsetMembersResponse { page: VectorSetPage; /** VCARD now. */ total: number }
+
+/**
+ * POST /databases/:db/vectorset/attributes (read-only): `VGETATTR` of the members on screen, in request order.
+ * `null`: no attributes (or no such member). `value` is cut at VSET_ATTR_PREVIEW_BYTES (`truncated`, `totalBytes`).
+ * `tooLarge`: the attribute is larger than the server reads for a row; open the member to read it.
+ */
+export const zVsetAttributesRequest = z.object({ key: zBin, members: z.array(zBin).min(1).max(VSET_ATTR_ROWS_MAX) }).strict();
+export type VsetAttributeCell = { value: Bin; truncated?: true; totalBytes?: number } | { tooLarge: true } | null;
+export interface VsetAttributesResponse { attributes: VsetAttributeCell[] }
+
+/**
+ * POST /databases/:db/vectorset/element (read-only): one member's attributes (whole, up to `maxValueBytes`), its
+ * embedding (`VEMB`, at most VSET_EMBED_PREVIEW_VALUES values, not read above VSET_EMBED_MAX_DIM dimensions) and its
+ * HNSW neighbours per layer (`VLINKS … WITHSCORES`, bounded). 404 when the member does not exist.
+ */
+export const zVsetElementRequest = z.object({ key: zBin, member: zBin, links: z.boolean().default(true) }).strict();
+export type VsetElementRequest = z.input<typeof zVsetElementRequest>;
+export interface VsetNeighbour { member: Bin; score: string; truncated?: true }
+export interface VsetElementResponse {
+  member: Bin;
+  /** The attribute bytes; null when the member has none. Compare-and-set edits hash these bytes (empty when null). */
+  attributes: Bin | null;
+  /** The attribute is larger than `maxValueBytes`: not read, so it cannot be edited here. */
+  attributesTooLarge?: true;
+  /**
+   * Coordinates as Redis prints them (approximations for `int8`/`bin` sets). `skipped`: the set has more than
+   * VSET_EMBED_MAX_DIM dimensions and VEMB was not sent.
+   */
+  embedding: { values: string[]; dim: number; truncated: boolean; skipped?: true };
+  quantization?: string;
+  /** Layers in the order Redis returns them (layer 0, the densest, first). `more`: neighbours not listed. */
+  links?: { layer: number; neighbours: VsetNeighbour[]; more?: number }[];
+  /** Layers not listed (beyond VSET_LINK_LAYERS_MAX). */
+  moreLayers?: number;
+  /** The neighbour lists are larger than the server reads for this panel; `links` is absent. */
+  linksTooLarge?: true;
+}
+
+/**
+ * POST /databases/:db/vectorset/search (read-only): `VSIM key (ELE member | VALUES n …) COUNT n WITHSCORES
+ * [WITHATTRIBS] [EF ef] [FILTER expr FILTER-EF fe]`. The server always sends FILTER-EF with a filter (default
+ * `count × 100`, at most VSET_FILTER_EF_MAX), so a filter never scans the whole set. Never TRUTH or NOTHREAD.
+ */
+export const zVsetSearchRequest = z
+  .object({
+    key: zBin,
+    query: z.union([z.object({ element: zBin }).strict(), z.object({ values: zVsetValues }).strict()]),
+    count: z.number().int().min(1).max(VSET_SEARCH_COUNT_MAX).default(10),
+    ef: z.number().int().min(1).max(VSET_SEARCH_EF_MAX).optional(),
+    filter: z.string().min(1).max(VSET_FILTER_MAX_CHARS).optional(),
+    filterEf: z.number().int().min(1).max(VSET_FILTER_EF_MAX).optional(),
+    withAttributes: z.boolean().default(false),
+  })
+  .strict();
+export type VsetSearchRequest = z.input<typeof zVsetSearchRequest>;
+export interface VsetSearchResult { member: Bin; score: string; truncated?: true; attributes?: VsetAttributeCell }
+export interface VsetSearchResponse { results: VsetSearchResult[] }
+
+/**
+ * Vector-set typed ops (POST /databases/:db/ops), operator and up, refused on read-only databases:
+ * - `vset.add`: `VADD key VALUES n … member [NOQUANT|Q8|BIN] [SETATTR attributes]`. VADD replaces the vector of an
+ *   existing member, so `expect` is required and must say the member is absent: `{ type: 'vectorset', sha256: null }`
+ *   on an existing set, `{ type: 'none' }` to create the key. A member that exists meanwhile is a 409 (no overwrite).
+ * - `vset.setattr`: `VSETATTR key member attributes` (empty attributes remove them). `expect` is required:
+ *   `{ type: 'vectorset', sha256 }` of the attribute bytes as read (the SHA-256 of nothing when it had none).
+ * - `vset.remove`: `VREM key member` (VREM takes one member), with the same confirmation as removing a hash field.
+ */
+export const zVsetOps = [
+  z.object({
+    op: z.literal('vset.add'), key: zBin, member: zBin, values: zVsetValues,
+    quantization: z.enum(['NOQUANT', 'Q8', 'BIN']).optional(), attributes: zBin.optional(), expect: zEditExpect,
+  }),
+  z.object({ op: z.literal('vset.setattr'), key: zBin, member: zBin, attributes: zBin, expect: zEditExpect }),
+  z.object({ op: z.literal('vset.remove'), key: zBin, member: zBin }),
+] as const;
+
 /** Typed write operations: POST /databases/:db/ops. Server maps each op to a fixed command. */
 export const zKeyOp = z.discriminatedUnion('op', [
   /** `keepTtl`: SET … KEEPTTL (keeps the key's current expiry; not with `ttl`). */
@@ -502,6 +648,7 @@ export const zKeyOp = z.discriminatedUnion('op', [
   z.object({ op: z.literal('stream.ack'), confirmAck: z.boolean().optional(), key: zKey, group: z.union([z.string().min(1).max(256), zBin]), ids: z.array(z.string().regex(/^\d+-\d+$/)).min(1).max(1000) }),
   z.object({ op: z.literal('json.set'), key: zKey, path: z.string().max(1024).default('$'), json: z.string().max(10_000_000), expect: zEditExpect.optional() }),
   z.object({ op: z.literal('json.delete'), key: zKey, path: z.string().max(1024), expect: zEditExpect.optional() }),
+  ...zVsetOps,
 ]).and(z.object(zConfirmOpt));
 export type KeyOp = z.infer<typeof zKeyOp>;
 export interface OpResult { ok: true; result?: unknown }
@@ -805,6 +952,11 @@ export const ROUTES = {
   streamGroups: 'POST /api/v1/databases/:db/streams/groups', // {key}; groups + consumers + pending summary
   streamPending: 'POST /api/v1/databases/:db/streams/pending', // {key, group, count}
   tsRange: 'POST /api/v1/databases/:db/timeseries/range', // {key, from, to, bucketMs, agg, count}
+  // v0.4 vector sets
+  vsetMembers: 'POST /api/v1/databases/:db/vectorset/members', // zVsetMembersRequest -> VsetMembersResponse
+  vsetAttributes: 'POST /api/v1/databases/:db/vectorset/attributes', // zVsetAttributesRequest -> VsetAttributesResponse
+  vsetElement: 'POST /api/v1/databases/:db/vectorset/element', // zVsetElementRequest -> VsetElementResponse
+  vsetSearch: 'POST /api/v1/databases/:db/vectorset/search', // zVsetSearchRequest -> VsetSearchResponse
   audit: 'GET /api/v1/admin/audit',
   users: 'GET /api/v1/admin/users',
   userCreate: 'POST /api/v1/admin/users',
