@@ -212,6 +212,8 @@ changes minimal; validate.
 - End every message with your attribution line (Claude: `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`;
   other agents their own).
 - Never commit secrets, `.env`, `.qa/`, local configs, screenshots of non-sandbox data, or generated output.
+- The repository is public: committed files (code, tests, docs, QA records) contain sandbox data only, no absolute local
+  paths, host names or details of anyone's machine or private data.
 
 ## 13. Definition of done
 
