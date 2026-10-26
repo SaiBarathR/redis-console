@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import {
@@ -123,6 +123,14 @@ export function ArrayDetail({
       request<ArrayPage>(dbPath(db.id, "/array/range"), { method: "POST", body: { key: details.key, ...view }, signal, background: true }),
   });
   const page: ArrayPage | undefined = initial ? value : range.data;
+  // A new read of the key (Refresh, auto refresh, a write elsewhere) re-reads the page shown too, unless it is
+  // already being read (a write's refresh invalidates both).
+  const seen = useRef(value);
+  useEffect(() => {
+    if (seen.current === value) return;
+    seen.current = value;
+    if (!initial && !range.isFetching) void range.refetch();
+  }, [value]);
   const [panel, setPanel] = useState<{ index: string; opened: Bin }>();
   const [changed, setChanged] = useState<string>();
   const [rowError, setRowError] = useState<unknown>();

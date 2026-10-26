@@ -76,6 +76,18 @@ describe("array inspector: summary, sparseness and paging", () => {
     expect(sent.every((s) => !/[?&]/.test(s.path))).toBe(true);
   });
 
+  it("a new read of the key re-reads the page shown (auto refresh), not only the summary", async () => {
+    const sent = mockServer((_path, body) => json({ items: [el(body.start, "x")], start: body.start, end: ARRAY_MAX_INDEX, reverse: false }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const stable = (d: KeyDetails) => <QueryClientProvider client={client}><MemoryRouter><MemoryProvider><DatabaseContext value={operatorDb}><KeyContent details={d} refresh={async () => {}} /></DatabaseContext></MemoryProvider></MemoryRouter></QueryClientProvider>;
+    const { rerender } = render(stable(details()));
+    await userEvent.click(screen.getByTestId("array-next"));
+    await waitFor(() => expect(sent.filter((s) => s.path === "/array/range")).toHaveLength(1));
+    rerender(stable(details()));
+    await waitFor(() => expect(sent.filter((s) => s.path === "/array/range")).toHaveLength(2));
+    expect(sent.at(-1)?.body.start).toBe("9007199254740994");
+  });
+
   it("computes gaps in both directions, with a leading gap from an explicit start", () => {
     const down: ArrayPage = { items: [el("10", "a"), el("7", "b"), el("6", "c")], start: "12", end: "0", reverse: true };
     expect(arrayRows(down, true).map((r) => (r.kind === "gap" ? `gap ${r.from}-${r.to} (${r.count})` : r.item.index))).toEqual(["gap 12-11 (2)", "10", "gap 9-8 (2)", "7", "6"]);
