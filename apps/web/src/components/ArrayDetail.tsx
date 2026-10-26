@@ -74,6 +74,15 @@ export function arrayRows(page: ArrayPage, leadingGap: boolean): Row[] {
 /** "a–b" for a range of indices (one index alone when they are equal). */
 const span = (a: bigint | string, b: bigint | string) => (String(a) === String(b) ? String(a) : `${a}–${b}`);
 
+/**
+ * A form value whose default follows the array (its last index or its length) until the user types one: a panel that
+ * stays open while the array grows keeps proposing the current end, not the end when it opened.
+ */
+function useFollowing(current: string): [string, (s: string) => void] {
+  const [typed, setTyped] = useState<string>();
+  return [typed ?? current, setTyped];
+}
+
 function checkIndex(text: string, label: string): string {
   const s = text.trim();
   if (!isArrayIndex(s)) throw new Error(`${label}: enter a whole index from 0 to ${ARRAY_MAX_INDEX}.`);
@@ -199,11 +208,11 @@ export function ArrayDetail({
       {!page && range.isPending && <Loading label="Reading array elements…" />}
       {page && (
         <>
-          <p className="page-note" data-testid="array-page-note">{pageNote(page)}</p>
+          <p className="array-page-note" data-testid="array-page-note">{pageNote(page)}</p>
           {rows.length ? (
             <div className="table-wrap value-table detail-value-table">
               <table className="array-table" data-testid="array-table">
-                <colgroup><col style={{ width: "9rem" }} /><col />{writable && <col style={{ width: "72px" }} />}</colgroup>
+                <colgroup><col className="array-index-col" /><col />{writable && <col style={{ width: "72px" }} />}</colgroup>
                 <thead><tr><th className="num">Index</th><th>Value</th>{writable && <th className="row-actions-col"><span className="sr-only">Actions</span></th>}</tr></thead>
                 <tbody>
                   {rows.map((row) => row.kind === "gap" ? (
@@ -300,7 +309,7 @@ interface Predicate { kind: (typeof ARRAY_SEARCH_KINDS)[number]; text: string; e
 function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastIndex: string; cell: (value: Bin, truncated: boolean, ref: ElementRef) => ReactNode; onShow: (index: string) => void }) {
   const db = useDatabase();
   const [start, setStart] = useState("0");
-  const [end, setEnd] = useState(lastIndex);
+  const [end, setEnd] = useFollowing(lastIndex);
   const [predicates, setPredicates] = useState<Predicate[]>([{ kind: "match", text: "", enc: "utf8" }]);
   const [combine, setCombine] = useState<"or" | "and">("or");
   const [nocase, setNocase] = useState(false);
@@ -385,7 +394,7 @@ function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastI
 function ArrayAggregate({ keyName, lastIndex }: { keyName: Bin; lastIndex: string }) {
   const db = useDatabase();
   const [start, setStart] = useState("0");
-  const [end, setEnd] = useState(lastIndex);
+  const [end, setEnd] = useFollowing(lastIndex);
   const [op, setOp] = useState<(typeof ARRAY_AGGREGATES)[number]>("sum");
   const [text, setText] = useState("");
   const [enc, setEnc] = useState<Encoding>("utf8");
@@ -426,14 +435,14 @@ function ArrayWrites({ keyName, info, page, reread }: { keyName: Bin; info: Arra
   const db = useDatabase();
   const [values, setValues] = useState("");
   const [valuesEnc, setValuesEnc] = useState<Encoding>("utf8");
-  const [index, setIndex] = useState(isArrayIndex(info.length) ? info.length : "");
+  const [index, setIndex] = useFollowing(isArrayIndex(info.length) ? info.length : "");
   const [atValue, setAtValue] = useState("");
   const [atEnc, setAtEnc] = useState<Encoding>("utf8");
   const [conflict, setConflict] = useState<EditConflict>();
   const [busy, setBusy] = useState(false);
   const [overwriteError, setOverwriteError] = useState<unknown>();
   const [from, setFrom] = useState("0");
-  const [to, setTo] = useState(big(info.length) > 0n ? String(big(info.length) - 1n) : "0");
+  const [to, setTo] = useFollowing(big(info.length) > 0n ? String(big(info.length) - 1n) : "0");
   const cursorInside = big(info.nextInsertIndex) < big(info.length);
   const setAt = async (expect?: EditExpect) => {
     const at = checkIndex(index, "Index");

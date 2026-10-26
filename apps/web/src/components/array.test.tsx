@@ -203,6 +203,22 @@ describe("array inspector: roles and edits", () => {
     await waitFor(() => expect(sent.at(-1)?.body.expect).toEqual({ type: "array", sha256: sha("thousand") }));
   });
 
+  it("index and range defaults follow the array as it grows, until the user types one", async () => {
+    const info = (length: string) => ({ count: "4", length, nextInsertIndex: length, slices: 1, sliceSize: 4096 });
+    const { rerender } = show(details(firstPage, info("1001")));
+    await userEvent.click(screen.getByText("Set value at index (ARSET)"));
+    await userEvent.click(screen.getByText("Delete a range (ARDELRANGE)"));
+    expect(screen.getByTestId("array-set-index")).toHaveValue("1001");
+    expect(screen.getByTestId("array-delete-range-end")).toHaveValue("1000");
+    rerender(wrap(<KeyContent details={details(firstPage, info("1003"))} refresh={async () => {}} />));
+    expect(screen.getByTestId("array-set-index")).toHaveValue("1003");
+    expect(screen.getByTestId("array-delete-range-end")).toHaveValue("1002");
+    await userEvent.clear(screen.getByTestId("array-set-index"));
+    await userEvent.type(screen.getByTestId("array-set-index"), "7");
+    rerender(wrap(<KeyContent details={details(firstPage, info("1004"))} refresh={async () => {}} />));
+    expect(screen.getByTestId("array-set-index")).toHaveValue("7");
+  });
+
   it("deletes a range after counting it, through the server confirmation", async () => {
     const notes: (string | undefined)[] = [];
     setConfirmHandler(async (_c, context) => { notes.push(context.note); return { token: "t".repeat(32) }; });
