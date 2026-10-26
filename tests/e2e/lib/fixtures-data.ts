@@ -51,6 +51,8 @@ export const K = {
   searchIndex: 'idx:e2e:docs',
   scratchPrefix: 'e2e:scratch:',
   prodSimKey: 'e2e:prodsim:config',
+  // v0.4 arrays: sparse (gaps, an index above 2^53), read by the role matrix and specs/*/array.spec.ts.
+  array: 'e2e:array:sparse',
 } as const;
 
 /** A key whose bytes are not valid UTF-8. */
@@ -160,6 +162,12 @@ export async function seedE2E(): Promise<void> {
     await r.cmdOk(['ZADD', `${K.xssPrefix}zset`, ...XSS_PAYLOADS.flatMap((p, i) => [i, p])]);
     await r.cmdOk(['XADD', `${K.xssPrefix}stream`, '*', ...XSS_PAYLOADS.flatMap((p) => [p, p])]);
     await r.cmdOk(['JSON.SET', `${K.xssPrefix}json`, '$', JSON.stringify({ html: XSS_PAYLOADS[0], list: XSS_PAYLOADS.slice(1) })]);
+
+    // v0.4 arrays (Redis 8.8+): a sparse array and the XSS payloads as array values.
+    await r.cmdOk(['ARSET', K.array, 0, 'alpha', 'beta', 'gamma']);
+    await r.cmdOk(['ARSET', K.array, 1000, 'thousand']);
+    await r.cmdOk(['ARSET', K.array, '9007199254740993', 'beyond 2^53']);
+    await r.cmdOk(['ARSET', `${K.xssPrefix}array`, 0, ...XSS_PAYLOADS]);
 
     // Unicode / RTL
     await r.cmdOk(['SET', K.unicode, 'こんにちは世界 🔥🚀 — ünïcödé']);
