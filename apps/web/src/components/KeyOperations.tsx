@@ -16,6 +16,7 @@ import { digestBin, digestText, observedConflict } from "../lib/expect.ts";
 import { editableBin, parseValue, visibleText } from "../lib/format.ts";
 import { executeCli, KEY_EXISTS, keyOperation } from "../lib/operations.ts";
 import { useDatabase } from "../lib/context.tsx";
+import { lineValues } from "../lib/array.ts";
 import { ConflictNotice, conflictOf, HandledError } from "./Conflict.tsx";
 import { ActionForm, ErrorState, Field, Modal } from "./ui.tsx";
 export const CREATE_TYPES = [
@@ -30,6 +31,7 @@ export const CREATE_TYPES = [
   "bloom",
   "cuckoo",
   "vectorset",
+  "array", // v0.4 arrays
 ] as const;
 type CreateType = (typeof CREATE_TYPES)[number];
 /** The Redis TYPE reply for each creatable type (for the new key's list row). */
@@ -45,6 +47,7 @@ const REDIS_TYPE: Record<CreateType, string> = {
   bloom: "MBbloom--",
   cuckoo: "MBbloomCF",
   vectorset: "vectorset",
+  array: "array",
 };
 function editorTitle(details?: KeyDetails) {
   switch (details?.value.type) {
@@ -195,6 +198,19 @@ export function KeyEditor({
                 type: REDIS_TYPE[type],
                 ttl: type === "string" && ttl ? Number(ttl) : -1,
               };
+          // v0.4 arrays: ARINSERT of the initial values, compare-and-set on "no key": the server writes only when the
+          // key does not exist (409 otherwise), so a create never overwrites, even against a concurrent writer.
+          if (!details && type === "array") {
+            try {
+              await keyOperation(db.id, { op: "array.insert", key, values: lineValues(value, encoding), expect: { type: "none" } });
+            } catch (error) {
+              if (conflictOf(error)) throw new Error(KEY_EXISTS);
+              throw error;
+            }
+            await onSaved(created);
+            onClose();
+            return;
+          }
           const val = inputBin(value, encoding);
           const f = binFromString(field);
           if (!details && type !== "string") {
@@ -348,6 +364,8 @@ export function KeyEditor({
               onClose();
               return;
             }
+            case "array": // created above; existing arrays are edited in the array inspector
+              throw new Error("Edit array elements in the array inspector.");
             case "timeseries":
               if (!Number.isFinite(Number(value)) || !value.trim())
                 throw new Error("Enter a finite numeric sample.");
@@ -567,6 +585,8 @@ export function KeyEditor({
                   ? "Numeric sample (timestamp is now)"
                   : type === "vectorset"
                     ? "Vector coordinates (comma separated)"
+                    : type === "array"
+                      ? "Initial values, one per line (indices 0, 1, 2, …)"
                     : type === "bloom" || type === "cuckoo"
                       ? "Member"
                       : "Value"
@@ -574,7 +594,7 @@ export function KeyEditor({
         >
           <textarea
             required={
-              type === "json" || type === "timeseries" || type === "vectorset"
+              type === "json" || type === "timeseries" || type === "vectorset" || type === "array"
             }
             rows={6}
             autoComplete="off"

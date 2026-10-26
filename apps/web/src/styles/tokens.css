@@ -76,6 +76,7 @@
   --type-timeseries: #4e6a0c;
   --type-probabilistic: #6b5444;
   --type-vector: #56606e;
+  --type-array: #00708f;
   --type-other: var(--graphite);
 
   --shadow-dialog: 0 18px 50px #18221d38, 0 2px 6px #18221d1f;
@@ -144,6 +145,7 @@
   --type-timeseries: #b6d86e;
   --type-probabilistic: #cdb4a0;
   --type-vector: #aeb9c7;
+  --type-array: #7fcfe8;
 
   --shadow-dialog: 0 18px 50px #00000080, 0 2px 6px #00000059;
   --backdrop: #0b0e0dc2;

@@ -21,6 +21,7 @@ import { HashExpiry } from "./HashExpiry.tsx";
 import { InlineEdit } from "./InlineEdit.tsx";
 import { Empty, ErrorState, Modal } from "./ui.tsx";
 import { StreamInspector } from "./StreamInspector.tsx";
+import { ArrayDetail } from "./ArrayDetail.tsx";
 import { FORMATS, ValueViewer } from "./ValueViewer.tsx";
 
 /**
@@ -533,6 +534,10 @@ export function KeyContent({
         </>
       );
       break;
+    // v0.4 arrays: the array inspector pages, searches and edits by index (ArrayDetail.tsx).
+    case "array":
+      result = <ArrayDetail details={details} value={value} refresh={refresh} cell={(bin, cut, ref) => cell(bin, cut, ref, "value", true)} />;
+      break;
     case "unsupported":
       result = (
         <Empty title={value.message}>
@@ -568,7 +573,7 @@ export function KeyContent({
           bytes are hidden for them. Open a value and choose Load full element (server capped).
         </div>
       )}
-      {["hash", "list", "set", "zset", "stream"].includes(value.type) && <label className="collection-format-control">Collection value format <select aria-label="Collection value format" value={format} onChange={e => setFormat(e.target.value as ValueFormat)}>{FORMATS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}</select></label>}
+      {["hash", "list", "set", "zset", "stream", "array"].includes(value.type) && <label className="collection-format-control">Collection value format <select aria-label="Collection value format" value={format} onChange={e => setFormat(e.target.value as ValueFormat)}>{FORMATS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}</select></label>}
       <ColumnWidths value={columnWidth !== undefined && onColumnWidth ? { width: columnWidth, set: onColumnWidth } : null}>{result}</ColumnWidths>
       {inspected && (
         <Modal
@@ -591,7 +596,7 @@ export function KeyContent({
               .catch(setFullError).finally(() => setFullBusy(false));
           }}>{fullBusy ? "Loading…" : "Load full element (server capped)"}</button>}
           <ErrorState error={fullError} />
-          {!inspected.truncated && writable && inspected.part !== "identity" && inspected.ref && (inspected.ref.kind === "list" || ((inspected.ref.kind === "hash" || inspected.ref.kind === "scan") && inspected.identity && details.type === "hash") || details.type === "zset" && inspected.identity && inspected.score !== undefined) && <>
+          {!inspected.truncated && writable && inspected.part !== "identity" && inspected.ref && (inspected.ref.kind === "list" || inspected.ref.kind === "array" || ((inspected.ref.kind === "hash" || inspected.ref.kind === "scan") && inspected.identity && details.type === "hash") || details.type === "zset" && inspected.identity && inspected.score !== undefined) && <>
             <button type="button" onClick={() => setEditingFull(!editingFull)}>Edit full element</button>
             {editingFull && <InlineEdit value={details.type === "zset" ? binFromString(inspected.score!) : inspected.value} label="Full element value" onClose={() => setEditingFull(false)} onReload={() => { setInspected(undefined); void refresh(); }} onSave={async (next, expect) => {
               let op: KeyOp;
@@ -600,6 +605,8 @@ export function KeyContent({
                 if (next.enc !== "utf8" || !/^[-+]?(?:\d+(?:\.\d+)?(?:[eE][-+]?\d+)?|inf)$/.test(next.data)) throw new Error("Enter a numeric score.");
                 op = { op: "zset.add", key: details.key, members: [{ member: inspected.identity!, score: next.data }], expect: expect ?? { type: "zset", sha256: digestBin(binFromString(inspected.score!)) } };
               } else if (inspected.ref!.kind === "list") op = { op: "list.set", key: details.key, index: inspected.ref!.index, value: next, expect: expect ?? { type: "list", sha256: digestBin(inspected.value) } };
+              // v0.4 arrays: the element at its index, compared with the full bytes this inspector loaded.
+              else if (inspected.ref!.kind === "array") op = { op: "array.set", key: details.key, index: inspected.ref!.index, value: next, expect: expect ?? { type: "array", sha256: digestBin(inspected.value) } };
               else throw new Error("This element cannot be edited here.");
               await keyOperation(db.id, op); setInspected(undefined); setEditingFull(false); await refresh();
             }} />}

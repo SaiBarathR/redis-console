@@ -89,6 +89,7 @@ const TYPES = [
   "MBbloom--",
   "MBbloomCF",
   "vectorset",
+  "array",
 ];
 type SortBy = "name" | "type" | "ttl" | "size";
 interface SortSpec {

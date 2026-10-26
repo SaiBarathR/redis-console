@@ -86,6 +86,9 @@
 .t-vector {
   --t: var(--type-vector);
 }
+.t-array {
+  --t: var(--type-array);
+}
 
 /* TTL fuse */
 .ttl-fuse {

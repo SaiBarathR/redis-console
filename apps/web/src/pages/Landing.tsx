@@ -61,6 +61,14 @@ export function sortDatabases(
   });
 }
 
+/** Whether a server version string ("8.10.2") is at least `[major, minor]`. Unknown versions are not. */
+export function versionAtLeast(version: string | undefined, [major, minor]: [number, number]) {
+  const m = /^(\d+)\.(\d+)/.exec(version ?? "");
+  if (!m) return false;
+  const [x, y] = [Number(m[1]), Number(m[2])];
+  return x > major || (x === major && y >= minor);
+}
+
 /** Read-only capability badges from what the server reports: modules and server-allowed tools. Display only. */
 export function capabilities(db: DatabaseSummary) {
   const names = (db.server?.modules ?? []).map((module) => module.name.toLowerCase());
@@ -71,6 +79,8 @@ export function capabilities(db: DatabaseSummary) {
   if (has("timeseries")) out.push({ label: "TimeSeries", title: "RedisTimeSeries module" });
   if (has("bf", "bloom")) out.push({ label: "Probabilistic", title: "Bloom, Cuckoo and other probabilistic types" });
   if (has("vectorset")) out.push({ label: "Vector sets", title: "Vector set type" });
+  // v0.4 arrays: a core type (not a module) since Redis 8.8.
+  if (versionAtLeast(db.server?.version, [8, 8])) out.push({ label: "Arrays", title: "Array type (Redis 8.8 and later)" });
   if (db.server && db.server.mode !== "standalone") out.push({ label: db.server.mode === "cluster" ? "Cluster" : "Sentinel", title: "Topology" });
   if (db.features.profiler) out.push({ label: "Profiler", title: "You may use the profiler here (admin, allowed environment)" });
   return out;
