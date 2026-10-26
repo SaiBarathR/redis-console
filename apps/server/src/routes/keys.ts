@@ -42,6 +42,7 @@ import { run, toHttpError } from '../redis/exec.ts';
 import { TM_BIN, TM_STR, type Arg, type Conn } from '../redis/manager.ts';
 import { TM_REPLY, asNum, asStr, kv, toReply } from '../redis/reply.ts';
 import { dbSize, globLiteral, scanPage, SCAN_COUNT_MAX } from '../redis/scan.ts';
+import { arrayProbe, planArrayOp, readArrayValue } from '../redis/array.ts';
 
 const TM_BIN_DBL = { ...TM_BIN, [RESP_TYPES.DOUBLE]: String } as const;
 
@@ -160,6 +161,12 @@ export function planOp(op: KeyOp): OpPlan {
       return { argv: ['JSON.SET', b(op.key), op.path, op.json], confirm: 'none', summary: 'Set JSON value', keys: [1] };
     case 'json.delete':
       return { argv: ['JSON.DEL', b(op.key), op.path], confirm: 'confirm', summary: 'Delete JSON path', keys: [1] };
+    // v0.4 arrays
+    case 'array.set':
+    case 'array.insert':
+    case 'array.delete':
+    case 'array.delete-range':
+      return planArrayOp(op);
   }
 }
 
@@ -179,7 +186,7 @@ export function previewOp(plan: OpPlan, cluster: boolean) {
 }
 
 /** Ops whose schema has `expect` (compare-and-set). */
-export const CHECKED_OPS = ['string.set', 'hash.set', 'list.set', 'zset.add', 'json.set', 'json.delete', 'key.rename', 'key.delete'] as const;
+export const CHECKED_OPS = ['string.set', 'hash.set', 'list.set', 'zset.add', 'json.set', 'json.delete', 'key.rename', 'key.delete', 'array.set', 'array.insert'] as const;
 
 /**
  * The compare-and-set form of an op that carries `expect` (web review v0.2 r3): which key is watched, what is
@@ -215,6 +222,10 @@ export function planChecked(op: KeyOp, plan: OpPlan, raw?: unknown): CheckedPlan
     case 'key.delete':
       if (op.keys.length !== 1) bad('key.delete with expect deletes exactly one key');
       probe = { kind: 'key' }; key = b(op.keys[0]!); break;
+    // v0.4 arrays: array.set compares the element at its index; array.insert checks the positions it writes.
+    case 'array.set':
+    case 'array.insert':
+      probe = arrayProbe(op)!; key = b(op.key); break;
     default:
       return bad(`not supported for ${(op as KeyOp).op} (only ${CHECKED_OPS.join(', ')} can carry it)`);
   }
@@ -561,6 +572,10 @@ export function registerKeyRoutes(app: FastifyInstance, ctx: AppContext) {
         value = { type: 'timeseries', info, samples: samples.map(([t, v]) => [asNum(t), asStr(v)] as [number, string]).reverse() };
         break;
       }
+      // v0.4 arrays: ARINFO and a first page of existing elements (redis/array.ts).
+      case 'array':
+        ({ value, length } = await readArrayValue(scope, conn, key, q, (x) => budget.preview(x), policy.commandTimeoutMs));
+        break;
       default:
         value = { type: 'unsupported', message: `Values of type ${type} are not shown in the browser. Use the console (e.g. ${hintFor(type)}).` };
     }
@@ -575,7 +590,7 @@ export function registerKeyRoutes(app: FastifyInstance, ctx: AppContext) {
     const scope = dbScope(ctx, req);
     rateLimit(ctx, req, 'key-element', 10, 20);
     const q = parse(zKeyElementRequest, req.body), key = keyBytes(q.key);
-    const command = q.ref.kind === 'scan' ? { hash: 'HSCAN', set: 'SSCAN', zset: 'ZSCAN' }[q.ref.type] : { hash: 'HGET', list: 'LINDEX', set: 'SISMEMBER', zset: 'ZSCORE', stream: 'XRANGE', rank: 'ZRANGE' }[q.ref.kind];
+    const command = q.ref.kind === 'scan' ? { hash: 'HSCAN', set: 'SSCAN', zset: 'ZSCAN' }[q.ref.type] : { hash: 'HGET', list: 'LINDEX', set: 'SISMEMBER', zset: 'ZSCORE', stream: 'XRANGE', rank: 'ZRANGE', array: 'ARGET' }[q.ref.kind];
     const base = { action: 'key.element', databaseId: scope.db.id, command, argvRedacted: [command, keyTag(key)], keyCount: 1 };
     return auditedRead(ctx, req, base, () => readFullElement(scope, key, q.ref, policy.maxValueBytes, policy.commandTimeoutMs, policy.maxReadReplyBytes), (r) => `bytes=${bytesFromBin(r.value).length}`);
   });
@@ -634,6 +649,7 @@ export function registerKeyRoutes(app: FastifyInstance, ctx: AppContext) {
 /** The command that reads a type's value in the key browser (audit). */
 const VALUE_READ: Record<string, string> = {
   string: 'GETRANGE', hash: 'HSCAN', list: 'LRANGE', set: 'SSCAN', zset: 'ZRANGE', stream: 'XREVRANGE', 'ReJSON-RL': 'JSON.GET', 'TSDB-TYPE': 'TS.REVRANGE',
+  array: 'ARSCAN', // v0.4 arrays
 };
 
 /** Audit detail of a key read: type and counts, never data. */

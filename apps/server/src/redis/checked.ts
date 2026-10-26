@@ -21,7 +21,12 @@ export type Probe =
   | { kind: 'list'; index: number }
   | { kind: 'zset'; member: Buffer }
   | { kind: 'json' }
-  | { kind: 'key' };
+  | { kind: 'key' }
+  // v0.4 arrays: `array` reads the element at `index` (ARGET; absent = null). `arrayInsert` reads the insert cursor
+  // (ARNEXT) and counts existing elements in the `count` positions ARINSERT would write (AROP … USED): ARINSERT
+  // overwrites them, so any count above zero is a conflict.
+  | { kind: 'array'; index: string }
+  | { kind: 'arrayInsert'; count: number };
 
 export interface CheckedPlan {
   key: Buffer;
@@ -32,8 +37,12 @@ export interface CheckedPlan {
 }
 
 /** Types an expectation may name per probe (`none`: the key is absent, so the op creates it). */
-const NATURAL: Record<Exclude<Probe['kind'], 'key'>, string> = { string: 'string', hash: 'hash', list: 'list', zset: 'zset', json: 'ReJSON-RL' };
-const MAY_BE_ABSENT = new Set<Probe['kind']>(['string', 'hash', 'zset']);
+const NATURAL: Record<Exclude<Probe['kind'], 'key'>, string> = { string: 'string', hash: 'hash', list: 'list', zset: 'zset', json: 'ReJSON-RL', array: 'array', arrayInsert: 'array' };
+const MAY_BE_ABSENT = new Set<Probe['kind']>(['string', 'hash', 'zset', 'arrayInsert']);
+/** v0.4 arrays: the highest index Redis accepts (ARRAY_MAX_INDEX). */
+const ARRAY_LAST = 18446744073709551614n;
+/** Integer replies as exact decimal text (array indices exceed 2^53). */
+const TM_INT_STR = { ...TM_BIN, [RESP_TYPES.NUMBER]: String } as const;
 /** Key-level ops compare bytes only for these types (a whole collection is never read). */
 const KEY_VALUE_TYPES = new Set(['string', 'ReJSON-RL']);
 /** WATCH aborts (someone wrote the key between the read and EXEC) before the server gives up with 409. */
@@ -48,6 +57,11 @@ export function validateExpect(probe: Probe, expect: EditExpect): void {
     return;
   }
   const natural = NATURAL[probe.kind];
+  if (probe.kind === 'arrayInsert') {
+    if (expect.type !== 'array' && expect.type !== 'none') bad('type must be array (append to the array) or none (create the key) for this operation');
+    if (expect.sha256 !== undefined) bad('sha256 is not used by array.insert; send the type alone (the server checks that the positions it writes are empty)');
+    return;
+  }
   if (expect.type === 'none') {
     if (!MAY_BE_ABSENT.has(probe.kind)) bad(`type none is not valid for this operation (expected ${natural})`);
     if (expect.sha256 != null) bad('sha256 must be absent or null when type is none');
@@ -67,6 +81,8 @@ interface State {
   tooLarge?: boolean;
   /** The key's type changed between TYPE and the element read: someone replaced it meanwhile (review v0.2 r6 M1). */
   changed?: boolean;
+  /** v0.4 arrays (`arrayInsert`): the insert cursor and how many existing elements ARINSERT would overwrite there. */
+  occupied?: { next: string; used: number };
 }
 
 /**
@@ -139,6 +155,15 @@ async function readElement(send: ExclusiveSend, plan: CheckedPlan, limit: number
       return done(await bounded(['LINDEX', key, String((probe as Extract<Probe, { kind: 'list' }>).index)]));
     case 'zset':
       return done(await send(['ZSCORE', key, (probe as Extract<Probe, { kind: 'zset' }>).member], { typeMapping: TM_SCORE }));
+    // v0.4 arrays
+    case 'array':
+      return done(await bounded(['ARGET', key, (probe as Extract<Probe, { kind: 'array' }>).index]));
+    case 'arrayInsert': {
+      const next = String(await send(['ARNEXT', key], { typeMapping: TM_INT_STR }));
+      const last = BigInt(next) + BigInt((probe as Extract<Probe, { kind: 'arrayInsert' }>).count) - 1n;
+      const used = Number(await send(['AROP', key, next, String(last > ARRAY_LAST ? ARRAY_LAST : last), 'USED'], { typeMapping: TM_INT_STR }));
+      return used > 0 ? { type, occupied: { next, used } } : { type };
+    }
     default: {
       // The document as the key browser reads it (JSON.GET, decoded as UTF-8): the client hashes that text.
       const raw = await send(['JSON.GET', key], { typeMapping: TM_BIN }).catch((e: unknown) => (e instanceof HttpError && e.code === 'too_large' ? TOO_LARGE : Promise.reject(e)));
@@ -153,6 +178,7 @@ const TOO_LARGE = Symbol('too large');
 
 function matches(state: State, expect: EditExpect): boolean {
   if (state.type !== expect.type) return false;
+  if (state.occupied) return false;
   if (expect.sha256 === undefined) return true;
   if (state.tooLarge || state.sha === undefined) return state.type === 'none' && expect.sha256 === null;
   return state.sha === expect.sha256;
@@ -161,6 +187,8 @@ function matches(state: State, expect: EditExpect): boolean {
 /** Whether "overwrite anyway" may target this state: a type the op can write (never across types). */
 function overwritable(probe: Probe, type: string): boolean {
   if (probe.kind === 'key') return type !== 'none';
+  // ARINSERT over existing elements, or over a key created meanwhile, is never offered as "overwrite anyway".
+  if (probe.kind === 'arrayInsert') return false;
   return type === NATURAL[probe.kind] || (type === 'none' && MAY_BE_ABSENT.has(probe.kind));
 }
 
@@ -177,7 +205,11 @@ export function conflictOf(plan: CheckedPlan, state: State): HttpError {
     current.expect = { type: state.type };
     if (state.sha !== undefined) current.expect.sha256 = state.sha;
   }
-  const message = reason === 'type'
+  const message = state.occupied
+    ? `The insert cursor is at index ${state.occupied.next} and ARINSERT would overwrite ${state.occupied.used} existing element${state.occupied.used === 1 ? '' : 's'} there; nothing was written. Set values at empty indices instead.`
+    : plan.probe.kind === 'arrayInsert' && plan.expect.type === 'none' && state.type !== 'none'
+    ? 'This key already exists; nothing was written.'
+    : reason === 'type'
     ? state.type === 'none'
       ? 'This key no longer exists; nothing was written.'
       : `This key changed since you opened it: it is now a ${state.type} (you opened ${/^[A-Za-z0-9_-]{1,32}$/.test(plan.expect.type) ? `a ${plan.expect.type}` : 'a different type'}); nothing was written.`
