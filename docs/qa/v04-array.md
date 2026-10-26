@@ -1,6 +1,6 @@
 # Live QA: v0.4 array inspector (S3, F24)
 
-Branch `feat/v04-array` at `1a7f467`, 2026-10-26, macOS, Node 24, Chromium from the repository's Playwright 1.64
+Branch `feat/v04-array` at `1a7f467` (operator and viewer tours repeated at `a7c28d1`), 2026-10-26, macOS, Node 24, Chromium from the repository's Playwright 1.64
 (headless, 1440×1000). Own server on **:4200** with the built SPA and `RCONSOLE_DATA_DIR=/tmp/rc-v04-array`; config:
 `config/rconsole.dev.json` plus two views of `sandbox-e2e` added in a private copy outside the repository,
 `sandbox-e2e-ro` (`readOnly: true`) and `sandbox-e2e-prod` (`environment: prod`), so read-only refusal and the prod
@@ -53,6 +53,7 @@ browser console entries were the network statuses the flows provoke on purpose (
 | Read-only view | `sandbox-e2e-ro`, operator and admin | No write controls; a direct `array.delete` POST → 403 `read_only`; data unchanged. Audit: no allowed write on `sandbox-e2e-ro`. |
 | Prod view | `sandbox-e2e-prod`, operator and admin | Row edit asks for the typed database name and a reason; saved after confirming; the audit event (`array.set`, `allowed`, `detail: checked`) carries the reason. |
 | Console | `qa-admin` | `ARGREP … RE "(a+)+$"`: policy badge "blocked" with the RE hint, nothing sent (the server refuses it too: integration and e2e tests); `ARGREP … GLOB item-4? LIMIT 3` runs; `ARDELRANGE` and `ARDEL` open the confirmation with the exact command (cancelled; `large` still has 50,000 elements). |
+| Auto refresh | `qa-viewer`, `large` page 2, refresh every 5 s | Another client changed element 100: the shown page was re-read 6 ms after the next key read (about 4 s) and showed the new value (see "Found and fixed"). |
 | Dark theme | header toggle | Cells, gaps and the `arr` glyph readable, matching the list inspector. |
 
 Response times through the browser session on the 50,000-element array (server, Redis and JSON included):
@@ -86,6 +87,9 @@ on a disposable Redis 8 container started for this purpose and removed afterward
 - "Set value at index" kept proposing the length from when the panel opened, so after an append it pointed at an
   occupied index (the edit was still compare-and-set, so nothing was overwritten blindly). Index and range defaults
   now follow the array until the user types a value (`fix(web)` commit, with a regression test).
+- With auto refresh on, only the summary and the first page were re-read: a later page stayed stale. The shown page
+  now follows every completed read of the key (first attempt watched the props, which React Query keeps identical
+  when the first page is unchanged; the live check caught it, the second fix listens to the query cache).
 
 ## Cleanup
 
