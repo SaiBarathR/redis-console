@@ -9,53 +9,69 @@ export interface QueryField {
 
 export interface Completion {
   label: string;
-  /** Text inserted in place of the word being typed; `|` marks where the cursor goes. */
+  /** Text inserted in place of the word being typed. */
   insert: string;
+  /** Where the cursor goes, as an offset into `insert`. */
+  cursor: number;
   detail: string;
+}
+
+/** A completion written as a template whose first `|` marks the cursor (for the hand-written snippets below only). */
+function snippet(label: string, template: string, detail: string): Completion {
+  const at = template.indexOf("|");
+  return { label, insert: at < 0 ? template : template.slice(0, at) + template.slice(at + 1), cursor: at < 0 ? template.length : at, detail };
+}
+
+/** `@name` for a query: punctuation and spaces in an attribute name are backslash-escaped (RediSearch query syntax). */
+export function fieldRef(name: string): string {
+  return "@" + name.replace(/[^\p{L}\p{N}_]/gu, "\\$&");
 }
 
 /** Query syntax a RediSearch query can use (FT.SEARCH / FT.AGGREGATE query string). */
 const OPERATORS: Completion[] = [
-  { label: "*", insert: "*", detail: "every document" },
-  { label: '"exact phrase"', insert: '"|"', detail: "words in this order" },
-  { label: "-term", insert: "-|", detail: "NOT: exclude matches" },
-  { label: "a | b", insert: "(| | )", detail: "OR" },
-  { label: "~term", insert: "~|", detail: "optional: boosts, does not filter" },
-  { label: "prefix*", insert: "|*", detail: "words starting with" },
-  { label: "%fuzzy%", insert: "%|%", detail: "one spelling mistake allowed" },
+  snippet("*", "*", "every document"),
+  snippet('"exact phrase"', '"|"', "words in this order"),
+  snippet("-term", "-|", "NOT: exclude matches"),
+  snippet("a | b", "(| | )", "OR"),
+  snippet("~term", "~|", "optional: boosts, does not filter"),
+  snippet("prefix*", "|*", "words starting with"),
+  snippet("%fuzzy%", "%|%", "one spelling mistake allowed"),
 ];
 
 /** FT.AGGREGATE pipeline steps. */
 const PIPELINE: Completion[] = [
-  { label: "LOAD", insert: "LOAD 1 @|", detail: "load fields from the documents" },
-  { label: "GROUPBY", insert: "GROUPBY 1 @| REDUCE COUNT 0 AS count", detail: "group by fields, then reduce" },
-  { label: "REDUCE COUNT", insert: "REDUCE COUNT 0 AS |count", detail: "rows per group" },
-  { label: "REDUCE SUM", insert: "REDUCE SUM 1 @| AS total", detail: "sum of a numeric field" },
-  { label: "REDUCE AVG", insert: "REDUCE AVG 1 @| AS average", detail: "average of a numeric field" },
-  { label: "REDUCE MIN", insert: "REDUCE MIN 1 @| AS min", detail: "minimum" },
-  { label: "REDUCE MAX", insert: "REDUCE MAX 1 @| AS max", detail: "maximum" },
-  { label: "REDUCE COUNT_DISTINCT", insert: "REDUCE COUNT_DISTINCT 1 @| AS distinct", detail: "distinct values" },
-  { label: "REDUCE TOLIST", insert: "REDUCE TOLIST 1 @| AS values", detail: "distinct values as a list" },
-  { label: "SORTBY", insert: "SORTBY 2 @| DESC", detail: "sort rows" },
-  { label: "APPLY", insert: 'APPLY "|" AS computed', detail: "computed field (expression)" },
-  { label: "FILTER", insert: 'FILTER "|"', detail: "keep rows matching an expression" },
-  { label: "LIMIT", insert: "LIMIT 0 |10", detail: "offset and count" },
+  snippet("LOAD", "LOAD 1 @|", "load fields from the documents"),
+  snippet("GROUPBY", "GROUPBY 1 @| REDUCE COUNT 0 AS count", "group by fields, then reduce"),
+  snippet("REDUCE COUNT", "REDUCE COUNT 0 AS |count", "rows per group"),
+  snippet("REDUCE SUM", "REDUCE SUM 1 @| AS total", "sum of a numeric field"),
+  snippet("REDUCE AVG", "REDUCE AVG 1 @| AS average", "average of a numeric field"),
+  snippet("REDUCE MIN", "REDUCE MIN 1 @| AS min", "minimum"),
+  snippet("REDUCE MAX", "REDUCE MAX 1 @| AS max", "maximum"),
+  snippet("REDUCE COUNT_DISTINCT", "REDUCE COUNT_DISTINCT 1 @| AS distinct", "distinct values"),
+  snippet("REDUCE TOLIST", "REDUCE TOLIST 1 @| AS values", "distinct values as a list"),
+  snippet("SORTBY", "SORTBY 2 @| DESC", "sort rows"),
+  snippet("APPLY", 'APPLY "|" AS computed', "computed field (expression)"),
+  snippet("FILTER", 'FILTER "|"', "keep rows matching an expression"),
+  snippet("LIMIT", "LIMIT 0 |10", "offset and count"),
 ];
 
 /** What a field completes to: the field reference plus the syntax its type takes. */
 export function fieldCompletion(f: QueryField): Completion {
-  const at = `@${f.name}`;
+  const label = `@${f.name}`;
+  const ref = fieldRef(f.name);
+  // Built by concatenation with an explicit cursor: the name may itself contain "|" (escaped as "\|").
+  const at = (before: string, after: string, detail: string): Completion => ({ label, insert: ref + before + after, cursor: ref.length + before.length, detail });
   switch (f.type.toUpperCase()) {
     case "TAG":
-      return { label: at, insert: `${at}:{|}`, detail: "TAG · exact values" };
+      return at(":{", "}", "TAG · exact values");
     case "NUMERIC":
-      return { label: at, insert: `${at}:[| +inf]`, detail: "NUMERIC · range [min max]" };
+      return at(":[", " +inf]", "NUMERIC · range [min max]");
     case "GEO":
-      return { label: at, insert: `${at}:[| 0 10 km]`, detail: "GEO · [lon lat radius unit]" };
+      return at(":[", " 0 10 km]", "GEO · [lon lat radius unit]");
     case "VECTOR":
-      return { label: at, insert: `${at}`, detail: "VECTOR · KNN needs PARAMS (use the workbench)" };
+      return at("", "", "VECTOR · KNN needs PARAMS (use the workbench)");
     default:
-      return { label: at, insert: `${at}:|`, detail: `${f.type} · words` };
+      return at(":", "", `${f.type} · words`);
   }
 }
 
@@ -116,11 +132,9 @@ export function QueryEditor({
     const el = input.current;
     if (!el || !open) return;
     const cursor = el.selectionStart;
-    const marker = c.insert.indexOf("|");
-    const text = c.insert.replace("|", "");
-    const next = value.slice(0, open.from) + text + value.slice(cursor);
+    const next = value.slice(0, open.from) + c.insert + value.slice(cursor);
     // The cursor goes inside the inserted syntax once the new value has rendered (see the layout effect).
-    cursorAfter.current = open.from + (marker >= 0 ? marker : text.length);
+    cursorAfter.current = open.from + c.cursor;
     setOpen(null);
     onChange(next);
   };

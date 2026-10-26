@@ -21,7 +21,10 @@ import { TUTORIALS } from "../content/tutorials.ts";
 import { withInserted } from "./guided/Tutorials.tsx";
 import { ImportPanel, countCommands } from "./guided/ImportPanel.tsx";
 import { Guided } from "./Guided.tsx";
-import { completionsFor, fieldCompletion, QueryEditor } from "./search/QueryEditor.tsx";
+import { completionsFor, fieldCompletion, fieldRef, QueryEditor, type Completion } from "./search/QueryEditor.tsx";
+
+/** A completion with its cursor drawn as "▮", for readable expectations. */
+const shown = (c: Completion) => c.insert.slice(0, c.cursor) + "▮" + c.insert.slice(c.cursor);
 import { documentColumns, formArgv } from "./search/QueryPanel.tsx";
 import { EMPTY_FORM, defaultIndexName, folderPrefixes } from "./search/state.ts";
 import { IndexWizard } from "./search/IndexWizard.tsx";
@@ -150,11 +153,23 @@ describe("rich view bounds are disclosed", () => {
 describe("search workflow", () => {
   it("completion: @ lists fields with the syntax of their type; Ctrl+Space adds operators", () => {
     const fields = [{ name: "title", type: "TEXT" }, { name: "category", type: "TAG" }, { name: "price", type: "NUMERIC" }];
-    expect(completionsFor("@ca", 3, fields, "query").items.map((c) => c.insert)).toEqual(["@category:{|}"]);
+    expect(completionsFor("@ca", 3, fields, "query").items.map(shown)).toEqual(["@category:{▮}"]);
     expect(completionsFor("hello", 5, fields, "query").items).toEqual([]);
     expect(completionsFor("", 0, fields, "query", true).items.some((c) => c.label === "%fuzzy%")).toBe(true);
     expect(completionsFor("GRO", 3, fields, "pipeline", true).items[0]!.label).toBe("GROUPBY");
-    expect(fieldCompletion({ name: "price", type: "NUMERIC" }).insert).toBe("@price:[| +inf]");
+    expect(shown(fieldCompletion({ name: "price", type: "NUMERIC" }))).toBe("@price:[▮ +inf]");
+    // The OR snippet keeps its literal pipe; only the first one in the template marks the cursor.
+    expect(shown(completionsFor("", 0, fields, "query", true).items.find((c) => c.detail === "OR")!)).toBe("(▮ | )");
+  });
+
+  it("escapes punctuation in field names and never takes a | in a name for the cursor (v0.4 S1)", () => {
+    expect(fieldRef("a|b")).toBe("@a\\|b");
+    expect(fieldRef("my-num")).toBe("@my\\-num");
+    expect(fieldRef("plain_name1")).toBe("@plain_name1");
+    expect(shown(fieldCompletion({ name: "a|b", type: "TAG" }))).toBe("@a\\|b:{▮}");
+    expect(shown(fieldCompletion({ name: "my-num", type: "NUMERIC" }))).toBe("@my\\-num:[▮ +inf]");
+    expect(shown(fieldCompletion({ name: "a|b", type: "TEXT" }))).toBe("@a\\|b:▮");
+    expect(fieldCompletion({ name: "a|b", type: "TAG" }).label).toBe("@a|b");
   });
 
   it("the editor accepts a completion with Enter and runs with Enter otherwise", async () => {
@@ -174,6 +189,20 @@ describe("search workflow", () => {
     await userEvent.keyboard("tools{Enter}");
     expect(latest).toBe("@category:{tools}");
     expect(onRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("completing a field whose name contains | puts the cursor inside the braces (v0.4 S1)", async () => {
+    let latest = "";
+    function Harness() {
+      const [value, setValue] = useState("");
+      latest = value;
+      return <QueryEditor value={value} onChange={setValue} onRun={() => {}} fields={[{ name: "a|b", type: "TAG" }]} label="Search query" testId="q" />;
+    }
+    render(<Harness />);
+    await userEvent.type(screen.getByTestId("q"), "@a");
+    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("x");
+    expect(latest).toBe("@a\\|b:{x}");
   });
 
   it("the exact command for each mode (no data in URLs; DD never offered by the query view)", () => {
