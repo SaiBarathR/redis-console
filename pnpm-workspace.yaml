@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+  - apps/*
+  - tests/*
+# Supply-chain hardening: no dependency may run install scripts unless listed here.
+onlyBuiltDependencies:
+  - esbuild

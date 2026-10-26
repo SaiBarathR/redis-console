@@ -1,0 +1,20 @@
+// LRANGE 0 2 on a list whose first 3 elements are 40 MiB each, followed by 300k small ones: estimate = 3 x average.
+import { direct } from './redis.mjs';
+import { local } from './lib.mjs';
+import { execSync } from 'node:child_process';
+const PID = process.argv[2];
+const rss = () => Number(execSync(`ps -o rss= -p ${PID}`).toString().trim()) * 1024;
+const r = await direct(6411);
+const K = 'rc-review-s3:range';
+await r.del(K);
+const big = 'y'.repeat(40 * 1024 * 1024);
+await r.rPush(K, [big, big, big]);
+for (let i = 0; i < 30; i++) await r.rPush(K, Array.from({ length: 10000 }, (_, j) => 'e' + i + '-' + j));
+const llen = await r.lLen(K), mem = await r.sendCommand(['MEMORY','USAGE',K]);
+const v = await local('qa-viewer');
+let peak = 0; const t = setInterval(() => { peak = Math.max(peak, rss()); }, 5);
+const before = rss();
+const res = await v.cli('sandbox-e2e', ['LRANGE', K, '0', '2']);
+clearInterval(t);
+console.log({ llen, memoryUsage: mem, estimatedBytes: Math.round(mem * 3 / llen), actualReplyBytes: 3 * big.length, status: res.status, reply: res.json?.reply?.t, httpBytes: res.bytes, rssBeforeMiB: Math.round(before/1048576), rssPeakMiB: Math.round(peak/1048576) });
+await r.del(K); await r.quit();

@@ -1,0 +1,143 @@
+{
+  "realm": "rconsole",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": false,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "groups": [
+    {
+      "name": "rconsole-viewers"
+    },
+    {
+      "name": "rconsole-operators"
+    },
+    {
+      "name": "rconsole-admins"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "rconsole",
+      "name": "Redis Console (dev)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "__OIDC_CLIENT_SECRET__",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4000/api/v1/auth/oidc/callback",
+        "http://localhost:4100/api/v1/auth/oidc/callback",
+        "http://localhost:4200/api/v1/auth/oidc/callback",
+        "http://localhost:4300/api/v1/auth/oidc/callback",
+        "http://localhost:4400/api/v1/auth/oidc/callback",
+        "http://localhost:4500/api/v1/auth/oidc/callback",
+        "http://localhost:4600/api/v1/auth/oidc/callback",
+        "http://localhost:4700/api/v1/auth/oidc/callback",
+        "http://localhost:4800/api/v1/auth/oidc/callback",
+        "http://localhost:4900/api/v1/auth/oidc/callback",
+        "http://localhost:5173/api/v1/auth/oidc/callback",
+        "http://localhost:5174/api/v1/auth/oidc/callback",
+        "http://localhost:5175/api/v1/auth/oidc/callback",
+        "http://localhost:5176/api/v1/auth/oidc/callback"
+      ],
+      "webOrigins": [
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://localhost:*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "claim.name": "groups",
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "viewer1",
+      "enabled": true,
+      "email": "viewer1@example.test",
+      "emailVerified": true,
+      "firstName": "Vera",
+      "lastName": "Viewer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__KC_USER_PASSWORD__",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "rconsole-viewers"
+      ]
+    },
+    {
+      "username": "operator1",
+      "enabled": true,
+      "email": "operator1@example.test",
+      "emailVerified": true,
+      "firstName": "Otto",
+      "lastName": "Operator",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__KC_USER_PASSWORD__",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "rconsole-operators"
+      ]
+    },
+    {
+      "username": "admin1",
+      "enabled": true,
+      "email": "admin1@example.test",
+      "emailVerified": true,
+      "firstName": "Ada",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__KC_USER_PASSWORD__",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "rconsole-admins"
+      ]
+    },
+    {
+      "username": "nogroup1",
+      "enabled": true,
+      "email": "nogroup1@example.test",
+      "emailVerified": true,
+      "firstName": "Nora",
+      "lastName": "Nogroup",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__KC_USER_PASSWORD__",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

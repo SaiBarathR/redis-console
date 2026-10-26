@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.rdb
+infra/redis/*.acl
+infra/redis/data*/
+infra/.generated/
+data/
+*.sqlite
+*.sqlite-*
+coverage/
+playwright-report/
+test-results/
+.DS_Store
+*.log
+tests/e2e/.state/
+tests/e2e/.data/
+tests/e2e/.redis/
+.qa/
+
+# Machine-specific configuration and private guidance
+config/rconsole.local.json
+AGENTS.local.md
+infra/redis/seed-*.rdb

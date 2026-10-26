@@ -1,0 +1,59 @@
+# Non-secret configuration. Secrets are referenced as files mounted from the Secret
+# at /run/secrets/rconsole/<key>; inline secrets are rejected by the server.
+# server.trustProxy 1: the ingress controller is the one proxy in front, so the client is the last
+# X-Forwarded-For entry. networkpolicy.yaml admits only the ingress-nginx namespace, so nothing else can reach
+# the pod and write its own X-Forwarded-For. Count every proxy that appends to the header (a load balancer in front
+# of the ingress that appends too makes it 2), or set the ingress controller pods' CIDR instead, for example
+# "10.244.0.0/16" (docs/INSTALL.md, Setting trustProxy).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rconsole-config
+  namespace: rconsole
+data:
+  config.json: |
+    {
+      "server": {
+        "host": "0.0.0.0",
+        "port": 4000,
+        "publicUrl": "https://redis-console.example.com",
+        "trustProxy": 1,
+        "dataDir": "/data",
+        "sessionTtlMinutes": 480,
+        "sessionIdleMinutes": 30,
+        "secureCookies": true
+      },
+      "auth": {
+        "oidc": {
+          "enabled": true,
+          "displayName": "Company SSO",
+          "issuer": "https://login.example.com/realms/company",
+          "clientId": "redis-console",
+          "clientSecret": { "file": "/run/secrets/rconsole/oidc_client_secret" },
+          "groupsClaim": "groups",
+          "roleMapping": { "redis-console-admins": "admin", "redis-console-operators": "operator", "redis-console-viewers": "viewer" }
+        },
+        "local": {
+          "enabled": true,
+          "requireTotpForRoles": ["admin", "operator"],
+          "bootstrapAdmin": { "username": "admin", "password": { "file": "/run/secrets/rconsole/bootstrap_admin_password" } },
+          "totpEncryptionKeys": [{ "id": "k1", "secret": { "file": "/run/secrets/rconsole/totp_encryption_key" } }],
+          "totpPrimaryKeyId": "k1"
+        }
+      },
+      "audit": { "retentionDays": 365 },
+      "databases": [
+        {
+          "id": "orders-prod",
+          "name": "Orders (prod)",
+          "environment": "prod",
+          "maxRole": "operator",
+          "url": "rediss://orders-redis.data.svc.cluster.local:6380",
+          "tls": { "ca": { "file": "/etc/rconsole/tls/ca.crt" } },
+          "credentials": {
+            "viewer": { "username": "rc-viewer", "password": { "file": "/run/secrets/rconsole/redis_viewer_password" } },
+            "operator": { "username": "rc-operator", "password": { "file": "/run/secrets/rconsole/redis_operator_password" } }
+          }
+        }
+      ]
+    }

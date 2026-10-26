@@ -1,0 +1,32 @@
+/*
+ * Shared reply rendering (ReplyView is also used by Guided mode and Diagnostics) and editor basics.
+ * Console and Workbench layout lives in pages/Console.css, loaded with the Console chunk.
+ */
+.editor {
+  min-width: 0;
+}
+.cm-editor {
+  width: 100%;
+}
+.cm-tooltip-autocomplete {
+  max-width: 100%;
+}
+.cli-reply {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.reply-item {
+  display: flex;
+  gap: 12px;
+  padding: 3px 0;
+}
+.reply-item > span:first-child {
+  min-width: 22px;
+  font-size: 10px;
+}
+.reply-item > pre {
+  min-width: 0;
+}
+.reply-list .reply-list {
+  padding-left: 13px;
+}

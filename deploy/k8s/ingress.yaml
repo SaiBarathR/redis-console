@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rconsole
+  namespace: rconsole
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "13m"
+    # SSE (metrics, pub/sub, profiler) needs unbuffered, long-lived responses.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "960"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [redis-console.example.com]
+      secretName: rconsole-tls
+  rules:
+    - host: redis-console.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: rconsole, port: { name: http } }

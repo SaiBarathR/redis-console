@@ -1,0 +1,440 @@
+{
+  "baseline": "b9ea7e2",
+  "implementation": [
+    "62e3829",
+    "ace4bc4",
+    "0b4b6a5",
+    "7851bfa",
+    "63c0bd0",
+    "5181a8e"
+  ],
+  "runtime": {
+    "node": "24.14.1",
+    "redis": "8.10.2",
+    "heapMiB": 512
+  },
+  "benchmark": {
+    "database": "snapshot (6412)",
+    "warmups": 15,
+    "samplesPerCommand": 50,
+    "spacingMs": 55,
+    "before": [
+      {
+        "command": "GET",
+        "statuses": [
+          "200:str"
+        ],
+        "p50": 3.2,
+        "p95": 3.99
+      },
+      {
+        "command": "HGETALL",
+        "statuses": [
+          "200:map"
+        ],
+        "p50": 3.93,
+        "p95": 4.59
+      },
+      {
+        "command": "JSON.GET",
+        "statuses": [
+          "200:str"
+        ],
+        "p50": 4.06,
+        "p95": 5.94
+      },
+      {
+        "command": "JSON.GET wildcard",
+        "statuses": [
+          "200:str"
+        ],
+        "p50": 3.77,
+        "p95": 4.66
+      },
+      {
+        "command": "FT.SEARCH",
+        "statuses": [
+          "200:map"
+        ],
+        "p50": 5.35,
+        "p95": 5.92
+      },
+      {
+        "command": "FT.AGGREGATE",
+        "statuses": [
+          "200:map"
+        ],
+        "p50": 3.9,
+        "p95": 5.09
+      },
+      {
+        "command": "ZRANGE",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 3.58,
+        "p95": 4.75
+      },
+      {
+        "command": "XRANGE",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 4.21,
+        "p95": 5.03
+      },
+      {
+        "command": "LRANGE",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 3.52,
+        "p95": 4.35
+      },
+      {
+        "command": "SCAN",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 3.2,
+        "p95": 3.82
+      },
+      {
+        "command": "SLOWLOG",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 2.63,
+        "p95": 4.2
+      }
+    ],
+    "after": [
+      {
+        "command": "GET",
+        "statuses": [
+          "200:str"
+        ],
+        "p50": 3.3,
+        "p95": 4
+      },
+      {
+        "command": "HGETALL",
+        "statuses": [
+          "200:map"
+        ],
+        "p50": 3.64,
+        "p95": 4.4
+      },
+      {
+        "command": "JSON.GET",
+        "statuses": [
+          "200:str"
+        ],
+        "p50": 3.02,
+        "p95": 4.2
+      },
+      {
+        "command": "JSON.GET wildcard",
+        "statuses": [
+          "200:str"
+        ],
+        "p50": 3.06,
+        "p95": 3.69
+      },
+      {
+        "command": "FT.SEARCH",
+        "statuses": [
+          "200:map"
+        ],
+        "p50": 3.7,
+        "p95": 4.55
+      },
+      {
+        "command": "FT.AGGREGATE",
+        "statuses": [
+          "200:map"
+        ],
+        "p50": 3.12,
+        "p95": 4.24
+      },
+      {
+        "command": "ZRANGE",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 3.1,
+        "p95": 3.75
+      },
+      {
+        "command": "XRANGE",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 3.13,
+        "p95": 3.98
+      },
+      {
+        "command": "LRANGE",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 2.67,
+        "p95": 3.23
+      },
+      {
+        "command": "SCAN",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 3.32,
+        "p95": 3.88
+      },
+      {
+        "command": "SLOWLOG",
+        "statuses": [
+          "200:arr"
+        ],
+        "p50": 2.89,
+        "p95": 3.39
+      }
+    ]
+  },
+  "r3Cases": [
+    {
+      "name": "leftovers",
+      "ms": 36,
+      "rssBeforeMiB": 132.5,
+      "rssPeakMiB": 132.5
+    },
+    {
+      "name": "smoke",
+      "ms": 169,
+      "rssBeforeMiB": 132.5,
+      "rssPeakMiB": 331.3
+    },
+    {
+      "name": "ver",
+      "ms": 10,
+      "rssBeforeMiB": 370.1,
+      "rssPeakMiB": 370.1
+    },
+    {
+      "name": "dbg",
+      "ms": 44,
+      "rssBeforeMiB": 370.2,
+      "rssPeakMiB": 372.7
+    },
+    {
+      "name": "acl",
+      "ms": 14,
+      "rssBeforeMiB": 372.7,
+      "rssPeakMiB": 372.7
+    },
+    {
+      "name": "apply-blowup",
+      "ms": 25,
+      "rssBeforeMiB": 372.7,
+      "rssPeakMiB": 372.7
+    },
+    {
+      "name": "h1-sampling",
+      "ms": 247,
+      "rssBeforeMiB": 373.1,
+      "rssPeakMiB": 391
+    },
+    {
+      "name": "h1-sampling2",
+      "ms": 32,
+      "rssBeforeMiB": 391.3,
+      "rssPeakMiB": 391.3
+    },
+    {
+      "name": "h2-unsized",
+      "ms": 464,
+      "rssBeforeMiB": 391.3,
+      "rssPeakMiB": 391.6
+    },
+    {
+      "name": "h2b-range",
+      "ms": 165,
+      "rssBeforeMiB": 391.6,
+      "rssPeakMiB": 391.6
+    },
+    {
+      "name": "h3-keynames",
+      "ms": 205,
+      "rssBeforeMiB": 391.6,
+      "rssPeakMiB": 391.8
+    },
+    {
+      "name": "json-false",
+      "ms": 640,
+      "rssBeforeMiB": 391.8,
+      "rssPeakMiB": 392.1
+    },
+    {
+      "name": "kb-stream",
+      "ms": 205,
+      "rssBeforeMiB": 392.1,
+      "rssPeakMiB": 392.2
+    },
+    {
+      "name": "dictdump",
+      "ms": 496,
+      "rssBeforeMiB": 392.2,
+      "rssPeakMiB": 392.2
+    },
+    {
+      "name": "redis7",
+      "ms": 88,
+      "rssBeforeMiB": 392.2,
+      "rssPeakMiB": 392.2
+    },
+    {
+      "name": "everyday",
+      "ms": 6375,
+      "rssBeforeMiB": 392.2,
+      "rssPeakMiB": 398.3
+    },
+    {
+      "name": "mget-latency",
+      "ms": 2686,
+      "rssBeforeMiB": 398.3,
+      "rssPeakMiB": 408.3
+    },
+    {
+      "name": "mget-probes",
+      "ms": 27,
+      "rssBeforeMiB": 408.3,
+      "rssPeakMiB": 415.7
+    },
+    {
+      "name": "fairness",
+      "ms": 707,
+      "rssBeforeMiB": 415.7,
+      "rssPeakMiB": 415.8
+    },
+    {
+      "name": "small-confirms",
+      "ms": 47,
+      "rssBeforeMiB": 411.9,
+      "rssPeakMiB": 411.9
+    },
+    {
+      "name": "audit-echo",
+      "ms": 36,
+      "rssBeforeMiB": 411.9,
+      "rssPeakMiB": 411.9
+    },
+    {
+      "name": "noperm",
+      "ms": 33,
+      "rssBeforeMiB": 411.9,
+      "rssPeakMiB": 411.9
+    },
+    {
+      "name": "tiers",
+      "ms": 213,
+      "rssBeforeMiB": 411.9,
+      "rssPeakMiB": 412
+    },
+    {
+      "name": "matrix",
+      "ms": 10511,
+      "rssBeforeMiB": 411.5,
+      "rssPeakMiB": 411.8
+    },
+    {
+      "name": "matrix2",
+      "ms": 15,
+      "rssBeforeMiB": 411.8,
+      "rssPeakMiB": 411.8
+    },
+    {
+      "name": "leftovers",
+      "ms": 18,
+      "rssBeforeMiB": 194.5,
+      "rssPeakMiB": 194.5
+    }
+  ],
+  "aggregateOverflow": {
+    "replyBytes": 20971520,
+    "capBytes": 16777216,
+    "commands": [
+      {
+        "status": 413,
+        "ms": 9
+      },
+      {
+        "status": 413,
+        "ms": 8
+      },
+      {
+        "status": 413,
+        "ms": 9
+      },
+      {
+        "status": 413,
+        "ms": 7
+      },
+      {
+        "status": 413,
+        "ms": 8
+      },
+      {
+        "status": 413,
+        "ms": 7
+      },
+      {
+        "status": 413,
+        "ms": 8
+      },
+      {
+        "status": 413,
+        "ms": 8
+      }
+    ],
+    "rssBeforeMiB": 150,
+    "rssPeakMiB": 195.4,
+    "rssDeltaMiB": 45.4
+  },
+  "supplementalBaseline": {
+    "scanFloodPingMs": [
+      823.41,
+      1546.03,
+      1147.96
+    ],
+    "mget9999Ms": 696.84,
+    "alias20Ms": 88.51,
+    "alias20EndHeapDeltaMiB": 38.7,
+    "method": "Fastify inject, immutable b9ea7e2 server sources; only reads of 6412"
+  },
+  "validation": {
+    "serverWithTopology": 675,
+    "typecheck": "passed",
+    "focusedStreamE2E": 3,
+    "fullE2E": {
+      "passed": 479,
+      "failed": 0,
+      "minutes": 13.2,
+      "mergedRelease": "7a47aa0",
+      "mergeCommit": "5181a8e",
+      "lock": "/tmp/rconsole-e2e.lock"
+    },
+    "webUnit": 202,
+    "cancellationUI": "passed: exact finished/may-have-run/not-run summary and disconnect fallback",
+    "cleanup": "review and benchmark prefixes absent after a full cursor iteration; own API PID 90587 stopped; topology EXIT cleanup completed"
+  },
+  "fairnessFinal": {
+    "otherViewerPingMs": [
+      1,
+      2,
+      3
+    ],
+    "acceptedScans": 2,
+    "rejectedScans": 18,
+    "maxScanMs": 182,
+    "commit": "7851bfa"
+  },
+  "mergedRelease": "7a47aa0"
+}

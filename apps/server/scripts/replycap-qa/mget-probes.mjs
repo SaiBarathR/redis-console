@@ -1,0 +1,10 @@
+import { direct } from './redis.mjs';
+import { local } from './lib.mjs';
+const r = await direct(6412);
+const stats = async () => { const s = String(await r.sendCommand(['INFO', 'commandstats'])); return Number(/cmdstat_strlen:calls=(\d+)/.exec(s)?.[1] ?? 0); };
+const v = await local('qa-viewer');
+const keys = Array.from({ length: 9999 }, (_, i) => 'rc-review-s3:absent:' + i);
+const b = await stats();
+const res = await v.cli('snapshot', ['MGET', ...keys]);
+console.log({ status: res.status, ms: res.ms, strlenProbes: (await stats()) - b, bodyBytes: JSON.stringify({ argv: ['MGET', ...keys] }).length });
+await r.quit();

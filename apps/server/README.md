@@ -1,0 +1,112 @@
+# @rconsole/server
+
+The Redis Console backend: Node 24 + Fastify 5 + node-redis 5 (RESP3). It is the only component that talks to Redis or holds secrets. It serves the API (`/api/v1`), the built SPA (`apps/web/dist`), health endpoints, and writes the audit log.
+
+TypeScript runs directly on Node's native type stripping, so there is no build step.
+
+## Run it
+
+Requirements: Node ≥ 24.11, pnpm 11. From the repo root, run `pnpm install` once.
+
+```bash
+# Development (watch mode). Loads ../../.env if present. Config: RCONSOLE_CONFIG, else config/rconsole.local.json
+# (gitignored, machine-specific) if it exists, else config/rconsole.dev.json. `start` resolves it the same way.
+RCONSOLE_PORT=4100 RCONSOLE_PUBLIC_URL=http://localhost:4100 pnpm --filter @rconsole/server dev
+
+# Production-style start (env must already contain the secrets referenced by the config)
+set -a; source .env; set +a
+RCONSOLE_CONFIG=config/rconsole.dev.json RCONSOLE_PORT=4100 RCONSOLE_PUBLIC_URL=http://localhost:4100 \
+  pnpm --filter @rconsole/server start
+
+pnpm --filter @rconsole/server test        # unit + integration (needs the sandbox; see below)
+pnpm --filter @rconsole/server test:unit   # unit only, no Redis needed
+pnpm --filter @rconsole/server typecheck
+```
+
+On first start with `auth.local.bootstrapAdmin` configured and no local users yet, the bootstrap admin is created. It must change its password and then (because `admin` is in `requireTotpForRoles`) enroll TOTP before it can use anything else.
+
+The server refuses to start (exit code 78) on any configuration error and lists every problem it found.
+
+### Environment variables
+
+| Variable | Purpose |
+|---|---|
+| `RCONSOLE_CONFIG` | Path to the JSON config. Required by `src/main.ts` (and the container image); the `dev`/`start` scripts fall back to `config/rconsole.local.json`, then `config/rconsole.dev.json`. |
+| `RCONSOLE_PORT` | Overrides `server.port`. |
+| `RCONSOLE_PUBLIC_URL` | Overrides `server.publicUrl`. This is the browser-facing origin; it sets the OIDC redirect URI and the allowed `Origin`. |
+| `RCONSOLE_DATA_DIR` | Overrides `server.dataDir` (the SQLite file `rconsole.sqlite`, created with mode 0600 in a 0700 directory). |
+| `NODE_ENV=production` | Turns on the [production checks](../../docs/OPERATIONS.md#production-checks-node_envproduction). |
+| `LOG_LEVEL` | Pino level (default `info`). |
+| *secret variables* | Whatever the config references with `{ "env": "NAME" }`. |
+
+## Configuration reference
+
+The full reference (every field with its default and range, secret references, the production checks and
+`acceptRisks`) is in [docs/OPERATIONS.md](../../docs/OPERATIONS.md#2-configuration-reference). Deploying:
+[docs/INSTALL.md](../../docs/INSTALL.md). The config is validated with zod and is strict: unknown keys, inline secrets
+and unsafe production settings stop the server with exit code 78.
+
+## Security model (summary)
+
+- **Sessions**: a 256-bit random ID, of which only the SHA-256 is stored (SQLite). The ID is rotated on login, TOTP completion and password change. A user's sessions are revoked on role change, disable, TOTP reset or password reset. Sessions have idle and absolute expiry. Cookie: HttpOnly, SameSite=Strict, Secure/`__Host-` when `secureCookies`.
+- **CSRF**: every non-GET request must carry an `Origin` in the allowed set. Authenticated requests also need `X-CSRF-Token` (per session, constant-time compared). The session lookup and these checks run before the body is parsed; the session and account checks run again once the body has arrived and after a wait for a request slot (see *Account changes*).
+- **No Redis data in URLs**: key names, glob patterns, channel names and group names are only accepted in JSON bodies (`POST /keys/scan`, `/key/read`, `/streams/groups`, `/streams/pending`, `/timeseries/range`, `/pubsub/channels`), because reverse proxies, load balancers and APM agents log URLs. Those reads have no side effects and never ask for confirmation, but as POSTs they pass the Origin and CSRF checks. A request whose query string contains `k`, `key(s)`, `match`, `pattern(s)`, `channel(s)`, `group`, `query` or `q` is refused with 400 before routing, so no route can accept them by accident. The pub/sub SSE stream (EventSource can only GET) takes an opaque id from `POST /pubsub/subscriptions`: 256-bit random (only its hash is kept), single use, bound to the session and database, 60 s to connect, max 10 outstanding per session.
+- **Headers**: strict CSP with a per-request style nonce (injected into `index.html` as `<meta name="csp-nonce">`), `nosniff`, `no-referrer`, COOP/CORP same-origin, `frame-ancestors 'none'`, Trusted Types, a Permissions-Policy that disables every feature, HSTS when secure, and `Cache-Control: no-store` on `/api`. The SPA fallback never answers `/api/*`.
+- **Command policy** (`src/policy`): tokenize → classify using shared rules or COMMAND flags/categories → role/readOnly/prod rules → structural argv caps (blocking timeouts ≤ 5 s, SCAN COUNT ≤ 1000, at most 8 glob wildcards) → confirmation (428, single use, session/request bound, with an exact command preview) → measured execution → display truncation and redaction. Unknown/unclassifiable/internal module commands stay blocked. `COPY ... DB` stays blocked: the logical database comes from server configuration.
+- **Measured replies** (`src/redis/{capped,resp}.ts`): console/workbench commands use exclusive raw net/TLS sockets authenticated with the effective role's ACL user, HELLO 3 and the configured logical DB. A streaming RESP2/3 reader counts bytes before decoding, enforces 100k wire values, depth 32 and small header limits, and destroys only that socket on overflow, timeout or abort. No MEMORY/JSON/search prediction probes or alias expansion run. The default wire limit is 16 MiB, independent of the 1 MiB display limit. Ordinary database requests acquire a global slot after body parsing and retain it through response serialization (released before socket writes); typed reads whose results go into the response share a cumulative wire budget across their Redis calls, and every 413 names the configured cap. Server metadata has fixed measured caps (COMMAND 2 MiB; INFO and COMMAND DOCS 4 MiB), independent of a smaller configured data cap. A full pool or budget makes work wait briefly (bounded FIFO, at most 2 s) before 429.
+- **Topology**: raw pools are per database/role (at most `poolSize` sockets, 30 s idle timeout). Cluster commands use the existing node-redis primary slot map; keyless commands use a random primary, with at most one MOVED/ASK retry (ASKING on the retry socket). Redirects are followed only to primaries of the known topology (a MOVED that disagrees with the slot map refreshes it through node-redis first); anything else is refused. Sentinel commands use the existing sentinel client's current master. TLS uses the same CA/client certificate/key/servername/verification settings. Initialization failures never return a socket to the pool. Network errors and timeouts never replay an ambiguous write.
+- **Typed routes and SSE**: node-redis remains for topology management and for typed scalar/status replies with a hard size bound that carry no actor check (read-only metadata such as the key list's TYPE/TTL/MEMORY USAGE). Every typed write and bulk delete uses the measured sockets (see *Account changes*); in cluster mode, per-key deletes run on four workers in slot order. Data-dependent replies (SCAN names, collection/JSON/stream/search values, INFO, command docs, clients, slowlog, group/consumer metadata) use measured sockets. Pub/sub and MONITOR sockets measure each event too: they keep at most 64 KiB of each string (256 KiB per event), so a larger message arrives cut (`truncated`, `totalBytes`) and a longer MONITOR line is shown cut, and the stream continues. They take a separate stream budget, never a command slot, and a stream whose client left during the Redis handshake is closed at once. An in-flight mutation can already have executed when its connection is closed. Workbench cancellation/disconnect stops later lines immediately and retains its per-line result/error format.
+- **Compare-and-set edits** (`src/redis/checked.ts`): typed ops that replace data (`string.set`, `hash.set`, `list.set`, `zset.add`, `json.set`/`json.delete`, `key.rename`, `key.delete`) may carry `expect` (the Redis type and the SHA-256 of the bytes the client read). The server checks it on one exclusive measured socket of the caller's tier (`WATCH`, `TYPE` and the element read, then `MULTI`/command/`EXEC`, at most 3 attempts when WATCH aborts or the key's type changes between `TYPE` and the read; no Lua) and answers 409 `conflict` with the current value otherwise; nothing is written then. Other ops refuse an `expect` field (400). The socket is closed after each exchange. In cluster mode the exchange stays on the key's primary (one MOVED restart on `WATCH`, ASK → 503). The operator ACL user needs `+@transaction`; without it checked ops fail closed with 403 and a hint. The console keeps blocking MULTI/EXEC/WATCH.
+- **Audit**: SQLite, append-only (UPDATE/DELETE are rejected by triggers; the one exception is the retention job, `src/store/auditRetention.ts`, which deletes rows older than `audit.retentionDays` in batches through a grant that exists only inside its own transaction and never reaches rows younger than 30 days, and audits `system.audit.prune`), plus a JSON line on stdout with `"audit": true`. Every console command, typed operation and data read is recorded, including key-browser reads and scans, stream group/pending and time-series reads, searches, slow log reads and pub/sub channel listings (one event per request, with counts but no data). Polled server metadata (overview, clients, search index list, command docs) is not audited. Redacted argv: command + subcommand (only names Redis or the rules know; anything else is `<unknown command>`), `key#<sha256 prefix>` per key, `<n bytes>` for everything else. Redis error replies are recorded by error code only (their text can quote arguments). Failed sign-ins for unknown usernames are recorded as `unknown` + a hash (people type passwords into the username field). Never values, passwords, tokens or session IDs. The request logger drops cookies, authorization, CSRF headers, bodies and query strings.
+- **Account changes**: users carry an auth generation, bumped on role, disabled, password and TOTP changes; a session stores the generation it was issued under and the request gate refuses older ones. Sign-in and password change re-check it after the (asynchronous) password hash, and session rotation refuses a session that was revoked meanwhile, so a request racing an admin change cannot keep old privileges or skip new TOTP. The request gate checks the session, the account (enabled, same role and generation, no new restriction) and the route's role again after the body was received and after a request-slot wait, so a client cannot keep old privileges by holding its body back: such a request gets 401 and is audited as `auth.revoked`. Typed ops check again right before they run (a checked edit right before `MULTI`), and admin user changes re-check the acting admin. Finally, every Redis command of a database request is checked (writes and admin commands of the console, workbench, typed ops, publish, bulk delete, slow log reset and client kill, pub/sub and MONITOR; only reads marked read-only skip it: console reads, key lists, key and value reads, memory analysis, stream and time-series reads) synchronously right before it is written to its connection, in the same step as the write: after waiting for a pool socket, a command slot or a new connection, and again on a MOVED/ASK re-dispatch. These commands always go through the measured sockets, never through node-redis, which writes a queued command on a later turn of the event loop. A command refused there was not sent: the request gets 401 (a workbench line an `unauthenticated` result, and later lines are not run), its socket and slots are released, and the refusal is audited as `auth.revoked`. The workbench and bulk delete re-check the session and account before every command/batch, and stop when their client goes away (the workbench also on `POST …/workbench/cancel`).
+- **Lockout**: the failure counter is updated atomically in SQL, and the lock is re-read after password/TOTP verification, so parallel guesses cannot slip past it. Usernames are case-insensitive (one counter per account).
+- **Recovery codes**: 10 single-use codes per local account with TOTP (`xxxx-xxxx-xxxx`, 12 Crockford base32 characters, 60 random bits), returned once by `POST /auth/totp/confirm` and by `POST /auth/recovery-codes` (which re-authenticates with the password and replaces the whole set). Stored only as argon2id hashes (m=19 MiB, t=2, p=1) under one random salt per set, so checking a code costs one argon2id run; the result is compared in constant time (`timingSafeEqual`) with each of the user's unused hashes, never by an SQL equality. `POST /auth/totp/verify { recoveryCode }` or `POST /auth/login { …, recoveryCode }` consumes the match with one conditional `UPDATE … WHERE used_at IS NULL` after re-checking the account (synchronous from the comparison to the update), so concurrent use succeeds once. Failures count towards the lockout and the sign-in rate limit; every use is audited as `auth.recovery` with the number left, never the code. An admin or CLI TOTP reset deletes the set. `Me.recoveryCodesRemaining` reports the count.
+- **Availability**: per-user rate limits (CLI 20/s, scan 10/s, ops 20/s, workbench 2/s; anonymous and per-IP limits key IPv6 clients by /64, sign-in also per /48; at most 100k buckets, idle ones dropped first), at most 4 console commands in flight and 1 blocking command per user, 4 typed data reads and 2 key scans per user, 1 workbench script per user (16 server-wide) whose results share 4 × `maxReplyBytes`, key-browser pages measured while read and bounded in the response (previews share `maxReplyBytes`; later elements cut to 64 bytes), one memory analysis per user (4 globally), SSE caps (3 live streams + 5 metrics streams per user and `maxStreams` per class server-wide, checked before any Redis connection is opened; pub/sub 15 min, profiler ≤ 60 s, ≤ 200 events/s; events are dropped when the client is > 1 MiB behind and the stream is closed at 8 MiB; pub/sub messages are cut at 64 KiB), at most 20 pending confirmations per session, body limits (12 MiB default; 16 KiB for auth/admin; 64 KiB for small POSTs; 1 MiB for workbench), JSON bodies only. Request bodies take a budget before they are read (`maxBodiesInFlight`, `maxBodyBytesInFlight`; a declared length over the route limit is 413 at once), so concurrent large uploads are refused with 429 instead of being buffered; work slots are still taken only after the body is parsed, so a stalled upload holds its budget but never a work slot.
+
+## Admin CLI (break-glass)
+
+Runs on the server host against the data directory, without HTTP. It loads the config like the server (`RCONSOLE_CONFIG`, `RCONSOLE_DATA_DIR`), or takes `--config <file>` / `--data-dir <dir>`; `status` and `reset-totp` need no key (they work with `--data-dir` alone when the keys are lost). Output never contains seeds, keys, recovery codes or hashes.
+
+```bash
+pnpm --filter @rconsole/server admin status [--json]             # key ids in use (seed counts), users with TOTP, recovery codes left
+pnpm --filter @rconsole/server admin reset-totp --user <name>    # clear seed, pending seed, recovery codes; bump auth generation; revoke sessions
+pnpm --filter @rconsole/server admin reset-totp --all --yes      # the same for every local user with TOTP state
+pnpm --filter @rconsole/server admin rotate-totp-key             # re-encrypt every seed under totpPrimaryKeyId; prints counts
+```
+
+In the container image (no pnpm), or from the directory the server runs in: `node apps/server/src/cli/admin.ts <command>`. Under pnpm the script runs in `apps/server`, so a relative `server.dataDir` of the config resolves there (as it does for `pnpm --filter @rconsole/server start`); pass `--data-dir` otherwise. Relative `--data-dir`/`--config` are taken from the directory the command was typed in (pnpm's `INIT_CWD`, trusted only when run as this `admin` script). Every command prints the data directory it used and never creates a database. The package bin is `rconsole-admin` (`src/cli/admin.ts`). Resets are audited as `admin.cli.reset-totp`, re-wraps as `admin.cli.rotate-totp-key`, with user `cli:<os user>`. Exit codes: 0, 1 failed, 64 usage, 75 server running, 78 config.
+
+Next to a running server: SQLite runs in WAL mode with a 5 s busy timeout and every CLI change is one short transaction, so `status` and `reset-totp` are safe while the server runs (it reads accounts and sessions from SQLite on every request). The server owns `<dataDir>/server.lock` exclusively while it runs (`src/store/lock.ts`): it creates it with `O_EXCL` before it opens the database, a second server on the same directory exits with 75 and leaves the lock alone, and only the owner removes it. `rotate-totp-key` takes the same lock for its whole run, so it refuses while a server runs (the running server would not know a new primary key; restarting the server re-wraps too) and no server starts meanwhile. Stale locks are taken over: the process is gone, the host rebooted, the lock names the process taking it (a restarted container), or it was not refreshed for 120 s (a reused pid, or another host; a lock whose process still exists is watched for one more refresh period first, so a suspended server keeps it). A fresher lock from another host cannot be checked: the server refuses, `rotate-totp-key --force` takes it.
+
+When the server refuses to start because a stored seed does not decrypt with any key of the ring, or a stored value is malformed (neither v1/v2 nor a clear-text base32 seed; never taken for a seed), it exits with 78 and a message that gives the number of affected users (no names, seeds or ciphertext), the missing key ids and the `admin` commands. Put the key back, or reset those users with `admin reset-totp`. See `docs/OPERATIONS.md` §6a.
+
+## Operations
+
+- `GET /healthz`: liveness. `GET /readyz`: storage OK and not shutting down (503 otherwise). Redis availability is per database and shown in the UI, so one database being down doesn't fail readiness.
+- SIGTERM/SIGINT: stop accepting connections, end SSE streams (`event: end`), close Redis pools, close SQLite. Forced exit after 10 s.
+- Logs: pino JSON on stdout. Audit lines are on stdout as well (`"audit": true`); route them to your SIEM. Failed requests are logged with the API error code and, for Redis errors, only the Redis error code (`redis_error: SEARCH_SYNTAX`): Redis error text can quote the request (search queries, values), so it goes to the requesting user only.
+- Reverse proxies: the API never puts Redis data in URLs (see the security model), so default access logs are safe. Request bodies carry keys and values; don't enable body logging on the proxy, WAF or APM agent.
+
+## Tests
+
+- `test/unit`: tokenizer, policy, config validation, redaction + logger, TOTP (RFC 6238 vectors), TOTP seeds at rest and the key ring (`totp-at-rest`, `totp-keyring`), the admin CLI (`admin-cli`), CSRF + headers, sessions, confirmations, reply trees, static/SPA serving, passwords, parsers. Recovery codes: `test/integration/recovery-codes.test.ts`.
+- `test/integration`: these run against the sandbox (`127.0.0.1:6411` for writes, with per-run key prefixes; `6410` for reads), Keycloak on `localhost:8089` (the OIDC test listens on port 4100), and, when `RC_TEST_REMOTE_HOST`/`RC_TEST_REMOTE_PORT` are set (user `RC_TEST_REMOTE_USER`, password from the variable named by `RC_TEST_REMOTE_PASSWORD_ENV`, default `RC_TEST_REMOTE_PASSWORD`), an external Redis, strictly read-only through the viewer path. Suites skip themselves when their dependency is unreachable.
+- Cluster/sentinel (`test/integration/topology.test.ts`) runs only when the disposable topology is up:
+
+  ```bash
+  export RC_TOPO_PASSWORD=$(openssl rand -hex 16)
+  apps/server/scripts/topology.sh up     # cluster 6420-6422 (bus 6423-6425), sentinel 6427 -> master 6426, mTLS 6428
+  pnpm --filter @rconsole/server test
+  apps/server/scripts/topology.sh down
+  ```
+
+## Known limitations
+
+- Integers in CLI replies are exact. Simple-string replies are shown as bulk strings (no `status` type).
+- Maps on the measured path retain binary keys for every command.
+- Pub/sub and the profiler use the first cluster primary (MONITOR sees that node only). Command sockets are exclusive, including blocking commands.
+- Rate limits, confirmation tokens and SSE counters are in memory, so they apply per instance. Sessions and audit are in SQLite (single node).
+- TOTP seeds are encrypted at rest with the key ring (`auth.local.totpEncryptionKeys`); anyone holding both a key in use and a copy of `dataDir` can read them, so store the keys apart from the data and its backups.
+- For non-admins, the CLI hides network addresses: `addr`/`laddr` in `CLIENT INFO`/`CLIENT LIST`, the client of `SLOWLOG GET` entries (also on the slowlog page), `INFO` `listener*` binds and ports (also on the overview), and IP literals/hostnames in `CLUSTER NODES|SLOTS|SHARDS|REPLICAS` and `ROLE`. Admins see them. Hostnames inside other free text are not detected.
+- OIDC roles are read at sign-in. Removing a user from an IdP group takes effect at their next sign-in (at most `auth.oidc.sessionTtlMinutes`, default `server.sessionTtlMinutes`); there is no back-channel logout or token refresh.
+- The transport bounds application memory; closing a socket does not cancel Redis-side computation or undo a mutation. RESP streamed bulk strings (`$?`) are not emitted by Redis command replies and are rejected; streamed aggregates are supported. Simple strings/errors in command replies have a 64 KiB structural ceiling (MONITOR lines are cut there instead); numeric/aggregate headers have a 512-byte ceiling. Replies node-redis reads itself (handshake, `CLUSTER SLOTS`, sentinel, fixed-size scalars) are not measured; an honest Redis keeps them small, so use verified TLS for untrusted networks. Heap objects, UTF-8/base64/JSON encoding and socket/TLS bookkeeping add bounded overhead beyond raw payload bytes. Tune the wire cap and global concurrency together for the process memory budget.

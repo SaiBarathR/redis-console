@@ -1,0 +1,15 @@
+.collection-lookup { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.collection-lookup > input { min-width: 100px; flex: 1 1 130px; }
+.collection-lookup label { display: inline-flex; align-items: center; gap: 5px; }
+.collection-format-control, .column-width-control { display: flex; align-items: center; gap: 8px; padding: 5px 0; font-size: 12px; color: var(--graphite); }
+.column-width-control input { width: 150px; }
+.detail-value-table td { overflow-wrap: anywhere; vertical-align: top; }
+.collection-cell > .value-cell { white-space: pre-wrap; max-height: 110px; overflow: auto; }
+.collection-cell details { font-size: 11px; }
+.collection-cell .value-toolbar { flex-wrap: wrap; }
+.collection-cell .value-content { max-height: 350px; overflow: auto; }
+.stream-inspector { padding: 6px 0; border-bottom: 1px solid var(--rule); }
+.stream-inspector table { width: 100%; }
+.stream-inspector .actions { flex-wrap: wrap; }
+.stream-group-new { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--rule); }
+.stream-group-new h4 { margin: 0 0 4px; font-size: var(--text-data); font-weight: 550; }

@@ -1,0 +1,80 @@
+{
+  "$comment": "E2E template. The harness renders selected upstream credentials and ports into ignored .state/config.json. The remote-6390 test ID always uses a read-only filtering proxy, backed by a disposable seeded Redis unless an explicit reachable upstream is configured.",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 4400,
+    "publicUrl": "http://localhost:4400",
+    "trustProxy": false,
+    "dataDir": "./tests/e2e/.data",
+    "sessionTtlMinutes": 480,
+    "sessionIdleMinutes": 60,
+    "secureCookies": false
+  },
+  "auth": {
+    "oidc": {
+      "enabled": true,
+      "displayName": "Company SSO (dev Keycloak)",
+      "issuer": "http://localhost:8089/realms/rconsole",
+      "clientId": "rconsole",
+      "clientSecret": { "env": "OIDC_CLIENT_SECRET" },
+      "scopes": ["openid", "profile", "email"],
+      "groupsClaim": "groups",
+      "roleMapping": { "rconsole-admins": "admin", "rconsole-operators": "operator", "rconsole-viewers": "viewer" },
+      "allowInsecureHttpIssuer": true
+    },
+    "local": {
+      "enabled": true,
+      "requireTotpForRoles": ["admin"],
+      "bootstrapAdmin": { "username": "admin", "password": { "env": "BOOTSTRAP_ADMIN_PASSWORD" } },
+      "totpEncryptionKey": { "env": "TOTP_ENCRYPTION_KEY" },
+      "lockout": { "maxAttempts": 5, "windowMinutes": 15 }
+    }
+  },
+  "policy": {
+    "maxReplyBytes": 1048576,
+    "maxValueBytes": 524288,
+    "commandTimeoutMs": 5000,
+    "scanBudgetMs": 300,
+    "profilerAllowedEnvironments": ["dev", "test"],
+    "prodRequiresReason": true
+  },
+  "databases": [
+    {
+      "id": "sandbox-e2e",
+      "name": "E2E scratch",
+      "tags": ["e2e", "scratch"],
+      "environment": "test",
+      "url": "redis://127.0.0.1:6431",
+      "credentials": {
+        "viewer": { "username": "rc-viewer", "password": { "env": "SANDBOX_REDIS_VIEWER_PASSWORD" } },
+        "operator": { "username": "rc-operator", "password": { "env": "SANDBOX_REDIS_OPERATOR_PASSWORD" } },
+        "admin": { "username": "rc-admin", "password": { "env": "SANDBOX_REDIS_ADMIN_PASSWORD" } }
+      }
+    },
+    {
+      "id": "e2e-prod-sim",
+      "name": "E2E prod simulation",
+      "description": "Writable prod-tagged database (e2e Redis logical db 1) for prod confirmation rules",
+      "environment": "prod",
+      "url": "redis://127.0.0.1:6431",
+      "db": 1,
+      "credentials": {
+        "viewer": { "username": "rc-viewer", "password": { "env": "SANDBOX_REDIS_VIEWER_PASSWORD" } },
+        "operator": { "username": "rc-operator", "password": { "env": "SANDBOX_REDIS_OPERATOR_PASSWORD" } },
+        "admin": { "username": "rc-admin", "password": { "env": "SANDBOX_REDIS_ADMIN_PASSWORD" } }
+      }
+    },
+    {
+      "id": "remote-6390",
+      "name": "Remote 6390 (read-only)",
+      "description": "Selected upstream — read-only for everyone (via e2e read-only proxy)",
+      "environment": "prod",
+      "readOnly": true,
+      "maxRole": "viewer",
+      "url": "redis://127.0.0.1:6430",
+      "credentials": {
+        "default": { "username": "default", "password": { "env": "RC_E2E_REMOTE_PASSWORD" } }
+      }
+    }
+  ]
+}

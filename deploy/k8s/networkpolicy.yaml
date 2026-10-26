@@ -1,0 +1,48 @@
+# Default deny, then allow only: ingress from the ingress controller; egress to DNS,
+# the Redis databases and the OIDC issuer. Adjust selectors/CIDRs to your cluster.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rconsole-default-deny
+  namespace: rconsole
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rconsole-allow
+  namespace: rconsole
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: rconsole }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { protocol: TCP, port: 4000 }
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: kube-system }
+          podSelector:
+            matchLabels: { k8s-app: kube-dns }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Redis databases (in-cluster namespace "data"); add ipBlock rules for external Redis.
+    - to:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: data }
+      ports:
+        - { protocol: TCP, port: 6379 }
+        - { protocol: TCP, port: 6380 }
+    # OIDC issuer (HTTPS). Replace with the IdP's egress CIDR / egress gateway.
+    - to:
+        - ipBlock: { cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.169.254/32] }
+      ports:
+        - { protocol: TCP, port: 443 }

@@ -1,0 +1,108 @@
+name: release
+# Publishes the production image to GitHub Container Registry when a release tag (vX.Y or vX.Y.Z) is pushed.
+# The tag must match the version in the package manifests. Every image is smoke-tested before it is pushed, is built
+# for linux/amd64 and linux/arm64, and carries an SBOM and a signed build provenance attestation
+# (verify with `gh attestation verify oci://ghcr.io/<owner>/redis-console:<version> --repo <owner>/redis-console`).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: publish container image
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+
+      - name: Version from the tag and the manifests
+        id: version
+        run: |
+          set -eu
+          version="$(jq -r .version apps/server/package.json)"
+          for m in apps/web/package.json packages/shared/package.json; do
+            test "$(jq -r .version "$m")" = "$version" || { echo "$m is not at $version" >&2; exit 1; }
+          done
+          case "$GITHUB_REF_NAME" in
+            "v$version" | "v${version%.*}") ;;
+            *) echo "tag $GITHUB_REF_NAME does not match version $version" >&2; exit 1 ;;
+          esac
+          {
+            echo "version=$version"
+            echo "minor=${version%.*}"
+            echo "image=ghcr.io/${GITHUB_REPOSITORY,,}"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build for the smoke test (linux/amd64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: redis-console:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Smoke test (non-root, fails closed without config, HTTP, notices)
+        run: |
+          set -eu
+          test "$(docker run --rm --entrypoint node redis-console:ci -e 'console.log(process.getuid())')" != "0"
+          if docker run --rm --read-only redis-console:ci; then echo "server started without config" >&2; exit 1; fi
+          bash scripts/ci-image-smoke.sh
+
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        id: meta
+        with:
+          images: ${{ steps.version.outputs.image }}
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.version.outputs.minor }}
+            type=raw,value=latest
+          labels: |
+            org.opencontainers.image.title=Redis Console
+            org.opencontainers.image.description=A secure, browser-based Redis console: credentials stay on the server, every command passes a fail-closed policy.
+            org.opencontainers.image.licenses=Apache-2.0
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+
+      - name: Build provenance attestation
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ steps.version.outputs.image }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true

@@ -1,0 +1,10 @@
+import { direct } from './redis.mjs';
+const r = await direct(6411);
+const K = 'rc-review-s3:sample2';
+await r.del(K);
+const f = {}; for (let i = 0; i < 20000; i++) f['f' + i] = 'v' + i;
+await r.hSet(K, f);
+const before = await r.sendCommand(['MEMORY','USAGE',K]);
+await r.hSet(K, 'zz-big', 'x'.repeat(8*1024*1024));
+console.log({ before, after: await r.sendCommand(['MEMORY','USAGE',K]), s0: await r.sendCommand(['MEMORY','USAGE',K,'SAMPLES','0']) });
+await r.del(K); await r.quit();

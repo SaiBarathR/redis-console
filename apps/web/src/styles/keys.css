@@ -1,0 +1,954 @@
+/* Key browser: toolbar scan form, namespace tree, selection bar, inspector. docs/DESIGN.md §4 and §5. */
+
+/* Toolbar scan form */
+.scan-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.pattern-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 220px;
+  min-width: 140px;
+  max-width: 380px;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  color: var(--graphite);
+}
+.pattern-field:hover {
+  border-color: var(--graphite);
+}
+.pattern-field:focus-within {
+  outline: 2px solid var(--signal);
+  outline-offset: 0;
+  border-color: var(--signal);
+}
+.pattern-field input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  padding: 0;
+  min-height: 26px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--ink);
+}
+.pattern-field input:focus-visible {
+  outline: none;
+}
+.scan-form select {
+  width: auto;
+  flex-shrink: 0;
+}
+.inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+.delimiter-field input {
+  width: 46px;
+  font-family: var(--font-mono);
+  text-align: center;
+  padding: 2px 4px;
+}
+
+/* Split: list | handle | inspector. The handle is a 1px rule with a 7px hit area. */
+.keys-split {
+  --split: minmax(360px, 44%);
+  grid-template-columns: var(--split) 0 minmax(0, 1fr);
+}
+.keys-split > .split-handle,
+.keys-split > .split-handle + * {
+  border-left: 0;
+}
+.split-handle {
+  position: relative;
+  z-index: 4;
+  overflow: visible;
+  cursor: col-resize;
+  touch-action: none;
+}
+.split-handle::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 7px;
+  background: linear-gradient(var(--rule), var(--rule)) center / 1px 100% no-repeat;
+}
+.split-handle:hover::before,
+.split-handle:focus-visible::before {
+  background: linear-gradient(var(--signal), var(--signal)) center / 3px 100% no-repeat;
+}
+.split-handle:focus-visible {
+  outline: none;
+}
+
+/* List pane */
+.key-pane {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--pane);
+  container-type: inline-size;
+}
+/* A narrow list keeps the counts readable: shorter labels in the head. */
+@container (max-width: 560px) {
+  .list-head .wide-only {
+    display: none;
+  }
+}
+.list-head,
+.selection-bar {
+  padding-left: 10px;
+  gap: 8px;
+  white-space: nowrap;
+}
+.list-head .count-line {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.no-ttl {
+  color: var(--graphite);
+  font-size: var(--text-meta);
+}
+.selection-bar {
+  background: var(--signal-tint);
+  color: var(--ink);
+}
+.selection-bar strong {
+  font-weight: 600;
+  font-size: var(--text-meta);
+}
+.selection-bar .actions {
+  gap: 4px;
+  margin-left: auto;
+}
+.selection-bar button {
+  min-height: 24px;
+  padding: 0 8px;
+}
+.inline-ttl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.inline-ttl input {
+  width: 74px;
+  min-height: 24px;
+  padding: 0 6px;
+  font-size: var(--text-meta);
+}
+.key-pane > .notice {
+  margin: 6px 10px;
+}
+
+.key-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  contain: strict;
+  outline: none;
+}
+.key-list:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--signal);
+}
+.key-list-empty {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.virtual-space {
+  position: relative;
+  width: 100%;
+}
+
+/*
+ * One tree row: 26px, grid columns so names, fuses and sizes line up. Scoped to the key list (the shared JSON tree
+ * has its own .json-row); :where() keeps the specificity of a single class so .key-row/.key-folder still override.
+ */
+:where(.key-list) .tree-row {
+  --indent: calc(var(--depth, 0) * 14px);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 26px;
+  display: grid;
+  align-items: center;
+  column-gap: 6px;
+  padding: 0 10px 0 8px;
+  font-size: var(--text-data);
+  line-height: 26px;
+  cursor: default;
+  user-select: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--rule) 55%, transparent);
+}
+:where(.key-list) .tree-row:hover {
+  background: var(--hover);
+}
+.tree-indent {
+  display: block;
+  width: var(--indent);
+  height: 1px;
+}
+.key-list:focus-visible .tree-row.focused {
+  box-shadow: inset 0 0 0 2px var(--signal);
+}
+.key-folder {
+  grid-template-columns: var(--indent) 14px minmax(0, 1fr) auto 64px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.key-folder .tree-indent {
+  width: auto;
+}
+.key-folder .twisty {
+  color: var(--graphite);
+  transition: transform var(--ease);
+}
+.key-folder[aria-expanded="true"] .twisty {
+  transform: rotate(90deg);
+}
+.folder-name {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  color: var(--graphite);
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+}
+.folder-name .ka-d {
+  color: var(--delim);
+  font-weight: 400;
+}
+.folder-count,
+.folder-bytes,
+.key-size {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.folder-count {
+  min-width: 34px;
+}
+.folder-share {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.folder-bytes.partial {
+  font-style: italic;
+}
+/* Folder hover actions: filter to the folder, delete its keys. Keyboard: F and Delete on the focused folder. */
+.folder-actions {
+  display: inline-flex;
+  gap: 2px;
+  visibility: hidden;
+}
+.key-folder:hover .folder-actions,
+.key-list:focus-visible .key-folder.focused .folder-actions {
+  visibility: visible;
+}
+.folder-actions .icon-button {
+  min-width: 22px;
+  min-height: 20px;
+  padding: 2px;
+}
+/* Metadata not loaded yet: quiet placeholders that keep the columns aligned. */
+.type-glyph.placeholder {
+  color: var(--graphite);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.ttl-fuse.placeholder .fuse-track {
+  display: block;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+  opacity: 0.6;
+}
+.key-row.gone .key-anatomy {
+  text-decoration: line-through;
+  color: var(--graphite);
+}
+
+/* Column headers (sort) and the column chooser. */
+.list-columns {
+  display: grid;
+  align-items: center;
+  column-gap: 6px;
+  padding: 0 10px 0 8px;
+  min-height: 24px;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-micro);
+  color: var(--graphite);
+  background: var(--pane);
+}
+.list-columns .c-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.col-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 20px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-weight: 500;
+}
+.col-head.active {
+  color: var(--ink);
+  font-weight: 650;
+}
+.col-head:hover {
+  background: var(--hover);
+}
+.list-columns .col-head {
+  justify-self: start;
+}
+.list-columns .col-head.c-size {
+  justify-self: end;
+}
+.share-note {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.columns-menu {
+  position: relative;
+  margin-left: auto;
+}
+.columns-menu > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.columns-menu > summary::-webkit-details-marker {
+  display: none;
+}
+.columns-menu > summary:hover {
+  background: var(--hover);
+}
+.columns-menu > summary:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 1px;
+}
+.columns-menu > fieldset {
+  position: absolute;
+  z-index: 6;
+  top: 100%;
+  right: 0;
+  display: grid;
+  gap: 4px;
+  min-width: 170px;
+  margin: 2px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--raised);
+  box-shadow: var(--shadow-dialog, 0 6px 20px rgb(0 0 0 / 0.14));
+  font-size: var(--text-meta);
+  color: var(--ink);
+}
+.columns-menu legend {
+  float: left;
+  padding: 0;
+  margin-bottom: 2px;
+  font-weight: 600;
+}
+.columns-menu small {
+  color: var(--graphite);
+  white-space: normal;
+}
+
+/* Freshness: last refresh age, refresh and the opt-in auto-refresh. */
+.last-refresh {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+.list-head select.auto-refresh {
+  width: auto;
+  min-height: 22px;
+  padding: 0 4px;
+  font-size: var(--text-micro);
+}
+.key-pane > .scan-progress,
+.key-pane > .bulk-job-line {
+  align-items: center;
+}
+.scan-progress progress {
+  width: 90px;
+}
+
+/* Pattern delete job report. */
+.bulk-job h3 {
+  font-size: var(--text-data);
+  margin: 0 0 6px;
+}
+.bulk-job progress {
+  width: 100%;
+}
+.bulk-counts {
+  display: grid;
+  grid-template-columns: max-content auto;
+  gap: 2px 14px;
+  margin: 8px 0;
+  font-size: var(--text-meta);
+}
+.bulk-counts dt {
+  color: var(--graphite);
+}
+.bulk-counts dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.bulk-errors {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: var(--text-meta);
+}
+.bulk-job .actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.key-row {
+  grid-template-columns: 14px var(--indent) 30px minmax(0, 1fr) 96px 56px;
+  cursor: pointer;
+}
+.key-row .tree-indent {
+  width: auto;
+}
+/* Quieter than the name, but still at least 3:1 against the pane (WCAG non-text contrast). */
+.key-row > input[type="checkbox"] {
+  opacity: 0.8;
+}
+.key-row:hover > input[type="checkbox"],
+.key-row.checked > input[type="checkbox"],
+.key-row > input[type="checkbox"]:focus-visible {
+  opacity: 1;
+}
+.key-row .key-anatomy {
+  font-size: 12.5px;
+}
+.key-row .ttl-fuse {
+  justify-content: flex-start;
+}
+.key-row.checked {
+  background: color-mix(in srgb, var(--signal-tint) 60%, transparent);
+}
+.key-row.selected {
+  background: var(--signal-tint);
+  box-shadow: inset 3px 0 0 var(--signal);
+}
+.key-list:focus-visible .key-row.selected.focused {
+  box-shadow:
+    inset 3px 0 0 var(--signal),
+    inset 0 0 0 2px var(--signal);
+}
+
+.scan-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--rule);
+  background: var(--pane);
+  flex-shrink: 0;
+}
+.scan-foot button {
+  min-height: 24px;
+}
+.scan-foot progress {
+  width: 120px;
+}
+.scan-foot .scan-count select {
+  width: auto;
+  min-height: 24px;
+  padding: 0 4px;
+}
+.scan-foot small {
+  margin-left: auto;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Inspector */
+.inspector {
+  display: flex;
+  flex-direction: column;
+  background: var(--pane);
+  min-width: 0;
+}
+.inspector > .notice {
+  margin: var(--space-3) var(--space-4) 0;
+}
+.inspector-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 10px var(--space-4) 8px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--pane);
+}
+.inspector-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.inspector-title .type-glyph {
+  margin-top: 2px;
+}
+.key-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 21px;
+  font-weight: 400;
+}
+.key-anatomy.wrap {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow: visible;
+}
+.key-title .key-anatomy {
+  font-size: 15px;
+}
+.inspector-title .icon-button {
+  margin-top: -3px;
+}
+.copy-status {
+  align-self: center;
+  color: var(--ok);
+}
+.inspector-facts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 6px 0 0 38px;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  font-variant-numeric: tabular-nums;
+}
+.inspector-facts .ttl-fuse.full .fuse-track {
+  width: 160px;
+}
+.inspector-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 8px;
+}
+.action-group {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.action-group.end {
+  margin-left: auto;
+}
+.action-group button {
+  min-height: 26px;
+  padding: 2px 8px;
+}
+.refresh-select select {
+  width: auto;
+  min-height: 26px;
+  padding: 0 6px;
+  font-size: var(--text-meta);
+}
+.inspector-head .notice {
+  margin-bottom: 0;
+}
+
+.explain-panel {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr);
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--canvas);
+}
+.explain-commands h3 {
+  font-size: var(--text-meta);
+  font-weight: 600;
+  color: var(--graphite);
+  margin: 0 0 3px;
+}
+.explain-commands h3 + pre {
+  margin-bottom: var(--space-2);
+}
+.explain-commands pre {
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--raised);
+  white-space: pre-wrap;
+  /* Long quoted keys break inside the token, so each command keeps its name and key on one line. */
+  word-break: break-all;
+}
+.explain-panel .facts {
+  align-content: start;
+}
+.inspector > p.notice {
+  margin: var(--space-2) var(--space-4) 0;
+}
+.inspector-body {
+  flex: 1;
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  min-width: 0;
+}
+.inspector-foot {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 6px var(--space-4);
+  border-top: 1px solid var(--rule);
+  background: var(--pane);
+}
+.inspector-foot button {
+  min-height: 24px;
+}
+.page-note {
+  margin-left: auto;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+.inspector > .empty {
+  padding: var(--space-5);
+}
+.key-hints {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: var(--space-3) 0 0;
+  align-items: center;
+}
+.key-hints dt {
+  display: flex;
+  gap: 3px;
+}
+.key-hints dd {
+  margin: 0;
+}
+
+/* Value viewer: formatter tabs + text body */
+.value-viewer {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.value-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.value-toolbar-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.value-toolbar-end button {
+  min-height: 24px;
+}
+.value-note {
+  margin: 0 0 6px;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+}
+.value-content {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  min-height: 80px;
+  max-height: none;
+  overflow: auto;
+  tab-size: 2;
+  line-height: 20px;
+}
+.value-content.tree {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.value-modal {
+  width: min(880px, calc(100vw - 32px));
+}
+.value-modal .value-content {
+  max-height: 60vh;
+}
+
+/* Element tables (hash, list, set, zset, stream, timeseries) */
+.value-table {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+.value-table table {
+  font-size: 12.5px;
+}
+.value-table th {
+  background: var(--pane);
+}
+.value-table td {
+  padding: 3px 10px;
+  vertical-align: top;
+}
+.value-table td.num,
+.value-table th.num {
+  width: 1%;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+}
+.value-table tbody tr:hover td {
+  background: var(--hover);
+}
+.row-actions-col,
+.row-actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+td.row-actions {
+  padding: 1px 4px;
+}
+.row-button {
+  min-width: 24px;
+  min-height: 24px;
+  padding: 3px;
+  opacity: 0.8;
+}
+tr:hover .row-button,
+.row-button:focus-visible,
+.row-button[aria-pressed="true"] {
+  opacity: 1;
+}
+.row-button[aria-pressed="true"] {
+  background: var(--signal-tint);
+  color: var(--signal);
+}
+.row-panel-line > td {
+  background: var(--canvas);
+  padding: 8px 10px 10px;
+}
+.row-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 720px;
+}
+.row-panel .actions {
+  gap: 6px;
+}
+.row-panel .inline-field input {
+  width: 90px;
+}
+.row-panel-result {
+  padding: 4px 8px;
+  border: 1px solid var(--rule);
+  background: var(--raised);
+  border-radius: var(--radius);
+}
+.value-cell {
+  display: block;
+  width: 100%;
+  min-height: 20px;
+  text-align: left;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-weight: 400;
+  font-size: 12.5px;
+  line-height: 20px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  justify-content: flex-start;
+  max-height: 100px;
+  overflow: hidden;
+}
+.value-cell:hover {
+  color: var(--signal);
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.inline-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  margin: 0 0 8px;
+  font-size: var(--text-meta);
+}
+.inline-facts dt {
+  color: var(--graphite);
+}
+.inline-facts dd {
+  margin: 0 10px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.stream-id {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+}
+.stream-fields {
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0 10px;
+}
+.stream-fields > div {
+  display: contents;
+}
+.stream-fields dt .value-cell {
+  color: var(--type-hash);
+}
+.stream-fields dd {
+  margin: 0;
+}
+.disclosure {
+  margin-top: var(--space-3);
+}
+.disclosure summary {
+  cursor: pointer;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+}
+.disclosure pre {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  background: var(--raised);
+}
+.inspector-body .chart {
+  margin-bottom: var(--space-3);
+}
+
+/* Dialog helpers */
+.dialog-subject {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: -4px 0 var(--space-3);
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+.dialog-lead {
+  color: var(--graphite);
+}
+.bulk-preview h3 {
+  font-size: var(--text-meta);
+  margin-bottom: 2px;
+}
+.key-sample {
+  list-style: none;
+  margin: 6px 0 var(--space-3);
+  padding: 4px 8px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+.key-sample li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  font-size: 12.5px;
+}
+
+@media (max-width: 1280px) {
+  .delimiter-field > span {
+    display: none;
+  }
+  .page-title .scan-form select {
+    max-width: 120px;
+  }
+}
+@media (max-width: 1120px) {
+  .keys-view .page-title {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .keys-view .page-title .toolbar-controls {
+    order: 3;
+    flex-basis: 100%;
+  }
+  .keys-split {
+    --split: minmax(320px, 46%);
+  }
+  .explain-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The list is older than the database (writes elsewhere, or changes outside the filter). */
+.scan-changed {
+  align-items: center;
+  margin: 0;
+  border-radius: 0;
+  border-width: 0 0 1px 3px;
+}
+.scan-changed span {
+  flex: 1;
+}
+
+/* Maximized inspector: the list and the split handle step aside until "Show the key list". */
+.keys-split.inspector-wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+.keys-split.inspector-wide > .key-pane,
+.keys-split.inspector-wide > .split-handle {
+  display: none;
+}
+.inspector-wide-toggle {
+  margin-left: auto;
+}

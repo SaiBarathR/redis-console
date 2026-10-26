@@ -1,0 +1,22 @@
+{
+  "name": "@rconsole/e2e",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "e2e": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "screenshots": "RC_SCREENSHOTS=1 playwright test --project=screenshots",
+    "typecheck": "tsc --noEmit",
+    "serve": "node scripts/serve.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2"
+  },
+  "dependencies": {
+    "@rconsole/shared": "workspace:*"
+  }
+}

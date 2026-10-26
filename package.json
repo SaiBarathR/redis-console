@@ -1,0 +1,16 @@
+{
+  "name": "redis-console",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": { "node": ">=24.11" },
+  "scripts": {
+    "dev:setup": "bash scripts/dev-setup.sh",
+    "dev": "node --disable-warning=ExperimentalWarning scripts/dev-loop.ts",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter @rconsole/e2e e2e"
+  }
+}

@@ -1,0 +1,48 @@
+# Local development / test sandbox. Never used in production.
+# Generated secrets live in infra/.generated (gitignored); run scripts/dev-setup.sh first.
+name: rconsole-dev
+services:
+  redis-main:
+    # Optional seed from infra/redis/seed-main.rdb, loaded on first start.
+    image: redis:8
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports: ["127.0.0.1:6410:6379"]
+    volumes:
+      - ./.generated/redis-main.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./.generated/users.acl:/usr/local/etc/redis/users.acl:ro
+      - ./.generated/data-main:/data
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+  redis-snapshot:
+    # Local snapshot of a configured Redis source (scripts/snapshot-redis.sh).
+    image: redis:8
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports: ["127.0.0.1:6412:6379"]
+    volumes:
+      - ./.generated/redis-main.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./.generated/users.acl:/usr/local/etc/redis/users.acl:ro
+      - ./.generated/data-snapshot:/data
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+  redis-e2e:
+    # Clean, disposable instance for destructive and role-enforcement tests.
+    image: redis:8
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    ports: ["127.0.0.1:6411:6379"]
+    volumes:
+      - ./.generated/redis-e2e.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./.generated/users.acl:/usr/local/etc/redis/users.acl:ro
+    tmpfs: ["/data", "/tmp"]
+    security_opt: ["no-new-privileges:true"]
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ["start-dev", "--import-realm", "--http-port=8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: kcadmin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?run scripts/dev-setup.sh}
+      KC_HOSTNAME: http://localhost:8089
+    ports: ["127.0.0.1:8089:8080"]
+    volumes:
+      - ./.generated/realm-rconsole.json:/opt/keycloak/data/import/realm-rconsole.json:ro

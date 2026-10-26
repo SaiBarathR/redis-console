@@ -1,0 +1,98 @@
+/* Overview: readout strip, live charts, keyspace and server facts. */
+.overview {
+  max-width: 1600px;
+}
+.overview > .readouts {
+  margin-top: var(--space-1);
+}
+.overview .section .chart {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--pane);
+  padding: 6px 4px 0;
+}
+.chart-wait {
+  max-width: none;
+}
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+.live-status.ok .connection-dot {
+  background: var(--ok);
+}
+.live-status.error .connection-dot {
+  background: var(--danger);
+}
+.live-status.wait .connection-dot {
+  background: var(--warn);
+}
+.numeric-table td:not(:first-child),
+.numeric-table th:not(:first-child) {
+  text-align: right;
+}
+.server-facts {
+  gap: 5px var(--space-4);
+  font-size: var(--text-data);
+  line-height: var(--lh-data);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: 18px;
+}
+.info-all > summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding-bottom: 5px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+  list-style: none;
+}
+.info-all > summary::-webkit-details-marker {
+  display: none;
+}
+.info-all > summary::before {
+  content: "▸";
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  transition: transform var(--ease);
+}
+.info-all[open] > summary::before {
+  transform: rotate(90deg);
+}
+.info-all > summary h2 {
+  font-size: var(--text-data);
+}
+.info-all > summary .meta {
+  color: var(--graphite);
+  font-size: var(--text-meta);
+}
+.info-filter {
+  max-width: 360px;
+  margin: var(--space-2) 0;
+}
+.info-all .table-wrap {
+  max-height: 60vh;
+}
+@media (max-width: 1180px) {
+  .overview .grid-2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

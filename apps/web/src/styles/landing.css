@@ -1,0 +1,185 @@
+/* Database landing (/): dense, keyboard-driven table of configured databases. */
+.landing {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+.landing .page-title {
+  margin: 0;
+}
+.landing-filter {
+  width: 280px;
+}
+.landing-table {
+  background: var(--pane);
+  border-bottom: 1px solid var(--rule);
+}
+.landing-table table {
+  font-size: var(--text-data);
+}
+.landing-table th {
+  padding: 6px 12px;
+}
+.landing-table td {
+  padding: 8px 12px;
+  vertical-align: middle;
+}
+.landing-table tbody tr {
+  position: relative;
+}
+.landing-table tbody tr:focus-within td {
+  background: var(--signal-tint);
+}
+.landing-table tbody tr:focus-within td:first-child {
+  box-shadow: inset 3px 0 0 var(--signal);
+}
+.landing-table td.env-cell {
+  width: 1%;
+  white-space: nowrap;
+}
+.name-cell {
+  min-width: 260px;
+}
+.db-link {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: var(--text-pane);
+}
+.db-link::after {
+  /* The whole row is the click target; the link stays the single tab stop. */
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.db-link:focus-visible {
+  outline: none;
+}
+.db-sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: 1px;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+}
+.db-sub code {
+  font-size: var(--text-meta);
+  color: var(--graphite);
+}
+.last-tag {
+  color: var(--signal);
+  font-weight: 600;
+}
+.ro-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--danger);
+  font-weight: 600;
+}
+.db-error {
+  display: block;
+  color: var(--danger);
+  font-size: var(--text-meta);
+  position: relative;
+  z-index: 1;
+}
+.landing-table .mono {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+}
+.landing-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+.landing-table td small {
+  display: inline;
+  color: var(--graphite);
+}
+.role-tag {
+  font-weight: 600;
+}
+.kbd-cell {
+  width: 1%;
+}
+.landing-help {
+  padding: var(--space-3) var(--space-4);
+  color: var(--graphite);
+  font-size: var(--text-meta);
+}
+
+.db-description {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 420px;
+}
+.db-sub > .db-description::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--delim);
+}
+.last-key {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  margin-top: 2px;
+  font-size: var(--text-meta);
+  color: var(--ink);
+}
+.last-key .key-anatomy {
+  font-size: 12px;
+}
+.last-key:hover .key-anatomy {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (max-width: 1280px) {
+  .landing-table .hide-narrow {
+    display: none;
+  }
+}
+/* The name column absorbs the remaining width and truncates; every figure stays on one line. */
+.landing-table td,
+.landing-table th {
+  white-space: nowrap;
+}
+.landing-table td.name-cell {
+  width: 100%;
+  max-width: 0;
+  min-width: 280px;
+}
+.db-link {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.db-sub {
+  min-width: 0;
+  overflow: hidden;
+}
+.db-sub > code,
+.db-sub > .last-tag,
+.db-sub > .ro-tag {
+  flex-shrink: 0;
+}
+.db-description {
+  flex: 1 1 auto;
+  max-width: none;
+}
+.last-key {
+  display: flex;
+  min-width: 0;
+}
+.last-key > .muted {
+  flex-shrink: 0;
+}
+.db-error {
+  white-space: normal;
+}

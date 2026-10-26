@@ -1,0 +1,361 @@
+/*
+ * Bottom tools drawer (F27). A pane that butts against the view above it: a 1px rule, no shadow, a 30px tab bar
+ * that is always visible, and a resizable body. Environment colour stays on the shell frame, so the drawer inherits it.
+ */
+.tools-drawer {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--rule-strong);
+  background: var(--pane);
+  position: relative;
+}
+.tools-drawer.is-open {
+  min-height: 160px;
+}
+.drawer-resizer {
+  position: absolute;
+  top: -4px;
+  left: 0;
+  right: 0;
+  height: 7px;
+  cursor: row-resize;
+  z-index: 2;
+  touch-action: none;
+}
+.drawer-resizer:hover,
+.drawer-resizer:focus-visible {
+  background: color-mix(in srgb, var(--signal) 35%, transparent);
+  outline: none;
+}
+.drawer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0 var(--space-2);
+  background: var(--canvas);
+  font-size: var(--text-meta);
+  color: var(--graphite);
+  min-width: 0;
+}
+.tools-drawer.is-open .drawer-bar {
+  border-bottom: 1px solid var(--rule);
+}
+.drawer-tabs {
+  display: flex;
+  align-self: stretch;
+  gap: 0;
+}
+.drawer-tab {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--graphite);
+  min-height: 0;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: var(--text-meta);
+  font-weight: 450;
+  box-shadow: inset 0 -2px 0 transparent;
+}
+.drawer-tab:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.drawer-tab[aria-selected="true"] {
+  color: var(--ink);
+  background: var(--pane);
+  box-shadow: inset 0 -2px 0 var(--signal);
+  font-weight: 550;
+}
+.drawer-live .dot,
+.drawer-session::before {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.drawer-session::before {
+  content: "";
+}
+.drawer-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.drawer-session {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ok);
+  white-space: nowrap;
+  font-weight: 550;
+}
+.drawer-bar .spacer {
+  flex: 1;
+}
+.drawer-toggle {
+  min-height: 24px;
+  padding: 0 8px;
+  font-size: var(--text-meta);
+  gap: 6px;
+}
+.drawer-panel {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Side by side (review v0.2.1 web L5): the Console and a second tool share the drawer, separated by a rule. */
+.drawer-panel.is-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.drawer-pane {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.drawer-pane + .drawer-pane {
+  border-left: 1px solid var(--rule);
+}
+.drawer-pane > .loading {
+  margin: var(--space-3);
+}
+/* Half a drawer is narrow for the helper's list beside its detail: stack them. */
+.drawer-pane .helper-body {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 45%) minmax(0, 1fr);
+}
+.drawer-pane .helper-list {
+  border-right: 0;
+  border-bottom: 1px solid var(--rule);
+}
+.drawer-toggle[aria-pressed="true"] {
+  color: var(--ink);
+  background: var(--signal-tint);
+}
+.drawer-panel > .loading {
+  margin: var(--space-3);
+}
+.drawer-note {
+  margin: var(--space-3);
+  color: var(--graphite);
+}
+.db-index {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 5px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  line-height: 16px;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The docked Console: the same component as the page, with a compact toolbar. */
+.drawer-panel .console-view.is-docked,
+.drawer-pane .console-view.is-docked {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.console-docked-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-2) 2px var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  min-height: 30px;
+  flex-shrink: 0;
+}
+.console-docked-bar .meta {
+  flex: 1;
+  min-width: 0;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.console-docked-bar .actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.console-docked-bar .actions button {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: var(--text-micro);
+}
+.drawer-panel .console-view.is-docked .welcome {
+  padding: var(--space-3);
+}
+
+/* Command helper */
+.command-helper {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.helper-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--rule);
+}
+.helper-filters input[type="search"] {
+  flex: 1 1 240px;
+  width: auto;
+  max-width: 360px;
+}
+.helper-filters select {
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 240px;
+}
+.helper-filters .meta {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  margin-left: auto;
+}
+.helper-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(260px, 38%) minmax(0, 1fr);
+}
+.helper-list {
+  overflow: auto;
+  border-right: 1px solid var(--rule);
+  overscroll-behavior: contain;
+}
+.helper-group {
+  position: sticky;
+  top: 0;
+  padding: 3px var(--space-3);
+  background: var(--canvas);
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-weight: 550;
+  border-bottom: 1px solid var(--rule);
+}
+.helper-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: var(--space-2);
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  min-height: 26px;
+  padding: 2px var(--space-3);
+  text-align: left;
+  font-weight: 400;
+  color: var(--ink);
+}
+.helper-item:hover {
+  background: var(--hover);
+}
+.helper-item[aria-selected="true"] {
+  background: var(--signal-tint);
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+.helper-item code {
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+.helper-summary {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.helper-class {
+  font-size: var(--text-micro);
+  color: var(--graphite);
+  white-space: nowrap;
+}
+.helper-item.not-allowed code {
+  color: var(--graphite);
+}
+.helper-item.not-allowed .helper-class {
+  color: var(--danger);
+}
+.helper-empty {
+  padding: var(--space-3);
+}
+.helper-detail {
+  overflow: auto;
+  padding: var(--space-3);
+  min-width: 0;
+}
+.helper-detail header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+.helper-detail h3 {
+  margin: 0;
+  font-size: var(--text-pane);
+}
+.helper-detail header .primary {
+  margin-left: auto;
+}
+
+/* Profiler in the drawer */
+.profiler-compact {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+}
+.profiler-compact .profiler-controls {
+  margin-bottom: var(--space-2);
+}
+.drawer-subhead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-meta);
+  color: var(--graphite);
+}
+.drawer-subhead .header-check {
+  margin-left: auto;
+}
+
+@media (max-width: 1100px) {
+  .helper-body {
+    grid-template-columns: minmax(220px, 42%) minmax(0, 1fr);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-tab {
+    transition: background 120ms var(--ease), color 120ms var(--ease);
+  }
+}

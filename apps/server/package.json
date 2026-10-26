@@ -1,0 +1,32 @@
+{
+  "name": "@rconsole/server",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.11"
+  },
+  "bin": {
+    "rconsole-admin": "./src/cli/admin.ts"
+  },
+  "scripts": {
+    "dev": "node --env-file-if-exists=../../.env --disable-warning=ExperimentalWarning --watch --watch-path=src --watch-path=../../packages/shared/src scripts/dev.ts",
+    "start": "node --env-file-if-exists=../../.env --disable-warning=ExperimentalWarning scripts/dev.ts",
+    "admin": "node --disable-warning=ExperimentalWarning src/cli/admin.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@rconsole/shared": "workspace:*",
+    "fastify": "5.12.7",
+    "openid-client": "6.8.8",
+    "redis": "5.12.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2",
+    "vitest": "5.0.5"
+  }
+}

@@ -1,0 +1,826 @@
+/*
+ * Console and Workbench (docs/DESIGN.md). A terminal-shaped workspace: the transcript scrolls,
+ * the prompt is docked next to the newest output. Colour means something: environment on the
+ * prompt edge, type hues on keys, status in the result gutter, red only for danger.
+ */
+.console-view {
+  min-width: 0;
+}
+.console-view .page-title .actions {
+  gap: 4px;
+}
+.toolbar-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--rule);
+}
+.console-view .segmented button {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: var(--text-micro);
+}
+
+/* Quiet key hints: the clickable UI equivalent of each shortcut. */
+.key-hints {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+.key-hint {
+  border: 0;
+  background: transparent;
+  min-height: 22px;
+  padding: 1px 5px;
+  gap: 5px;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-weight: 450;
+}
+.key-hint:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.key-hint:disabled:hover {
+  background: transparent;
+}
+.key-hint.is-active {
+  color: var(--danger);
+}
+.key-hint kbd {
+  font-family: var(--font-ui);
+}
+.key-hint-pair {
+  display: inline-flex;
+  align-items: center;
+}
+.key-hint-pair .key-hint + .key-hint {
+  padding-left: 0;
+}
+
+/* Transcript */
+.console-transcript {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--pane);
+  overscroll-behavior: contain;
+}
+.console-result {
+  border-bottom: 1px solid var(--rule);
+  box-shadow: inset 3px 0 0 var(--ok);
+}
+.console-result--error {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+.console-result--cancelled {
+  box-shadow: inset 3px 0 0 var(--warn);
+}
+.console-result--running {
+  box-shadow: inset 3px 0 0 var(--signal);
+  background: var(--raised);
+}
+.console-result:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+.result-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 3px 10px 3px 8px;
+}
+.result-toggle {
+  border: 0;
+  background: transparent;
+  min-height: 22px;
+  min-width: 22px;
+  padding: 0;
+  color: var(--graphite);
+}
+.result-toggle:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.result-status {
+  width: 14px;
+  flex-shrink: 0;
+  text-align: center;
+  font-weight: 700;
+  font-size: var(--text-data);
+  color: var(--ok);
+}
+.console-result--error .result-status {
+  color: var(--danger);
+}
+.console-result--cancelled .result-status {
+  color: var(--warn);
+}
+.result-spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--rule-strong);
+  border-top-color: var(--signal);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+.result-command {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  line-height: var(--lh-data);
+  color: var(--ink);
+}
+.result-line {
+  margin-right: 8px;
+  font-family: var(--font-ui);
+  font-size: var(--text-micro);
+  color: var(--graphite);
+}
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.result-class[data-class="write"],
+.result-class[data-class="admin"] {
+  color: var(--warn);
+}
+.result-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+.result-action {
+  border: 0;
+  background: transparent;
+  min-height: 22px;
+  padding: 1px 6px;
+  gap: 4px;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-weight: 500;
+}
+.result-action:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.result-action:disabled:hover {
+  background: transparent;
+}
+.result-body {
+  padding: 0 16px 10px 60px;
+  min-width: 0;
+}
+.result-preview {
+  margin: 0;
+  padding: 0 16px 6px 60px;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.console-view .cli-reply {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-data);
+  line-height: var(--lh-data);
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.result-note {
+  margin: 6px 0 0;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+}
+.result-more {
+  margin-top: 4px;
+  border: 0;
+  background: transparent;
+  padding: 1px 0;
+  min-height: 22px;
+  color: var(--signal);
+  font-size: var(--text-meta);
+  font-weight: 550;
+}
+.result-more:hover {
+  background: transparent;
+  text-decoration: underline;
+}
+.result-body .notice {
+  margin: 2px 0 0;
+}
+.result-tree {
+  padding-top: 2px;
+}
+.result-json {
+  display: grid;
+  gap: 4px;
+  font-size: var(--text-meta);
+}
+.result-json .json-row {
+  line-height: var(--lh-data);
+}
+.scan-keys {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 3ch;
+}
+.scan-keys li {
+  display: flex;
+  align-items: baseline;
+  gap: 1ch;
+  min-width: 0;
+}
+.scan-index {
+  min-width: 4ch;
+  text-align: right;
+  color: var(--graphite);
+}
+.key-link {
+  border: 0;
+  background: transparent;
+  min-height: 20px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 3px;
+  justify-content: flex-start;
+  font-size: var(--text-data);
+  font-weight: 400;
+  line-height: var(--lh-data);
+}
+.key-link:hover {
+  background: var(--hover);
+}
+.key-link:hover .ka-leaf,
+.key-link:focus-visible .ka-leaf {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.result-keys {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-top: 8px;
+  max-height: 120px;
+  overflow: auto;
+}
+.result-keys-label {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+}
+
+/* Workbench runs: newest run first, its lines in script order. */
+.run-group + .run-group {
+  border-top: 1px solid var(--rule-strong);
+}
+.run-header {
+  display: flex;
+  gap: 12px;
+  padding: 3px 12px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--canvas);
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+}
+.run-ok {
+  color: var(--ok);
+}
+.run-errors {
+  color: var(--danger);
+}
+.run-cancelled {
+  color: var(--warn);
+}
+
+/* Empty state: plain, left-aligned, examples that fill the prompt. */
+.console-welcome {
+  max-width: 780px;
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-meta);
+  line-height: var(--lh-meta);
+  color: var(--graphite);
+}
+.console-welcome h2 {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: var(--text-pane);
+  font-weight: 600;
+}
+.console-welcome p {
+  margin: 0;
+}
+.console-welcome strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.console-examples {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+  display: grid;
+  gap: 1px;
+}
+.console-examples button {
+  width: 100%;
+  justify-content: flex-start;
+  gap: 16px;
+  min-height: 28px;
+  border-color: transparent;
+  background: transparent;
+  font-weight: 400;
+  text-align: left;
+}
+.console-examples button:hover {
+  background: var(--hover);
+  border-color: transparent;
+}
+.console-examples code {
+  flex: 0 0 min(30ch, 50%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--text-data);
+  color: var(--signal);
+}
+.console-examples span {
+  color: var(--graphite);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.console-welcome-note {
+  font-size: var(--text-micro);
+}
+
+/* The dock: assist line, danger state, prompt row and key hints. */
+.console-dock {
+  flex-shrink: 0;
+  border-top: 1px solid var(--rule-strong);
+  background: var(--pane);
+}
+.console-assist {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+  padding: 4px 8px 4px 12px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  line-height: var(--lh-meta);
+}
+.assist-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.assist-content code {
+  color: var(--ink);
+}
+.assist-signature {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+.assist-summary {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assist-complexity {
+  color: var(--graphite);
+  white-space: nowrap;
+}
+.assist-status {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.assist-action {
+  min-height: 22px;
+  padding: 1px 8px;
+  font-size: var(--text-meta);
+}
+.grammar-punct {
+  color: var(--graphite);
+}
+.grammar-active {
+  background: var(--signal-tint);
+  color: var(--ink);
+  border-bottom: 2px solid var(--signal);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.console-danger-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 5px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  background: var(--danger-tint);
+  color: var(--danger);
+  font-size: var(--text-meta);
+  line-height: var(--lh-meta);
+}
+.console-prompt-row {
+  display: flex;
+  align-items: flex-start;
+  background: var(--raised);
+}
+.console-prompt-row:focus-within {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+.console-prompt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 42px;
+  padding: 0 2px 0 14px;
+  font-size: var(--text-meta);
+  box-shadow: inset 3px 0 0 var(--env, var(--rule-strong));
+}
+.console-prompt[data-environment="dev"] {
+  --env: var(--env-dev);
+}
+.console-prompt[data-environment="test"] {
+  --env: var(--env-test);
+}
+.console-prompt[data-environment="staging"] {
+  --env: var(--env-staging);
+}
+.console-prompt[data-environment="prod"] {
+  --env: var(--env-prod);
+  box-shadow: inset 5px 0 0 var(--env);
+}
+.prompt-db {
+  color: var(--ink);
+  font-weight: 600;
+  font-size: var(--text-data);
+}
+.console-prompt .badge {
+  min-height: 18px;
+  font-size: var(--text-micro);
+}
+.prompt-role {
+  color: var(--graphite);
+}
+.prompt-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 5px;
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  color: var(--graphite);
+  font-size: var(--text-micro);
+}
+.prompt-caret {
+  margin-left: 2px;
+  color: var(--signal);
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+.console-dock.is-danger .prompt-caret,
+.console-dock.is-prod .prompt-caret {
+  color: var(--danger);
+}
+.console-prompt-row .editor {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+}
+.console-prompt-row .cm-scroller {
+  max-height: 200px;
+}
+.console-run-button {
+  flex-shrink: 0;
+  margin: 7px 10px 7px 4px;
+}
+.console-run-button kbd,
+.workbench-foot .primary kbd {
+  background: transparent;
+  color: inherit;
+  border-color: color-mix(in srgb, currentColor 45%, transparent);
+}
+.console-dock-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 30px;
+  padding: 3px 8px 3px 12px;
+  border-top: 1px solid var(--rule);
+  font-size: var(--text-micro);
+}
+.console-dock-foot .key-hints {
+  margin-left: auto;
+}
+.policy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 240px;
+  min-width: 0;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+}
+.policy > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Reverse history search (Ctrl+R), inside the dock above the prompt. */
+.console-history-search {
+  border-bottom: 1px solid var(--rule);
+  background: var(--pane);
+}
+.history-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 5px 8px 5px 12px;
+}
+.history-search-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+.history-search-field input {
+  flex: 1;
+  min-height: 26px;
+  font-family: var(--font-mono);
+}
+.history-count {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.history-search-keys {
+  display: flex;
+  gap: 2px;
+}
+.history-matches {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 4px;
+  max-height: 168px;
+  overflow: auto;
+}
+.history-matches li {
+  padding: 2px 12px 2px 15px;
+  color: var(--ink);
+  font-size: var(--text-data);
+  line-height: var(--lh-data);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.history-matches li:hover {
+  background: var(--hover);
+}
+.history-matches li[aria-selected="true"] {
+  background: var(--signal-tint);
+  box-shadow: inset 3px 0 0 var(--signal);
+}
+.history-matches mark {
+  background: transparent;
+  color: var(--signal);
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Workbench editor pane */
+.workbench-pane {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--rule-strong);
+  background: var(--raised);
+}
+.workbench-head {
+  position: static;
+  gap: 12px;
+  min-height: 34px;
+  padding: 0 8px 0 0;
+}
+.workbench-head .console-prompt {
+  height: 33px;
+}
+.workbench-head .script-policy {
+  flex: 1 1 200px;
+}
+.workbench-snippets {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.workbench-snippets select {
+  width: auto;
+  min-height: 24px;
+  padding: 1px 6px;
+  font-size: var(--text-micro);
+}
+.workbench-snippets button {
+  min-height: 24px;
+  padding: 1px 6px;
+  font-size: var(--text-micro);
+}
+.workbench-pane .editor {
+  height: clamp(150px, 30vh, 360px);
+  background: var(--raised);
+}
+.workbench-pane .editor:focus-within {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+.workbench-pane .cm-editor {
+  height: 100%;
+}
+.workbench-pane .cm-scroller {
+  max-height: none;
+}
+.workbench-pane .console-assist {
+  border-top: 1px solid var(--rule);
+  background: var(--pane);
+}
+.workbench-pane .console-danger-message {
+  border-top: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+}
+.workbench-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--rule);
+  background: var(--pane);
+}
+.workbench-foot .key-hints {
+  margin-right: auto;
+  justify-content: flex-start;
+}
+.workbench-foot .checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  white-space: nowrap;
+}
+
+/* Argument roles (COMMAND DOCS + key specs). Keys take the type hue of their command. */
+.console-token-command {
+  color: var(--signal);
+  font-weight: 650;
+}
+.console-token-subcommand {
+  color: var(--signal);
+  font-weight: 550;
+}
+.console-token-flag {
+  color: var(--graphite);
+  font-weight: 650;
+}
+.console-token-key {
+  color: var(--t, var(--ink));
+  font-weight: 550;
+  text-decoration: underline dotted;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+  text-underline-offset: 3px;
+}
+.console-token-value {
+  color: var(--ink);
+}
+.console-token-number {
+  color: var(--warn);
+  font-variant-numeric: tabular-nums slashed-zero;
+}
+.console-token-comment {
+  color: var(--graphite);
+  font-style: italic;
+}
+.console-token-invalid {
+  text-decoration: underline wavy var(--danger);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.console-ghost {
+  color: var(--graphite);
+  opacity: 0.8;
+}
+/* The accept key, drawn by CSS so the ghost's text stays exactly the suggestion. */
+.console-ghost::after {
+  content: "Tab";
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 4px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  line-height: 14px;
+  vertical-align: 1px;
+}
+
+/* Workbench gutter: policy before a run, status after it. */
+.console-line-marker {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  font-size: var(--text-micro);
+  color: var(--graphite);
+}
+.console-line-marker.tone-write,
+.console-line-marker.tone-admin {
+  color: var(--warn);
+}
+.console-line-marker.tone-blocked,
+.console-line-marker.tone-danger {
+  color: var(--danger);
+}
+.console-line-marker.status-success {
+  color: var(--ok);
+}
+.console-line-marker.status-error {
+  color: var(--danger);
+}
+.console-line-marker.status-running {
+  color: var(--signal);
+}
+.console-line-marker.status-not-run {
+  color: var(--graphite);
+}
+.console-line-marker.status-cancelled {
+  color: var(--warn);
+}
+
+/* Command documentation dialog (F1) */
+.command-doc-grammar {
+  margin: 0 0 8px;
+  font-size: var(--text-data);
+  line-height: var(--lh-data);
+  overflow-wrap: anywhere;
+}
+.command-doc-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 12px 0;
+  font-size: var(--text-meta);
+}
+.command-doc-facts dt {
+  color: var(--graphite);
+}
+.command-doc-facts dd {
+  margin: 0;
+}
+
+@media (max-width: 1279px) {
+  /* Narrow: the dock keeps the labels of history search and clear / cancel; the toolbar keeps all of its. */
+  .console-dock-foot .key-hint:not(.keep-label) span {
+    display: none;
+  }
+  .console-view .page-title > .title-block p {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-spinner {
+    animation: none;
+    border-top-color: var(--signal);
+    border-right-color: var(--signal);
+  }
+}

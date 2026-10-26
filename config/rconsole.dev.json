@@ -1,0 +1,155 @@
+{
+  "$comment": "Dev/test config. Secrets are NEVER inline: use {\"env\": \"VAR\"} or {\"file\": \"/path\"}. Loaded from RCONSOLE_CONFIG.",
+  "server": {
+    "host": "127.0.0.1",
+    "port": 4000,
+    "publicUrl": "http://localhost:4000",
+    "trustProxy": false,
+    "dataDir": "./data",
+    "sessionTtlMinutes": 480,
+    "sessionIdleMinutes": 60,
+    "secureCookies": false,
+    "extraAllowedOrigins": [
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:5174",
+      "http://localhost:5175",
+      "http://localhost:5176"
+    ]
+  },
+  "auth": {
+    "oidc": {
+      "enabled": true,
+      "displayName": "Company SSO (dev Keycloak)",
+      "issuer": "http://localhost:8089/realms/rconsole",
+      "clientId": "rconsole",
+      "clientSecret": {
+        "env": "OIDC_CLIENT_SECRET"
+      },
+      "scopes": [
+        "openid",
+        "profile",
+        "email"
+      ],
+      "groupsClaim": "groups",
+      "roleMapping": {
+        "rconsole-admins": "admin",
+        "rconsole-operators": "operator",
+        "rconsole-viewers": "viewer"
+      },
+      "allowInsecureHttpIssuer": true
+    },
+    "local": {
+      "enabled": true,
+      "requireTotpForRoles": [
+        "admin"
+      ],
+      "bootstrapAdmin": {
+        "username": "admin",
+        "password": {
+          "env": "BOOTSTRAP_ADMIN_PASSWORD"
+        }
+      },
+      "totpEncryptionKey": {
+        "env": "TOTP_ENCRYPTION_KEY"
+      },
+      "lockout": {
+        "maxAttempts": 5,
+        "windowMinutes": 15
+      }
+    }
+  },
+  "policy": {
+    "maxReplyBytes": 1048576,
+    "maxValueBytes": 524288,
+    "commandTimeoutMs": 5000,
+    "scanBudgetMs": 300,
+    "profilerAllowedEnvironments": [
+      "dev",
+      "test"
+    ],
+    "prodRequiresReason": true
+  },
+  "databases": [
+    {
+      "id": "sandbox-main",
+      "name": "Sandbox main",
+      "description": "Local Redis 8 sandbox. Optionally seeded from infra/redis/seed-main.rdb. Safe to change.",
+      "environment": "dev",
+      "url": "redis://127.0.0.1:6410",
+      "credentials": {
+        "viewer": {
+          "username": "rc-viewer",
+          "password": {
+            "env": "SANDBOX_REDIS_VIEWER_PASSWORD"
+          }
+        },
+        "operator": {
+          "username": "rc-operator",
+          "password": {
+            "env": "SANDBOX_REDIS_OPERATOR_PASSWORD"
+          }
+        },
+        "admin": {
+          "username": "rc-admin",
+          "password": {
+            "env": "SANDBOX_REDIS_ADMIN_PASSWORD"
+          }
+        }
+      }
+    },
+    {
+      "id": "sandbox-e2e",
+      "name": "E2E scratch",
+      "environment": "test",
+      "url": "redis://127.0.0.1:6411",
+      "credentials": {
+        "viewer": {
+          "username": "rc-viewer",
+          "password": {
+            "env": "SANDBOX_REDIS_VIEWER_PASSWORD"
+          }
+        },
+        "operator": {
+          "username": "rc-operator",
+          "password": {
+            "env": "SANDBOX_REDIS_OPERATOR_PASSWORD"
+          }
+        },
+        "admin": {
+          "username": "rc-admin",
+          "password": {
+            "env": "SANDBOX_REDIS_ADMIN_PASSWORD"
+          }
+        }
+      }
+    },
+    {
+      "id": "snapshot",
+      "name": "Snapshot (local copy)",
+      "description": "Local Redis 8 snapshot. Safe to change; refresh with scripts/snapshot-redis.sh.",
+      "environment": "dev",
+      "url": "redis://127.0.0.1:6412",
+      "credentials": {
+        "viewer": {
+          "username": "rc-viewer",
+          "password": {
+            "env": "SANDBOX_REDIS_VIEWER_PASSWORD"
+          }
+        },
+        "operator": {
+          "username": "rc-operator",
+          "password": {
+            "env": "SANDBOX_REDIS_OPERATOR_PASSWORD"
+          }
+        },
+        "admin": {
+          "username": "rc-admin",
+          "password": {
+            "env": "SANDBOX_REDIS_ADMIN_PASSWORD"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rconsole
+  namespace: rconsole
+  labels: { app.kubernetes.io/name: rconsole }
+spec:
+  # Sessions, users and the audit log live in SQLite on the PVC: run exactly one replica.
+  replicas: 1
+  strategy: { type: Recreate }
+  selector:
+    matchLabels: { app.kubernetes.io/name: rconsole }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: rconsole }
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: rconsole
+          image: ghcr.io/saibarathr/redis-console:0.3.0 # pin by digest in production
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 4000 }
+          env:
+            - { name: RCONSOLE_CONFIG, value: /etc/rconsole/config.json }
+            - { name: RCONSOLE_DATA_DIR, value: /data }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            privileged: false
+            capabilities: { drop: [ALL] }
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+            failureThreshold: 3
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: "1", memory: 768Mi }
+          volumeMounts:
+            - { name: config, mountPath: /etc/rconsole/config.json, subPath: config.json, readOnly: true }
+            - { name: secrets, mountPath: /run/secrets/rconsole, readOnly: true }
+            - { name: redis-ca, mountPath: /etc/rconsole/tls, readOnly: true }
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap: { name: rconsole-config }
+        - name: secrets
+          secret: { secretName: rconsole-secrets, defaultMode: 0400 }
+        - name: redis-ca
+          configMap: { name: redis-ca, optional: true }
+        - name: data
+          persistentVolumeClaim: { claimName: rconsole-data }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 16Mi }
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rconsole-data
+  namespace: rconsole
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: { storage: 2Gi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rconsole
+  namespace: rconsole
+spec:
+  selector: { app.kubernetes.io/name: rconsole }
+  ports:
+    - { name: http, port: 80, targetPort: http }

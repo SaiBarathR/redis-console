@@ -1,0 +1,50 @@
+# Example production-style deployment of Redis Console with Docker Compose.
+# - TLS is terminated by your reverse proxy / load balancer in front of port 4000
+#   (publicUrl must be https:// in production; secureCookies must be true).
+# - Secrets are passed as files (Docker secrets) and referenced from the config with
+#   { "file": "/run/secrets/<name>" }. Nothing secret lives in the image or the compose file.
+# - The container runs as a non-root user with a read-only root filesystem; only /data is writable.
+#
+#   docker compose -f deploy/docker-compose.example.yml up -d
+name: rconsole
+services:
+  rconsole:
+    image: ghcr.io/saibarathr/redis-console:0.3.0   # pin by digest in production, or use your own build
+    restart: unless-stopped
+    read_only: true
+    user: "1000:1000"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    environment:
+      RCONSOLE_CONFIG: /etc/rconsole/config.json
+      RCONSOLE_DATA_DIR: /data
+    ports:
+      # Bind to localhost only; expose through your TLS-terminating reverse proxy.
+      - "127.0.0.1:4000:4000"
+    volumes:
+      - ./config.prod.json:/etc/rconsole/config.json:ro
+      - rconsole-data:/data
+    secrets:
+      - oidc_client_secret
+      - redis_viewer_password
+      - redis_operator_password
+      - redis_admin_password
+      - bootstrap_admin_password
+      - totp_encryption_key
+    mem_limit: 768m
+    pids_limit: 256
+    logging:
+      driver: json-file          # ship stdout (incl. `"audit":true` JSON lines) to your SIEM
+      options: { max-size: "50m", max-file: "5" }
+
+volumes:
+  rconsole-data: {}
+
+secrets:
+  oidc_client_secret:      { file: ./secrets/oidc_client_secret }
+  redis_viewer_password:   { file: ./secrets/redis_viewer_password }
+  redis_operator_password: { file: ./secrets/redis_operator_password }
+  redis_admin_password:    { file: ./secrets/redis_admin_password }
+  bootstrap_admin_password: { file: ./secrets/bootstrap_admin_password }
+  totp_encryption_key:     { file: ./secrets/totp_encryption_key }   # openssl rand -hex 32; rotation: docs/OPERATIONS.md 6a

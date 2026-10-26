@@ -1,0 +1,14 @@
+# GitHub Actions are pinned to commit SHAs; Dependabot proposes the updates (one grouped pull request a week).
+# npm dependencies are not updated automatically: every dependency change needs a reason (AGENTS.md, hard rule 12)
+# and a regenerated THIRD-PARTY-NOTICES. Dependabot alerts and security updates still cover them.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "chore(ci)"

@@ -1,0 +1,74 @@
+{
+  "$comment": "Example production config. Secrets are references only ({\"file\": ...} or {\"env\": ...}); inline secrets are rejected at startup. server.trustProxy 1 = one reverse proxy in front: the client is the last X-Forwarded-For entry. That is safe only while nothing but the proxy can reach port 4000 (the compose example publishes 127.0.0.1:4000); otherwise set the proxy's address or a narrow CIDR instead (docs/INSTALL.md, Setting trustProxy).",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 4000,
+    "publicUrl": "https://redis-console.example.com",
+    "trustProxy": 1,
+    "dataDir": "/data",
+    "sessionTtlMinutes": 480,
+    "sessionIdleMinutes": 30,
+    "secureCookies": true
+  },
+  "auth": {
+    "oidc": {
+      "enabled": true,
+      "displayName": "Company SSO",
+      "issuer": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+      "clientId": "<application-client-id>",
+      "clientSecret": { "file": "/run/secrets/oidc_client_secret" },
+      "scopes": ["openid", "profile", "email"],
+      "groupsClaim": "groups",
+      "roleMapping": {
+        "<entra-group-object-id-admins>": "admin",
+        "<entra-group-object-id-operators>": "operator",
+        "<entra-group-object-id-viewers>": "viewer"
+      },
+      "allowInsecureHttpIssuer": false
+    },
+    "local": {
+      "enabled": true,
+      "requireTotpForRoles": ["admin", "operator"],
+      "bootstrapAdmin": { "username": "admin", "password": { "file": "/run/secrets/bootstrap_admin_password" } },
+      "totpEncryptionKeys": [{ "id": "k1", "secret": { "file": "/run/secrets/totp_encryption_key" } }],
+      "totpPrimaryKeyId": "k1",
+      "lockout": { "maxAttempts": 5, "windowMinutes": 15 }
+    }
+  },
+  "policy": {
+    "maxReplyBytes": 1048576,
+    "maxValueBytes": 524288,
+    "commandTimeoutMs": 5000,
+    "scanBudgetMs": 300,
+    "profilerAllowedEnvironments": ["dev", "test"],
+    "prodRequiresReason": true
+  },
+  "audit": { "retentionDays": 365 },
+  "databases": [
+    {
+      "id": "orders-prod",
+      "name": "Orders (prod)",
+      "environment": "prod",
+      "readOnly": false,
+      "maxRole": "operator",
+      "url": "rediss://orders-redis.internal.example.com:6380",
+      "tls": { "ca": { "file": "/etc/rconsole/ca.pem" }, "servername": "orders-redis.internal.example.com" },
+      "credentials": {
+        "viewer": { "username": "rc-viewer", "password": { "file": "/run/secrets/redis_viewer_password" } },
+        "operator": { "username": "rc-operator", "password": { "file": "/run/secrets/redis_operator_password" } }
+      }
+    },
+    {
+      "id": "cache-staging",
+      "name": "Cache (staging)",
+      "environment": "staging",
+      "url": "rediss://cache-staging.internal.example.com:6380",
+      "tls": { "ca": { "file": "/etc/rconsole/ca.pem" } },
+      "credentials": {
+        "viewer": { "username": "rc-viewer", "password": { "file": "/run/secrets/redis_viewer_password" } },
+        "operator": { "username": "rc-operator", "password": { "file": "/run/secrets/redis_operator_password" } },
+        "admin": { "username": "rc-admin", "password": { "file": "/run/secrets/redis_admin_password" } }
+      }
+    }
+  ]
+}

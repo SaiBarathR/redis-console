@@ -1,0 +1,602 @@
+/* App shell: rail, context bar, environment frame, status bar, palette. */
+.skip-link {
+  position: fixed;
+  left: 60px;
+  top: -80px;
+  z-index: 100;
+  padding: var(--space-2) var(--space-3);
+  background: var(--pane);
+  border: 1px solid var(--signal);
+}
+.skip-link:focus {
+  top: 8px;
+}
+.app-shell {
+  --env: transparent;
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+  position: relative;
+}
+.app-shell[data-rail="open"] {
+  grid-template-columns: var(--rail-open) minmax(0, 1fr);
+}
+.app-shell[data-env="dev"] {
+  --env: var(--env-dev);
+}
+.app-shell[data-env="test"] {
+  --env: var(--env-test);
+}
+.app-shell[data-env="staging"] {
+  --env: var(--env-staging);
+}
+.app-shell[data-env="prod"] {
+  --env: var(--env-prod);
+}
+
+/* The frame: staging and prod (and read-only) mark the whole window. */
+.app-shell[data-env="staging"]::after,
+.app-shell[data-env="prod"]::after,
+.app-shell[data-readonly="true"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  box-shadow: inset 0 0 0 3px var(--env);
+}
+.app-shell[data-readonly="true"]:not([data-env="prod"]):not(
+    [data-env="staging"]
+  )::after {
+  box-shadow: inset 0 0 0 2px var(--graphite);
+}
+.env-edge {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 22px;
+  padding: 1px var(--space-3);
+  font-size: var(--text-micro);
+  font-weight: 650;
+  line-height: var(--lh-micro);
+  background: var(--env);
+  color: var(--env-ink);
+  position: relative;
+  z-index: 41;
+}
+.env-edge > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.env-edge.readonly {
+  color: var(--ink);
+  background-color: var(--pane);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--graphite) 34%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  border-bottom: 1px solid var(--rule-strong);
+}
+.env-edge.readonly > span {
+  background: var(--pane);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.app-shell[data-env="prod"] .env-edge.readonly,
+.app-shell[data-env="staging"] .env-edge.readonly {
+  background-color: var(--env);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--env-ink) 30%, transparent) 0 6px,
+    transparent 6px 12px
+  );
+  border-bottom: 0;
+}
+
+/* Rail */
+.rail {
+  grid-row: 2;
+  background: var(--canvas);
+  border-right: 1px solid var(--rule);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 6px 6px 8px;
+  gap: 2px;
+}
+.rail .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 6px;
+  margin-bottom: 6px;
+  color: var(--ink);
+  font-weight: 650;
+  font-size: var(--text-data);
+  white-space: nowrap;
+}
+.rail .brand:hover {
+  text-decoration: none;
+}
+.brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: var(--canvas);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+}
+.rail nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rail nav + nav {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--graphite);
+  font-size: var(--text-data);
+  font-weight: 500;
+  text-decoration: none;
+  justify-content: flex-start;
+  white-space: nowrap;
+}
+.nav-item:hover {
+  text-decoration: none;
+  background: var(--hover);
+  color: var(--ink);
+  border-color: transparent;
+}
+.nav-item.active,
+.nav-item[aria-current="page"] {
+  background: var(--pane);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.nav-item.active::before,
+.nav-item[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: -6px;
+  top: 7px;
+  bottom: 7px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--signal);
+}
+.nav-item.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nav-item.disabled:hover {
+  background: transparent;
+  color: var(--graphite);
+}
+.nav-item kbd {
+  margin-left: auto;
+}
+.app-shell:not([data-rail="open"]) .nav-label,
+.app-shell:not([data-rail="open"]) .nav-item kbd,
+.app-shell:not([data-rail="open"]) .brand-name {
+  display: none;
+}
+.app-shell:not([data-rail="open"]) .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+.rail-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--raised);
+  border: 1px solid var(--rule-strong);
+  color: var(--ink);
+  font-size: var(--text-micro);
+  font-weight: 650;
+}
+.profile-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 15px;
+  overflow: hidden;
+}
+.profile-text small {
+  font-size: 10.5px;
+}
+
+/* Context bar */
+.main-column {
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.contextbar {
+  height: var(--bar);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border-bottom: 1px solid var(--rule);
+  background: var(--canvas);
+}
+.database-picker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 28px;
+  border-radius: var(--radius);
+}
+.database-picker::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--env, var(--rule-strong));
+  pointer-events: none;
+}
+.database-picker > svg {
+  position: absolute;
+  right: 8px;
+  color: var(--graphite);
+  pointer-events: none;
+}
+.database-picker select {
+  width: auto;
+  min-width: 220px;
+  max-width: 380px;
+  height: 28px;
+  padding: 0 28px 0 12px;
+  border-color: transparent;
+  background: transparent;
+  font-size: var(--text-data);
+  font-weight: 600;
+  appearance: none;
+  text-overflow: ellipsis;
+}
+.database-picker select:hover {
+  background: var(--hover);
+  border-color: var(--rule-strong);
+}
+.database-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.database-badges .badge.env {
+  color: var(--env-ink);
+  background: var(--env);
+  border-color: var(--env);
+}
+.connection {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--graphite);
+  font-size: var(--text-micro);
+}
+.connection-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+}
+.connection-dot.connected {
+  background: var(--ok);
+}
+.connection-dot.error {
+  background: var(--danger);
+}
+.topbar-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  align-items: center;
+}
+.palette-trigger {
+  color: var(--graphite);
+  font-weight: 450;
+  min-width: 200px;
+  justify-content: flex-start;
+  border-color: var(--rule-strong);
+  background: var(--pane);
+}
+.palette-trigger kbd {
+  margin-left: auto;
+}
+
+/* Main region: a column between the context bar and the status bar. Each view scrolls on its own,
+   so split views (keys, diagnostics, guided) can fill it and keep their toolbars in place. */
+.main-content {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--canvas);
+  position: relative;
+}
+.main-content > .notice {
+  margin: var(--space-2) var(--space-3);
+  flex-shrink: 0;
+}
+.main-content > .empty {
+  flex: 1;
+  overflow: auto;
+}
+
+/* Status bar */
+.statusbar {
+  height: var(--status);
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--rule);
+  background: var(--canvas);
+  color: var(--graphite);
+  font-size: var(--text-micro);
+  line-height: var(--lh-micro);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.statusbar > * {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 var(--space-3);
+  border-right: 1px solid var(--rule);
+}
+.statusbar > .spacer {
+  flex: 1;
+  border-right: 0;
+  padding: 0;
+}
+.statusbar > :last-child {
+  border-right: 0;
+}
+.statusbar strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.app-shell[data-env="prod"] .statusbar {
+  background: var(--env-prod);
+  color: var(--env-ink);
+  border-top-color: var(--env-prod);
+}
+.app-shell[data-env="staging"] .statusbar {
+  background: var(--warn-tint);
+  border-top-color: var(--env-staging);
+}
+.app-shell[data-env="prod"] .statusbar strong,
+.app-shell[data-env="prod"] .statusbar .connection {
+  color: var(--env-ink);
+}
+.app-shell[data-env="prod"] .statusbar > * {
+  border-color: color-mix(in srgb, var(--env-ink) 30%, transparent);
+}
+
+/* View chrome: each view starts with a compact toolbar instead of a hero heading. */
+.page-title {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: 6px var(--space-4);
+  border-bottom: 1px solid var(--rule);
+  background: var(--pane);
+  flex-shrink: 0;
+}
+.page-title > .title-block {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  flex-shrink: 1;
+}
+.page-title h1 {
+  white-space: nowrap;
+}
+.page-title p {
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.page-title .toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1;
+}
+.page-title > .actions {
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.page-body {
+  padding: var(--space-3) var(--space-4) var(--space-5);
+}
+
+/* Scrolling views (overview, console, admin, account). */
+.view {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 var(--space-4) var(--space-5);
+}
+.view > .page-title,
+.view > div > .page-title:first-child {
+  margin: 0 calc(-1 * var(--space-4)) var(--space-3);
+}
+
+/* Split views fill the region: full-bleed panes separated by 1px rules, each scrolling on its own. */
+.view:has(> .workspace) {
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pane);
+}
+.view > .workspace > .page-title:first-child {
+  margin: 0;
+}
+.split {
+  --split: 280px;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: var(--split) minmax(0, 1fr);
+}
+.split > * {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.split > * + * {
+  border-left: 1px solid var(--rule);
+}
+.pane-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--rule);
+  background: var(--pane);
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  flex-shrink: 0;
+}
+.pane-head h2 {
+  font-size: var(--text-data);
+  color: var(--ink);
+}
+.pane-head .actions {
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+.pane-body {
+  padding: var(--space-3) var(--space-4) var(--space-5);
+}
+
+/* Command palette */
+.palette-search {
+  min-height: 36px;
+  font-size: var(--text-pane);
+}
+.palette-results {
+  margin: var(--space-2) -6px -6px;
+  max-height: 50vh;
+  overflow: auto;
+}
+.palette-results > button {
+  width: 100%;
+  justify-content: flex-start;
+  background: transparent;
+  border: 0;
+  gap: var(--space-3);
+  min-height: 32px;
+  font-weight: 450;
+  font-size: var(--text-data);
+}
+.palette-results > button:hover {
+  background: var(--hover);
+}
+.palette-results > button[aria-selected="true"] {
+  background: var(--signal-tint);
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--signal);
+}
+.palette-results > button > svg:first-child {
+  color: var(--graphite);
+}
+.palette-results > button > kbd,
+.palette-results > button > small {
+  margin-left: auto;
+}
+.shortcuts {
+  padding: 4px 0;
+}
+
+@media (max-width: 1180px) {
+  .palette-trigger {
+    min-width: 0;
+  }
+  .palette-trigger > span {
+    display: none;
+  }
+  .database-picker select {
+    min-width: 160px;
+    max-width: 240px;
+  }
+  .statusbar .wide {
+    display: none;
+  }
+}

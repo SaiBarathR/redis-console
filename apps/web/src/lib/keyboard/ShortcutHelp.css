@@ -1,0 +1,80 @@
+/* `?` overlay: shortcut groups by context, the current view's first. */
+.modal.shortcut-help {
+  width: min(920px, calc(100vw - 32px));
+}
+.shortcut-help-intro {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  color: var(--graphite);
+  font-size: var(--text-meta);
+  line-height: var(--lh-meta);
+}
+.shortcut-help-intro p {
+  margin: 0;
+  max-width: 60ch;
+}
+.shortcut-help-intro .segmented {
+  flex-shrink: 0;
+}
+.shortcut-help-intro .segmented button {
+  min-height: 24px;
+  padding: 2px 8px;
+  font-size: var(--text-micro);
+}
+.shortcut-groups {
+  columns: 2 380px;
+  column-gap: var(--space-5);
+  margin-top: var(--space-2);
+}
+.modal .shortcut-group {
+  break-inside: avoid;
+  margin: 0;
+  padding: var(--space-3) 0 var(--space-2);
+}
+.shortcut-group h3 {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-data);
+  font-weight: 600;
+}
+.shortcut-group[data-current] h3 {
+  border-bottom-color: var(--signal);
+}
+.shortcut-here {
+  color: var(--signal);
+  font-size: var(--text-micro);
+  font-weight: 500;
+}
+.shortcut-group dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 4px var(--space-3);
+  margin: 0;
+  font-size: var(--text-meta);
+  line-height: var(--lh-meta);
+}
+.shortcut-group dt {
+  color: var(--ink);
+}
+.shortcut-group dd {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+}
+.shortcut-chord {
+  display: inline-flex;
+  gap: 2px;
+}
+.shortcut-or {
+  color: var(--graphite);
+  font-size: var(--text-micro);
+}
