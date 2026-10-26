@@ -186,6 +186,17 @@ describe("F18 multi-entry validation and expectations", () => {
     await userEvent.click(within(screen.getByTestId("multi-entry-dialog")).getByRole("button", { name: "Close dialog" }));
     expect(onClose).toHaveBeenCalled();
   });
+  it("keeps the dialog open while a command is still being sent", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => new Promise<Response>(() => {})));
+    const onClose = vi.fn();
+    render(wrap(<MultiEntryAdd details={hash()} onClose={onClose} refresh={async () => {}} />));
+    await userEvent.type(screen.getByLabelText("Field 1", { exact: true }), "a");
+    await userEvent.click(screen.getByText("Review entries")); await userEvent.click(screen.getByText("Apply entries"));
+    await waitFor(() => expect(screen.getByTestId("multi-entry-summary")).toHaveTextContent("0 of 1 commands completed…"));
+    await userEvent.click(within(screen.getByTestId("multi-entry-dialog")).getByRole("button", { name: "Close dialog" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId("multi-entry-dialog")).toBeInTheDocument();
+  });
 });
 describe("F15 inspector groups and pending", () => {
   it("a group reorder preserves selection by bytes; removal cannot retarget pending actions", async () => {

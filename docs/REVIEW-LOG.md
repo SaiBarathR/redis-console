@@ -1108,5 +1108,5 @@ Close click during the refresh of a large key (1,202 members here) was dropped, 
 
 | ID | Verdict | Reason | Commit | Regression tests |
 |---|---|---|---|---|
-| Flake F18 | fixed | Close is now blocked only while commands are being sent; the refresh may finish behind the closed dialog. | (this PR) | `components/detail.test.tsx` › "closes once every command has run, while the key is still refreshing" (failed before); e2e F18 now asserts the dialog closes |
+| Flake F18 | fixed | Close is now blocked only while commands are being sent; the refresh may finish behind the closed dialog. | `fix/multi-entry-close` | `components/detail.test.tsx` › "closes once every command has run, while the key is still refreshing (CI flake on PR 1)" (failed before) and "keeps the dialog open while a command is still being sent"; e2e F18 now asserts the dialog closes |
 
