@@ -33,7 +33,7 @@ export type Bin = z.infer<typeof zBin>;
 export const zRole = z.enum(ROLES);
 export const zEnvironment = z.enum(ENVIRONMENTS);
 
-export const REDIS_TYPES = ['string', 'hash', 'list', 'set', 'zset', 'stream', 'ReJSON-RL', 'TSDB-TYPE', 'MBbloom--', 'MBbloomCF', 'vectorset', 'none', 'unknown'] as const;
+export const REDIS_TYPES = ['string', 'hash', 'list', 'set', 'zset', 'stream', 'ReJSON-RL', 'TSDB-TYPE', 'MBbloom--', 'MBbloomCF', 'vectorset', 'array', 'none', 'unknown'] as const;
 export type RedisType = (typeof REDIS_TYPES)[number] | (string & {});
 
 export interface ApiError {
@@ -338,6 +338,123 @@ export type KeyMetaRequest = z.input<typeof zKeyMetaRequest>;
 export interface KeyMetaItem { key: Bin; type: RedisType; ttl?: number; size?: number }
 export interface KeyMetaResponse { keys: KeyMetaItem[] }
 
+// ---------------------------------------------------------------------------
+// v0.4 arrays: the Redis 8.8+ native array type (`TYPE` = `array`), sparse and addressed by index.
+// Server logic: apps/server/src/redis/array.ts and routes/array.ts; web: apps/web/src/components/ArrayDetail.tsx.
+
+/** The largest index Redis accepts in an array (2^64 - 2). Indices travel as decimal strings: they exceed 2^53. */
+export const ARRAY_MAX_INDEX = '18446744073709551614';
+/** Whether `s` is an array index in canonical form: decimal digits without sign or leading zeros, at most ARRAY_MAX_INDEX. */
+export function isArrayIndex(s: string): boolean {
+  return /^(?:0|[1-9]\d{0,19})$/.test(s) && BigInt(s) <= BigInt(ARRAY_MAX_INDEX);
+}
+export const zArrayIndex = z.string().max(20).refine(isArrayIndex, `an array index is a whole number from 0 to ${ARRAY_MAX_INDEX}`);
+/** Most elements one page, search or aggregate request returns (the `LIMIT` of ARSCAN and ARGREP). */
+export const ARRAY_PAGE_MAX = 1000;
+/**
+ * Most existing elements one search (ARGREP) or aggregate (AROP) request makes Redis visit. A search over a range that
+ * holds more stops after this many elements and says where to continue; an aggregate over such a range is refused
+ * (400, with the count), so a result never covers less of the range than it claims.
+ */
+export const ARRAY_SCAN_MAX_ELEMENTS = 1_000_000;
+/** At most this many predicates per search, each value at most ARRAY_PREDICATE_MAX_BYTES bytes. */
+export const ARRAY_PREDICATES_MAX = 8;
+export const ARRAY_PREDICATE_MAX_BYTES = 16 * 1024;
+/**
+ * ARGREP predicates the search offers: EXACT (whole value), MATCH (substring), GLOB (glob pattern, at most 8 `*`).
+ * RE (regular expressions) is not offered and is blocked in the console: Redis evaluates it on every element of the
+ * range with no time limit, and a 15-character pattern took about 1 s per KiB of value (docs/ARCHITECTURE.md § 6).
+ */
+export const ARRAY_SEARCH_KINDS = ['exact', 'match', 'glob'] as const;
+/** AROP operations over a range (MATCH counts elements equal to `value`; USED counts existing elements). */
+export const ARRAY_AGGREGATES = ['sum', 'min', 'max', 'and', 'or', 'xor', 'used', 'match'] as const;
+
+/** ARINFO of an array. Numbers are decimal strings (`length` can be 2^64 - 1). */
+export interface ArraySummary {
+  /** ARCOUNT: elements that exist. */
+  count: string;
+  /** ARLEN: highest index + 1 (0 when empty). A sparse array has a `length` far above its `count`. */
+  length: string;
+  /** ARNEXT: where ARINSERT writes next (the insert cursor; ARSEEK and ARRING move it). */
+  nextInsertIndex: string;
+  slices?: number;
+  sliceSize?: number;
+}
+/** One existing element. Long values are cut to KEY_ELEMENT_PREVIEW_BYTES (`truncated`); `ref` reads the full bytes through POST /key/element. */
+export interface ArrayElement { index: string; value: Bin; truncated?: true; ref: ElementRef }
+/** A page of existing elements, in index order (descending with `reverse`). Gaps between indices are empty positions. */
+export interface ArrayPage {
+  items: ArrayElement[];
+  /** The range this page read, in its direction. */
+  start: string;
+  end: string;
+  reverse: boolean;
+  /** Where the next page starts (just past the last index returned); absent when the range is exhausted. */
+  next?: string;
+}
+
+/**
+ * POST /databases/:db/array/range (read-only; no confirmation): existing elements by index, `ARSCAN key start end LIMIT
+ * count`. `start` defaults to 0 (ARRAY_MAX_INDEX with `reverse`), `end` to the far end of that direction. Continue with
+ * the page's `next`; jump by passing any index as `start`.
+ */
+export const zArrayRange = z
+  .object({
+    key: zBin,
+    start: zArrayIndex.optional(),
+    end: zArrayIndex.optional(),
+    count: z.number().int().min(1).max(ARRAY_PAGE_MAX).default(100),
+    reverse: z.boolean().default(false),
+  })
+  .strict();
+export type ArrayRangeRequest = z.input<typeof zArrayRange>;
+
+/**
+ * POST /databases/:db/array/search (read-only): `ARGREP key start end <predicates> AND|OR [NOCASE] LIMIT limit
+ * [WITHVALUES]`. A range with more than ARRAY_SCAN_MAX_ELEMENTS elements is searched up to that many (`searchedTo`) and
+ * continued with `next`. `start` > `end` searches downwards.
+ */
+export const zArraySearch = z
+  .object({
+    key: zBin,
+    start: zArrayIndex.default('0'),
+    end: zArrayIndex.default(ARRAY_MAX_INDEX),
+    predicates: z.array(z.object({ kind: z.enum(ARRAY_SEARCH_KINDS), value: zBin }).strict()).min(1).max(ARRAY_PREDICATES_MAX),
+    combine: z.enum(['and', 'or']).default('or'),
+    nocase: z.boolean().default(false),
+    limit: z.number().int().min(1).max(ARRAY_PAGE_MAX).default(100),
+    values: z.boolean().default(true),
+  })
+  .strict();
+export type ArraySearchRequest = z.input<typeof zArraySearch>;
+export interface ArraySearchResult {
+  /** Matches in the search direction. `value`, `truncated` and `ref` are absent when the request set `values: false`. */
+  items: { index: string; value?: Bin; truncated?: true; ref?: ElementRef }[];
+  start: string;
+  /** The searched part of the range ends here (the request's `end` unless ARRAY_SCAN_MAX_ELEMENTS stopped it). */
+  searchedTo: string;
+  /** Existing elements in the searched part (AROP USED). */
+  elements: number;
+  /** Where to continue towards the same `end`: after the last match when `limit` was reached, else after `searchedTo`. Absent when done. */
+  next?: string;
+}
+
+/**
+ * POST /databases/:db/array/aggregate (read-only): `AROP key start end SUM|MIN|MAX|AND|OR|XOR|USED|MATCH value`. A range
+ * holding more than ARRAY_SCAN_MAX_ELEMENTS elements is refused with 400 (narrow it). `value` is required for `match`.
+ */
+export const zArrayAggregate = z
+  .object({ key: zBin, start: zArrayIndex, end: zArrayIndex, op: z.enum(ARRAY_AGGREGATES), value: zBin.optional() })
+  .strict();
+export type ArrayAggregateRequest = z.input<typeof zArrayAggregate>;
+export interface ArrayAggregateResult {
+  op: (typeof ARRAY_AGGREGATES)[number];
+  /** AROP's reply as text (exact integers; SUM, MIN and MAX as Redis prints them); null when no element in range had a usable value. */
+  result: string | null;
+  /** Existing elements in the range (AROP USED). */
+  elements: number;
+}
+
 /** Response of POST /databases/:db/key/read. */
 export interface KeyDetails {
   key: Bin;
@@ -345,7 +462,7 @@ export interface KeyDetails {
   ttl: number;
   encoding?: string;
   size?: number;
-  length?: number; // strlen/hlen/llen/scard/zcard/xlen
+  length?: number; // strlen/hlen/llen/scard/zcard/xlen; arcount (existing elements) for arrays
   value: KeyValue;
   /** Applied collection criteria; matches is this page, totalMatches only when exactly known. */
   filter?: { matches: number; totalMatches?: number };
@@ -367,6 +484,8 @@ export type KeyValue =
   | { type: 'stream'; entries: StreamEntry[]; total: number; lastId: string; groups: number }
   | { type: 'json'; json: string; truncated: boolean }
   | { type: 'timeseries'; info: Record<string, unknown>; samples: [number, string][] }
+  /** v0.4 arrays: ARINFO and the first page (ARSCAN from `cursor` as the start index, or 0; `reverse` from the end). */
+  | ({ type: 'array'; info: ArraySummary } & ArrayPage)
   | { type: 'unsupported'; message: string };
 
 export interface StreamEntry { id: string; fields: { field: Bin; value: Bin; truncated?: true; ref?: ElementRef }[] }
@@ -412,6 +531,8 @@ export const zElementRef = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('stream'), id: z.string().regex(/^\d+-\d+$/), position: z.number().int().min(0).max(99999) }).strict(),
   z.object({ kind: z.literal('scan'), type: z.enum(['hash', 'set', 'zset']), cursor: z.string().regex(/^\d+$/), count: z.number().int().min(1).max(1000), match: z.string().max(512).optional(), position: z.number().int().min(0).max(99999), identity: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
   z.object({ kind: z.literal('rank'), offset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER), reverse: z.boolean(), scoreMin: z.string().max(64).optional(), scoreMax: z.string().max(64).optional(), identity: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
+  // v0.4 arrays: an element by index; `identity` is the SHA-256 of the whole element the page read (409 when another value is there now).
+  z.object({ kind: z.literal('array'), index: zArrayIndex, identity: z.string().regex(/^[0-9a-f]{64}$/) }).strict(),
 ]);
 export type ElementRef = z.infer<typeof zElementRef>;
 export const zKeyElementRequest = z.object({ key: zBin, ref: zElementRef }).strict();
@@ -438,6 +559,9 @@ const zConfirmOpt = { confirmation: zConfirmation.optional() };
  *   - `json.set` / `json.delete`: the whole document as `JSON.GET key` returns it (`KeyValue.json`).
  *   - `key.rename` / `key.delete` (one key): optional; when sent, the value of a string or the document of a
  *     JSON key. Other types are checked by `type` only (their content is never read whole).
+ *   - `array.set` (v0.4): the element at `index` (`ARGET`; `null` = the index is empty). Required.
+ *   - `array.insert` (v0.4): none (send the type alone: `array`, or `none` to create the key). The server checks that
+ *     every index ARINSERT would write is empty.
  *   Omit `sha256` to check the type alone.
  */
 export const zEditExpect = z
@@ -502,6 +626,22 @@ export const zKeyOp = z.discriminatedUnion('op', [
   z.object({ op: z.literal('stream.ack'), confirmAck: z.boolean().optional(), key: zKey, group: z.union([z.string().min(1).max(256), zBin]), ids: z.array(z.string().regex(/^\d+-\d+$/)).min(1).max(1000) }),
   z.object({ op: z.literal('json.set'), key: zKey, path: z.string().max(1024).default('$'), json: z.string().max(10_000_000), expect: zEditExpect.optional() }),
   z.object({ op: z.literal('json.delete'), key: zKey, path: z.string().max(1024), expect: zEditExpect.optional() }),
+  // v0.4 arrays (planned in apps/server/src/redis/array.ts).
+  /**
+   * `ARSET key index value`, always compare-and-set: `expect` is `{ type: 'array', sha256 }` with the SHA-256 of the
+   * element at `index`, or `null` when that index was empty.
+   */
+  z.object({ op: z.literal('array.set'), key: zKey, index: zArrayIndex, value: zBin, expect: zEditExpect }),
+  /**
+   * `ARINSERT key value…` at the insert cursor (ARNEXT). ARINSERT overwrites whatever sits there, so the server checks
+   * under WATCH that every index it writes is empty (409 otherwise). `expect`: `{ type: 'array' }` appends to an existing
+   * array; `{ type: 'none' }` creates the key and fails with 409 if it exists (creates never overwrite).
+   */
+  z.object({ op: z.literal('array.insert'), key: zKey, values: z.array(zBin).min(1).max(1000), expect: zEditExpect }),
+  /** `ARDEL key index…` (confirmation). */
+  z.object({ op: z.literal('array.delete'), key: zKey, indexes: z.array(zArrayIndex).min(1).max(1000) }),
+  /** `ARDELRANGE key start end` (confirmation): every element from `start` to `end`, inclusive, either order. */
+  z.object({ op: z.literal('array.delete-range'), key: zKey, start: zArrayIndex, end: zArrayIndex }),
 ]).and(z.object(zConfirmOpt));
 export type KeyOp = z.infer<typeof zKeyOp>;
 export interface OpResult { ok: true; result?: unknown }
@@ -805,6 +945,10 @@ export const ROUTES = {
   streamGroups: 'POST /api/v1/databases/:db/streams/groups', // {key}; groups + consumers + pending summary
   streamPending: 'POST /api/v1/databases/:db/streams/pending', // {key, group, count}
   tsRange: 'POST /api/v1/databases/:db/timeseries/range', // {key, from, to, bucketMs, agg, count}
+  // v0.4 arrays (read-only; writes are typed ops on `ops`)
+  arrayRange: 'POST /api/v1/databases/:db/array/range', // zArrayRange -> ArrayPage
+  arraySearch: 'POST /api/v1/databases/:db/array/search', // zArraySearch -> ArraySearchResult
+  arrayAggregate: 'POST /api/v1/databases/:db/array/aggregate', // zArrayAggregate -> ArrayAggregateResult
   audit: 'GET /api/v1/admin/audit',
   users: 'GET /api/v1/admin/users',
   userCreate: 'POST /api/v1/admin/users',

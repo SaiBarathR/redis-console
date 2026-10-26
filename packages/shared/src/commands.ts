@@ -133,6 +133,30 @@ export const COMMAND_RULES: Record<string, CommandRule> = {
   VSIM: { class: 'read' },
   // Flagged readonly + @read, but they change state.
   'CF.COMPACT': { class: 'write' },
+  // v0.4 arrays (Redis 8.8+). Reviewed one by one rather than left to COMMAND INFO flags. Reads are bounded by Redis
+  // (ARGETRANGE refuses more than 1,000,000 items) or by the reply cap; ARGREP's RE predicate is refused by
+  // `argumentRule` (no time bound inside Redis). Writes that drop elements confirm: ARDEL, ARDELRANGE, and ARRING,
+  // which overwrites the oldest elements when it wraps and deletes the ones outside a smaller ring. ARSET, ARMSET and
+  // ARINSERT replace elements the way SET and HSET do and need no confirmation (the inspector's own edits are
+  // compare-and-set); ARSEEK moves the insert cursor only.
+  ARGET: { class: 'read' },
+  ARMGET: { class: 'read' },
+  ARGETRANGE: { class: 'read' },
+  ARSCAN: { class: 'read' },
+  ARGREP: { class: 'read' },
+  AROP: { class: 'read' },
+  ARLASTITEMS: { class: 'read' },
+  ARNEXT: { class: 'read' },
+  ARLEN: { class: 'read' },
+  ARCOUNT: { class: 'read' },
+  ARINFO: { class: 'read' },
+  ARSET: { class: 'write' },
+  ARMSET: { class: 'write' },
+  ARINSERT: { class: 'write' },
+  ARSEEK: { class: 'write' },
+  ARRING: { class: 'write', confirm: 'confirm' },
+  ARDEL: { class: 'write', confirm: 'confirm' },
+  ARDELRANGE: { class: 'write', confirm: 'confirm' },
 };
 
 /**
@@ -221,7 +245,34 @@ export function argumentRule(argv: readonly string[]): CommandRule | undefined {
   if (name === 'FT.DROPINDEX' && argv.slice(2).some((a) => a.toUpperCase() === 'DD')) {
     return B('FT.DROPINDEX ... DD also deletes every indexed key and is disabled here. Drop the index without DD to keep the documents.');
   }
+  // v0.4 arrays
+  if (name === 'ARGREP' && argrepPredicates(argv).includes('RE')) return B(ARGREP_RE_HINT);
   return undefined;
+}
+
+/**
+ * v0.4 arrays: why `ARGREP … RE …` is blocked. Redis runs the regular expression on every element of the range inside
+ * its main thread, with no time limit and no way to stop it, and the cost grows with the pattern's states times the
+ * value bytes: on Redis 8.10, `((.?){255}){4}b` took about 1 s for one 1 KiB element, and `((a?){50}){5}b` blocked the
+ * server for 60 s over 50,000 elements of 28 bytes. Range, LIMIT and pattern-length caps do not bound that.
+ */
+export const ARGREP_RE_HINT = 'ARGREP with RE is disabled: Redis runs the regular expression on every element of the range without a time limit, and one pattern can block the server for minutes. Use EXACT, MATCH (substring) or GLOB.';
+
+/**
+ * The predicate keywords of an `ARGREP key start end <predicate>… [option]…` argv, upper-cased (EXACT, MATCH, GLOB,
+ * RE), read the way Redis reads them: a predicate keyword and LIMIT take the next argument as their value, so a value
+ * that happens to be "RE" (`EXACT RE`) is not a predicate.
+ */
+export function argrepPredicates(argv: readonly string[]): string[] {
+  const out: string[] = [];
+  for (let i = 4; i < argv.length; i++) {
+    const t = (argv[i] ?? '').toUpperCase();
+    if (t === 'EXACT' || t === 'MATCH' || t === 'GLOB' || t === 'RE') {
+      out.push(t);
+      i++;
+    } else if (t === 'LIMIT') i++;
+  }
+  return out;
 }
 
 /** Static lookup only (no COMMAND INFO). Returns undefined when the server must classify from flags. */
