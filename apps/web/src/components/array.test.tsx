@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ARRAY_MAX_INDEX, binFromString, sha256Hex, type ArrayElement, type ArrayPage, type DatabaseSummary, type KeyDetails } from "@rconsole/shared";
+import { ARRAY_MAX_INDEX, binFromString, keyToParam, sha256Hex, type ArrayElement, type ArrayPage, type DatabaseSummary, type KeyDetails } from "@rconsole/shared";
 import { DatabaseContext } from "../lib/context.tsx";
 import { MemoryProvider } from "../lib/memory.tsx";
 import { setConfirmHandler } from "../lib/api.ts";
@@ -83,8 +83,15 @@ describe("array inspector: summary, sparseness and paging", () => {
     const { rerender } = render(stable(details()));
     await userEvent.click(screen.getByTestId("array-next"));
     await waitFor(() => expect(sent.filter((s) => s.path === "/array/range")).toHaveLength(1));
-    rerender(stable(details()));
+    // The inspector's key/read completes again with the same first page (structural sharing keeps the object).
+    client.setQueryData(["key", "db", keyToParam(bin("arr")), "0", 0, false, {}], details());
     await waitFor(() => expect(sent.filter((s) => s.path === "/array/range")).toHaveLength(2));
+    // Reads of other keys or databases do not.
+    client.setQueryData(["key", "db", keyToParam(bin("other")), "0", 0, false, {}], details());
+    client.setQueryData(["key", "other-db", keyToParam(bin("arr")), "0", 0, false, {}], details());
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent.filter((s) => s.path === "/array/range")).toHaveLength(2);
+    rerender(stable(details()));
     expect(sent.at(-1)?.body.start).toBe("9007199254740994");
   });
 

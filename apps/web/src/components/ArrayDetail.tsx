@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Trash2 } from "lucide-react";
 import {
   ARRAY_AGGREGATES,
@@ -123,14 +123,20 @@ export function ArrayDetail({
       request<ArrayPage>(dbPath(db.id, "/array/range"), { method: "POST", body: { key: details.key, ...view }, signal, background: true }),
   });
   const page: ArrayPage | undefined = initial ? value : range.data;
-  // A new read of the key (Refresh, auto refresh, a write elsewhere) re-reads the page shown too, unless it is
-  // already being read (a write's refresh invalidates both).
-  const seen = useRef(value);
-  useEffect(() => {
-    if (seen.current === value) return;
-    seen.current = value;
-    if (!initial && !range.isFetching) void range.refetch();
-  }, [value]);
+  // Every completed read of this key by the inspector (Refresh, auto refresh) re-reads the page shown too, unless it
+  // is already being read (a write's refresh invalidates both). Listened to on the query cache: an unchanged first
+  // page keeps the same `value` object (structural sharing), so the props alone do not show that a read happened.
+  const client = useQueryClient();
+  const keyParam = keyToParam(details.key);
+  const latest = useRef({ initial, range });
+  latest.current = { initial, range };
+  useEffect(() => client.getQueryCache().subscribe((event) => {
+    if (event.type !== "updated" || event.action.type !== "success") return;
+    const [scope, database, key, kind] = event.query.queryKey as unknown[];
+    if (scope !== "key" || database !== db.id || key !== keyParam || kind === "array-range") return;
+    const { initial: first, range: current } = latest.current;
+    if (!first && !current.isFetching) void current.refetch();
+  }), [client, db.id, keyParam]);
   const [panel, setPanel] = useState<{ index: string; opened: Bin }>();
   const [changed, setChanged] = useState<string>();
   const [rowError, setRowError] = useState<unknown>();
