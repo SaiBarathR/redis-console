@@ -1083,11 +1083,30 @@ code. Fixer branch: `fix/admin-user-rate-limit`.
 
 | Alerts | Verdict | Reason | Commit | Regression tests |
 |---|---|---|---|---|
-| `js/missing-rate-limiting` on `PATCH /admin/users/:id` (and the same gap, not flagged, on `POST /admin/users`) | fixed | Reproduced: 20 concurrent password resets from one admin all ran an argon2id hash (0 refused); only the per-address limit applied. A per-admin `admin-password` bucket (2/s, burst 10) now guards every request that hashes a password; other edits are not limited by it. | this commit | `integration/admin.test.ts` › "password hashing is rate limited per admin" (failed before) |
+| `js/missing-rate-limiting` on `PATCH /admin/users/:id` (and the same gap, not flagged, on `POST /admin/users`) | fixed | Reproduced: 20 concurrent password resets from one admin all ran an argon2id hash (0 refused); only the per-address limit applied. A per-admin `admin-password` bucket (2/s, burst 10) now guards every request that hashes a password; other edits are not limited by it. | `85c3b8d` | `integration/admin.test.ts` › "password hashing is rate limited per admin" (failed before) |
 | `js/missing-rate-limiting` on the `onRequest`, `preValidation` and `onClose` hooks | false positive | Hooks, not routes; the `onRequest` hook is the per-address limiter itself. | | |
 | `js/missing-rate-limiting` on sign-in, TOTP verify/confirm, password change, recovery codes, `oidc/start`, ops, publish, search index create/drop | false positive | Each has its own limiter (`loginRateLimit`, per-IP OIDC, `rateLimit(ctx, req, …)`) besides the per-address limit; CodeQL only recognises library limiters. | | |
 | `js/missing-rate-limiting` on `oidc/callback`, `totp/enroll`, slow log reset, client list and kill | false positive | Cheap or bounded: the callback rejects unknown, foreign or reused state before any network call (flows come only from the rate-limited start); enrollment writes one row; the admin Redis commands run through the per-user in-flight command slots. All are under the per-address limit. | | |
 | `js/incomplete-sanitization` in `QueryEditor.tsx` | false positive | Not sanitization: a pipe character marks the cursor in a completion snippet and only the first one is the marker (the OR snippet `"(\| \| )"` keeps its second, literal pipe). | | |
 | `js/incomplete-url-substring-sanitization` in `lib/format.ts` | false positive | Not a URL check: a display label for key names that start with `socket.io`. | | |
 | `js/insufficient-password-hash` (6), `js/bad-tag-filter`, `js/double-escaping`, `js/incomplete-sanitization`, `js/bad-code-sanitization`, `js/resource-exhaustion` in tests and QA scripts | false positive (tests) | Test and QA code: SHA-256 builds Redis ACL `#<hex>` passwords (the format Redis requires) and derives throwaway test passwords; the others are deliberate test inputs and assertions. | | |
+
+### Validation
+- The regression test failed on `113157c` (20 concurrent resets from one admin, 0 refused) and passes with the fix.
+- Server suite 952 passed, 44 skipped (topology and remote suites need their services); PR CI green (unit,
+  integration with topology, image smoke, e2e 637 passed).
+- Independent check of the fix and of every false-positive verdict (Claude Sonnet 5.5): agreed, nothing at Medium or
+  above. Its low items: no server-wide cap on admin hashing (kept: few trusted admins, and the libuv pool bounds
+  memory); a search field name containing `|` is mangled by completion (text only; follow-up).
+
+## CI flake – multi-entry dialog ignored Close while the key refreshed
+
+Observed once in six CI runs (public repository PR 1, `ui › detail.spec.ts` › "DETAIL admin › F18"): after "2 of 2
+commands completed" the test clicked Close, the dialog stayed open and the next step timed out. Cause: `MultiEntryAdd`
+kept `busy` set while it awaited the key refresh after the last command, and the modal ignored Close while busy, so a
+Close click during the refresh of a large key (1,202 members here) was dropped, for users as well as the test.
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| Flake F18 | fixed | Close is now blocked only while commands are being sent; the refresh may finish behind the closed dialog. | (this PR) | `components/detail.test.tsx` › "closes once every command has run, while the key is still refreshing" (failed before); e2e F18 now asserts the dialog closes |
 

@@ -68,7 +68,10 @@ export function MultiEntryAdd({ details, onClose, refresh }: { details: KeyDetai
     finally { setBusy(false); }
   };
   const patch = (at: number, update: Partial<Draft>) => setRows(current => current.map((row, i) => i === at ? { ...row, ...update } : row));
-  return <Modal title="Add multiple entries" onClose={busy ? () => {} : onClose} testId="multi-entry-dialog">
+  // Closing waits only while commands are being sent: once every command has run, the key's refresh may finish behind
+  // the closed dialog (as "Reload" after a conflict does), so a close click is never silently dropped.
+  const sending = busy && !!review && done < review.length;
+  return <Modal title="Add multiple entries" onClose={sending ? () => {} : onClose} testId="multi-entry-dialog">
     <p className="dialog-subject data">{displayBin(opened.key)}</p>
     {!review ? <form onSubmit={e => { e.preventDefault(); setError(undefined); try { setReview(entryOperations(opened, rows, end)); } catch (caught) { setError(caught); } }}>
       {opened.type === "list" && <label>Insert at <select aria-label="List insertion end" value={end} onChange={e => setEnd(e.target.value as typeof end)}><option value="tail">Tail (RPUSH)</option><option value="head">Head (LPUSH, reverses entered order)</option></select></label>}

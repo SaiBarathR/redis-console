@@ -175,6 +175,17 @@ describe("F18 multi-entry validation and expectations", () => {
     await userEvent.click(screen.getByText("Review entries")); await userEvent.click(screen.getByText("Apply entries"));
     await screen.findByTestId("edit-conflict"); expect(sent).toHaveLength(2); expect(screen.getByTestId("multi-entry-summary")).toHaveTextContent("1 of 3 commands completed");
   });
+  it("closes once every command has run, while the key is still refreshing (CI flake on PR 1)", async () => {
+    mockServer();
+    const onClose = vi.fn();
+    // A large key refreshes slowly; here the refresh never finishes.
+    render(wrap(<MultiEntryAdd details={hash()} onClose={onClose} refresh={() => new Promise(() => {})} />));
+    await userEvent.type(screen.getByLabelText("Field 1", { exact: true }), "a");
+    await userEvent.click(screen.getByText("Review entries")); await userEvent.click(screen.getByText("Apply entries"));
+    await waitFor(() => expect(screen.getByTestId("multi-entry-summary")).toHaveTextContent("1 of 1 commands completed"));
+    await userEvent.click(within(screen.getByTestId("multi-entry-dialog")).getByRole("button", { name: "Close dialog" }));
+    expect(onClose).toHaveBeenCalled();
+  });
 });
 describe("F15 inspector groups and pending", () => {
   it("a group reorder preserves selection by bytes; removal cannot retarget pending actions", async () => {

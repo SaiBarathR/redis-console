@@ -118,11 +118,11 @@ for (const role of roles) {
       await expect(dialog.getByTestId('multi-entry-summary')).toContainText('1 of 2 commands completed'); await expect(dialog.getByTestId('edit-conflict')).toContainText('changed');
       expect(String(await redisExec(['HGET', `${P}hash`, 'multi-a']))).toBe('A'); expect(String(await redisExec(['HGET', `${P}hash`, 'multi-b']))).toBe('changed');
       await dialog.getByTestId('edit-conflict-overwrite').click(); await expect(dialog.getByTestId('multi-entry-summary')).toContainText('2 of 2 commands completed'); expect(String(await redisExec(['HGET', `${P}hash`, 'multi-b']))).toBe('B');
-      await dialog.getByRole('button', { name: 'Close dialog' }).click();
+      await dialog.getByRole('button', { name: 'Close dialog' }).click(); await expect(dialog).toBeHidden();
       for (const type of ['set', 'zset', 'list']) {
         const d = await openKey(page, `${P}${type}`); await d.getByTestId('collection-add').click(); dialog = page.getByTestId('multi-entry-dialog');
         await dialog.getByLabel('Value 1', { exact: true }).fill('added-1'); await dialog.getByText('Add another entry', { exact: true }).click(); await dialog.getByLabel('Value 2', { exact: true }).fill('added-2'); await dialog.getByText('Review entries', { exact: true }).click(); await dialog.getByText('Apply entries', { exact: true }).click();
-        await expect(dialog.getByTestId('multi-entry-summary')).toContainText(type === 'zset' ? '2 of 2' : '1 of 1'); await dialog.getByRole('button', { name: 'Close dialog' }).click();
+        await expect(dialog.getByTestId('multi-entry-summary')).toContainText(type === 'zset' ? '2 of 2' : '1 of 1'); await dialog.getByRole('button', { name: 'Close dialog' }).click(); await expect(dialog).toBeHidden();
         if (type === 'set') expect(Number(await redisExec(['SISMEMBER', `${P}set`, 'added-2']))).toBe(1);
         if (type === 'zset') expect(String(await redisExec(['ZSCORE', `${P}zset`, 'added-2']))).toBe('0');
         if (type === 'list') expect(String(await redisExec(['LINDEX', `${P}list`, -1]))).toBe('added-2');
