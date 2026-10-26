@@ -54,6 +54,7 @@ browser console entries were the network statuses the flows provoke on purpose (
 | Prod view | `sandbox-e2e-prod`, operator and admin | Row edit asks for the typed database name and a reason; saved after confirming; the audit event (`array.set`, `allowed`, `detail: checked`) carries the reason. |
 | Console | `qa-admin` | `ARGREP … RE "(a+)+$"`: policy badge "blocked" with the RE hint, nothing sent (the server refuses it too: integration and e2e tests); `ARGREP … GLOB item-4? LIMIT 3` runs; `ARDELRANGE` and `ARDEL` open the confirmation with the exact command (cancelled; `large` still has 50,000 elements). |
 | Auto refresh | `qa-viewer`, `large` page 2, refresh every 5 s | Another client changed element 100: the shown page was re-read 6 ms after the next key read (about 4 s) and showed the new value (see "Found and fixed"). |
+| Redis ACL tiers | `redis-cli` as the sandbox users `rc-viewer` and `rc-operator` (`infra/redis/users.acl.template`) | Viewer: ARGET, ARGREP, AROP, ARINFO allowed; ARSET and ARDEL refused by Redis with `NOPERM`. Operator: ARSET, ARRING, ARDELRANGE and WATCH (compare-and-set) allowed. No template or INSTALL change needed; `-@array` withholds arrays from a tier (checked on a disposable Redis). |
 | Dark theme | header toggle | Cells, gaps and the `arr` glyph readable, matching the list inspector. |
 
 Response times through the browser session on the 50,000-element array (server, Redis and JSON included):
