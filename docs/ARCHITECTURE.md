@@ -193,7 +193,8 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
   `maxReplyBytes`; at most 4 console commands in flight and 1 blocking command; 4 typed data reads at once; key names
   10/s (burst 20) and key metadata 10/s (burst 30), two of each at once; legacy scans 10/s; one pattern-delete job
   (four per server); one memory analysis (four server-wide), analysis jobs 1/s with five held per account; imports
-  (operator and up) two per account; 20 pending confirmations per session; 10 outstanding Pub/Sub subscription ids.
+  (operator and up) two per account; 20 pending confirmations per session; 10 outstanding Pub/Sub subscription ids;
+  admin user creation and password resets (each an argon2id hash) 2/s, burst 10.
 - **Commands:** `commandTimeoutMs` 5 s (blocking: block time + 2 s); workbench script budget 30 s; SCAN time budget
   per key-browser page (`scanBudgetMs`, 300 ms) and a slot threshold per names request (`keyScanThresholdMax`); memory
   analysis sample and time caps.

@@ -1075,3 +1075,19 @@ finding, two more unreported third-party source observations (now withheld like 
 Snapshot `release/public` @ `6c308bb`. Every round-4 item resolved; no P1 or P2. Its three optional wording items (a
 sentence fragment in the parity audit, the round-4 summary's wording, "details withheld" for the two third-party
 source observations) were applied.
+
+## Code scanning triage – first CodeQL run on the public repository
+
+CodeQL default setup (JavaScript/TypeScript and Actions) raised 30 alerts on `113157c`. Each was checked against the
+code. Fixer branch: `fix/admin-user-rate-limit`.
+
+| Alerts | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| `js/missing-rate-limiting` on `PATCH /admin/users/:id` (and the same gap, not flagged, on `POST /admin/users`) | fixed | Reproduced: 20 concurrent password resets from one admin all ran an argon2id hash (0 refused); only the per-address limit applied. A per-admin `admin-password` bucket (2/s, burst 10) now guards every request that hashes a password; other edits are not limited by it. | this commit | `integration/admin.test.ts` › "password hashing is rate limited per admin" (failed before) |
+| `js/missing-rate-limiting` on the `onRequest`, `preValidation` and `onClose` hooks | false positive | Hooks, not routes; the `onRequest` hook is the per-address limiter itself. | | |
+| `js/missing-rate-limiting` on sign-in, TOTP verify/confirm, password change, recovery codes, `oidc/start`, ops, publish, search index create/drop | false positive | Each has its own limiter (`loginRateLimit`, per-IP OIDC, `rateLimit(ctx, req, …)`) besides the per-address limit; CodeQL only recognises library limiters. | | |
+| `js/missing-rate-limiting` on `oidc/callback`, `totp/enroll`, slow log reset, client list and kill | false positive | Cheap or bounded: the callback rejects unknown, foreign or reused state before any network call (flows come only from the rate-limited start); enrollment writes one row; the admin Redis commands run through the per-user in-flight command slots. All are under the per-address limit. | | |
+| `js/incomplete-sanitization` in `QueryEditor.tsx` | false positive | Not sanitization: a pipe character marks the cursor in a completion snippet and only the first one is the marker (the OR snippet `"(\| \| )"` keeps its second, literal pipe). | | |
+| `js/incomplete-url-substring-sanitization` in `lib/format.ts` | false positive | Not a URL check: a display label for key names that start with `socket.io`. | | |
+| `js/insufficient-password-hash` (6), `js/bad-tag-filter`, `js/double-escaping`, `js/incomplete-sanitization`, `js/bad-code-sanitization`, `js/resource-exhaustion` in tests and QA scripts | false positive (tests) | Test and QA code: SHA-256 builds Redis ACL `#<hex>` passwords (the format Redis requires) and derives throwaway test passwords; the others are deliberate test inputs and assertions. | | |
+

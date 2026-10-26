@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { zAuditQuery, zCreateLocalUser, zUpdateLocalUser, type AuditResponse, type LocalUser, type UsersResponse } from '@rconsole/shared';
-import { audit, parse, requireSession, sessionStillValid, type AppContext } from '../context.ts';
+import { audit, parse, rateLimit, requireSession, sessionStillValid, type AppContext } from '../context.ts';
 import { HttpError } from '../http/errors.ts';
 import { hashPassword } from '../security/password.ts';
 import type { Session } from '../store/sessions.ts';
@@ -43,6 +43,8 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = parse(zCreateLocalUser, req.body);
     if (body.initialPassword.length < local.minPasswordLength) throw new HttpError('validation', `initialPassword: must be at least ${local.minPasswordLength} characters`);
     if (users.byUsername(body.username)) throw new HttpError('validation', 'username: already exists');
+    // argon2id costs ~19 MiB and tens of ms on the shared thread pool: bound it per admin, like sign-in.
+    rateLimit(ctx, req, 'admin-password', 2, 10);
     const passwordHash = await hashPassword(body.initialPassword);
     actorStillValid(req, me, 'admin.user.create', `user=${body.username} role=${body.role}`);
     if (users.byUsername(body.username)) throw new HttpError('validation', 'username: already exists');
@@ -64,6 +66,7 @@ export function registerAdminRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!found) throw new HttpError('not_found', 'No such user.');
     // Everything after the hash is synchronous: checks and writes see one state (review v0.2 M5). The actor is
     // re-checked for every change, not only after a hash (review v0.2 r6 H2).
+    if (body.newPassword !== undefined) rateLimit(ctx, req, 'admin-password', 2, 10);
     const passwordHash = body.newPassword !== undefined ? await hashPassword(body.newPassword) : undefined;
     actorStillValid(req, me, 'admin.user.update', `user=${found.username}`);
     let u = found;

@@ -153,6 +153,29 @@ describe('admin: local users', () => {
     expect((await admin.req('PATCH', `/api/v1/admin/users/${u.id}`, { role: 'root' })).status).toBe(400);
   });
 
+  it('password hashing is rate limited per admin (create and reset; CodeQL js/missing-rate-limiting)', async () => {
+    const admin = await userSession(t, 'admin');
+    await createUser(t, 'rl.target', 'viewer');
+    const u = t.ctx.users.byUsername('rl.target')!;
+    // Each of these runs an argon2id hash. 20 at once from one admin: the burst passes, the rest get 429.
+    const resets = await Promise.all(
+      Array.from({ length: 20 }, () => admin.req('PATCH', `/api/v1/admin/users/${u.id}`, { newPassword: 'Reset-by-admin-password-9' })),
+    );
+    const refused = resets.filter((r) => r.status === 429);
+    expect(refused.length).toBeGreaterThan(0);
+    expect(resets.filter((r) => r.status === 200).length).toBeGreaterThan(0);
+    expect(refused[0]!.json.error.code).toBe('rate_limited');
+    expect(refused[0]!.headers['retry-after']).toBeDefined();
+    const creates = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        admin.req('POST', '/api/v1/admin/users', { username: `rl.new${i}`, displayName: 'RL', role: 'viewer', initialPassword: 'An-initial-password-1' }),
+      ),
+    );
+    expect(creates.some((r) => r.status === 429)).toBe(true);
+    // Changes that hash nothing are not limited by this bucket.
+    expect((await admin.req('PATCH', `/api/v1/admin/users/${u.id}`, { displayName: 'Still allowed' })).status).toBe(200);
+  });
+
   it('admins cannot change their own role or disable themselves', async () => {
     const admin = await userSession(t, 'admin');
     expect((await admin.req('PATCH', `/api/v1/admin/users/${admin.userId}`, { role: 'viewer' })).status).toBe(403);
