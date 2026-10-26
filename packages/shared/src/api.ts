@@ -363,7 +363,7 @@ export const ARRAY_PREDICATE_MAX_BYTES = 16 * 1024;
 /**
  * ARGREP predicates the search offers: EXACT (whole value), MATCH (substring), GLOB (glob pattern, at most 8 `*`).
  * RE (regular expressions) is not offered and is blocked in the console: Redis evaluates it on every element of the
- * range with no time limit, and a 15-character pattern took about 1 s per KiB of value (docs/ARCHITECTURE.md § 6).
+ * range with no time limit, and a 15-character pattern took about 1 s per KiB of value (docs/ARCHITECTURE.md § 7).
  */
 export const ARRAY_SEARCH_KINDS = ['exact', 'match', 'glob'] as const;
 /** AROP operations over a range (MATCH counts elements equal to `value`; USED counts existing elements). */

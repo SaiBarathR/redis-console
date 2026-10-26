@@ -2,6 +2,68 @@
 
 Changes to `packages/shared` made after the initial scaffold. Newest first. All are additive unless marked **breaking**.
 
+## 2026-10-26 — v0.4 S3 arrays (feat/v04-array)
+
+The array inspector (Redis Insight parity F24) for Redis 8.8+ native arrays (`TYPE` = `array`). All additive. Array
+indices travel as decimal strings in canonical form (`zArrayIndex`: 0 … `ARRAY_MAX_INDEX` = 18446744073709551614),
+because they exceed 2^53.
+
+### `api.ts` (`// v0.4 arrays` section and marked lines)
+- `REDIS_TYPES` gains `array` (additive).
+- **`KeyValue` variant `array`** (additive): `key/read` of an array returns `{ type: 'array', info: ArraySummary, items,
+  start, end, reverse, next? }`. `ArraySummary` is ARINFO (`count`, `length`, `nextInsertIndex` as strings; `slices`,
+  `sliceSize`). The page is `ARSCAN key start end LIMIT count`: `cursor` (digits) is the start index, `reverse` reads
+  from the highest index down, `count` 1–1000. Items are `ArrayElement { index, value: Bin, truncated?, ref }`,
+  previewed like other collections. `KeyDetails.length` is ARCOUNT. Audited as `key.read` with command `ARSCAN`.
+- **`zElementRef` variant `{ kind: 'array', index, identity }`** (additive): `POST /key/element` runs ARGET bounded by
+  `maxValueBytes`, answers 409 when the element's SHA-256 differs from `identity` and 404 when the index is empty.
+  Audited as `key.element` with command `ARGET`.
+- **New read routes** (POST bodies, viewer and up, no confirmation; in `ROUTES` and the role matrix):
+  - `arrayRange: POST /databases/:db/array/range` (`zArrayRange` → `ArrayPage`): a page from any index, either
+    direction; `next` is the index just past the last one returned. Rate 20/s (burst 40) per user. Audit
+    `array.range`, command `ARSCAN`, detail `returned=N [more] [truncated]`.
+  - `arraySearch: POST /databases/:db/array/search` (`zArraySearch` → `ArraySearchResult`): ARGREP with 1–8
+    predicates of kind `exact` | `match` | `glob` (each value ≤ 16 KiB; GLOB ≤ 8 `*`), `combine` `or` (Redis's
+    default) | `and`, `nocase`, `limit` 1–1000, `values` (WITHVALUES). `RE` is not a predicate kind (400). At most
+    `ARRAY_SCAN_MAX_ELEMENTS` (1,000,000) existing elements are searched per request; the response's `searchedTo`,
+    `elements` and `next` say what was covered and where to continue. Rate 5/s (burst 10). Audit `array.search`,
+    command `ARGREP`, argv with predicate kinds and value sizes only.
+  - `arrayAggregate: POST /databases/:db/array/aggregate` (`zArrayAggregate` → `ArrayAggregateResult`): AROP
+    `sum` | `min` | `max` | `and` | `or` | `xor` | `used` | `match` (with `value`) over `start`–`end` (either order).
+    `result` is Redis's reply as text or `null`; `elements` is AROP USED. Ranges holding more than 1,000,000
+    elements are refused with 400 naming the count. Rate 5/s (burst 10). Audit `array.aggregate`, command `AROP`.
+- **New typed ops on `POST /ops`** (operator and up, refused on read-only databases, prod writes need the typed name
+  and a reason; audit action = the op name):
+  - `array.set` `{ key, index, value, expect }`: `ARSET key index value`, compare-and-set with a **required** `expect`
+    `{ type: 'array', sha256 }` (the element's SHA-256, or `null` when the index is empty). 409 `conflict` carries the
+    current element and an `expect` for "Overwrite anyway".
+  - `array.insert` `{ key, values (1–1000), expect }`: `ARINSERT key value…`. ARINSERT overwrites what sits at the
+    insert cursor, so the server checks under WATCH that the positions it writes are empty (ARNEXT, `AROP … USED`);
+    otherwise 409 with "The insert cursor is at index N and ARINSERT would overwrite K existing elements" and no
+    overwrite expectation. `expect` is required: `{ type: 'array' }` appends to an existing array, `{ type: 'none' }`
+    creates the key and answers 409 "This key already exists" when it does (creates never overwrite). `sha256` is
+    refused (400).
+  - `array.delete` `{ key, indexes (1–1000) }`: `ARDEL`, `confirm`, preview from the exact argv.
+  - `array.delete-range` `{ key, start, end }`: `ARDELRANGE key start end`, `confirm`; the summary names the range.
+- New constants: `ARRAY_MAX_INDEX`, `ARRAY_PAGE_MAX` (1000), `ARRAY_SCAN_MAX_ELEMENTS` (1,000,000),
+  `ARRAY_PREDICATES_MAX` (8), `ARRAY_PREDICATE_MAX_BYTES` (16 KiB), `ARRAY_SEARCH_KINDS`, `ARRAY_AGGREGATES`;
+  `isArrayIndex`.
+
+### `commands.ts` (`// v0.4 arrays` block)
+- Explicit rules for every AR* command (additive; before, they were classified from COMMAND INFO flags, so
+  ARDELRANGE ran without a confirmation): ARGET, ARMGET, ARGETRANGE, ARSCAN, ARGREP, AROP, ARLASTITEMS, ARNEXT, ARLEN,
+  ARCOUNT, ARINFO → `read`; ARSET, ARMSET, ARINSERT, ARSEEK → `write`; ARDEL, ARDELRANGE, ARRING → `write` +
+  `confirm` (ARRING overwrites the oldest elements and drops those outside a smaller ring). ARRING, ARSEEK and ARMSET
+  are console-only.
+- **`ARGREP … RE …` is blocked** for everyone by `argumentRule` (new helpers `argrepPredicates`, `ARGREP_RE_HINT`),
+  in any case and position; a value that reads "RE" (`EXACT RE`) is not a predicate. Redis evaluates RE with no time
+  limit; see `docs/ARCHITECTURE.md` section 7 (Arrays) for the measurements.
+
+### Server behaviour
+- `redis/checked.ts`: probes `array` (ARGET; absent = `null`) and `arrayInsert` (ARNEXT + `AROP … USED`); conflicts
+  for an occupied insert target or an existing key on create offer no overwrite.
+- The web's read-retry list (`lib/api.ts`) includes the three array routes; nothing else changes for other types.
+
 ## 2026-10-24 — v0.2.1 web review fixes (feat/v021-wfix)
 
 Fixes for `docs/research/24-v021-web-review.md` (`docs/REVIEW-LOG.md`, "v0.2.1 review – web (GPT reviewer)").

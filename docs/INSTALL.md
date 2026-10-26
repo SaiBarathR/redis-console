@@ -167,6 +167,12 @@ What the rules do:
 | `+subscribe +psubscribe …` (viewer) | Viewers can watch Pub/Sub but not publish. |
 | `+@all -@scripting -module …` (admin) | Introspection and maintenance (CONFIG GET, CLIENT LIST/KILL, SLOWLOG RESET, FLUSHDB, MONITOR for the profiler, FT.CREATE/FT.DROPINDEX) without anything that escapes Redis or changes topology, persistence or ACLs. |
 
+Arrays (Redis 8.8 and later, v0.4) need no extra grant: the AR* commands are in `@array` plus `@read` (ARGET,
+ARSCAN, ARGREP, AROP, ARINFO, …) or `@write` (ARSET, ARINSERT, ARDEL, ARDELRANGE, ARRING, ARSEEK, ARMSET), and none
+is in `@dangerous`, so viewers read arrays and operators change them with the lines above. The inspector's
+compare-and-set edits and guarded appends use `+@transaction` like the other edits. To keep a tier away from arrays,
+add `-@array` after its `+` categories.
+
 Optional grants (verified on Redis 8):
 
 - **Operators creating Search indexes** ("Make searchable", the index wizard): add `+ft.create` to `rc-operator`.

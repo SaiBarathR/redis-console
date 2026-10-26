@@ -93,8 +93,9 @@ Source: `packages/shared/src/commands.ts` (rules) and `apps/server/src/policy/` 
    (command or command + subcommand). The rules block KEYS, Lua and Functions, MODULE, DEBUG, SHUTDOWN, replication,
    persistence control, FLUSHALL, SWAPDB, MOVE, SELECT, MIGRATE, RESTORE, AUTH, HELLO, MULTI/EXEC/WATCH, CLIENT
    SETNAME and similar; classify reviewed module commands (`FT._LIST`, `FT.INFO` as reads, `FT.DROPINDEX` as admin +
-   typed); and attach confirmations (DEL, UNLINK, RENAME, LTRIM, XTRIM, ZREMRANGE* → `confirm`; FLUSHDB → admin,
-   `typed`, never on prod).
+   typed); and attach confirmations (DEL, UNLINK, RENAME, LTRIM, XTRIM, ZREMRANGE*, ARDEL, ARDELRANGE, ARRING →
+   `confirm`; FLUSHDB → admin, `typed`, never on prod). Every array command (v0.4) has an explicit rule, and
+   `ARGREP … RE …` is blocked by `argumentRule` (section 7, Arrays).
 3. Otherwise the database's own `COMMAND INFO` decides (`policy/commandTable.ts`): `admin` flag or `@admin`/`@dangerous`
    → blocked; `pubsub` → blocked (use the page); `write` → write; `readonly` **and** `@read` without `@write` → read.
    A command with unknown subcommands, an unknown command, or anything unclassifiable → **blocked** (fail closed).
@@ -118,8 +119,12 @@ will run: command and key names in full, other arguments as a short prefix and s
 the requesting user only, never to the audit log.
 
 **Compare-and-set** (`redis/checked.ts`): operations that replace data (`string.set`, `hash.set`, `list.set`,
-`zset.add`, `json.set`/`json.delete`, `key.rename`, `key.delete`, multi-entry adds) carry `expect`: the Redis type and
-the SHA-256 of the bytes the client read. On one exclusive measured socket of the caller's tier the server runs
+`zset.add`, `json.set`/`json.delete`, `key.rename`, `key.delete`, multi-entry adds, and since v0.4 `array.set` and
+`array.insert`) carry `expect`: the Redis type and the SHA-256 of the bytes the client read (for `array.set` the
+element at the index, `null` when it is empty). `array.insert` runs ARINSERT, which writes at the array's insert cursor
+and overwrites whatever is there: under WATCH the server reads the cursor (ARNEXT) and counts the elements in the
+positions it would write (`AROP … USED`), and any element there is a 409 with no "overwrite anyway"; with
+`expect: { type: 'none' }` it creates the key only if it does not exist. On one exclusive measured socket of the caller's tier the server runs
 `WATCH`, `TYPE`, the element read, then `MULTI` / command / `EXEC`, at most 3 attempts, never Lua. A mismatch answers
 409 `conflict` with the current value and writes nothing. Operations that can't carry an expectation refuse one (400).
 In cluster mode the exchange stays on the key's primary. The operator ACL user therefore needs `+@transaction`; the
@@ -195,6 +200,19 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
   (four per server); one memory analysis (four server-wide), analysis jobs 1/s with five held per account; imports
   (operator and up) two per account; 20 pending confirmations per session; 10 outstanding Pub/Sub subscription ids;
   admin user creation and password resets (each an argon2id hash) 2/s, burst 10.
+- **Arrays (v0.4, `redis/array.ts`):** every read is a fixed read-class command on the measured, actor-checked
+  transport within the request's reply budget. Pages (`key/read`, `array/range`: ARSCAN … LIMIT) and searches return
+  at most 1,000 elements, each value previewed to 64 KiB within `maxReplyBytes`, with a reference whose full read
+  (`key/element`, ARGET) is capped at `maxValueBytes`. A search (ARGREP) visits at most 1,000,000 existing elements per
+  request: when a range holds more, the server bisects on `AROP … USED` (answered from per-slice counters; at most 65
+  small reads) to cut it, and the response says where to continue. At most 8 predicates of 16 KiB each; GLOB patterns
+  have at most 8 `*`. Aggregates (AROP) over ranges holding more than 1,000,000 elements are refused with 400 and the
+  count. Measured on Redis 8.10 with 6,000,000 elements: USED 10 ms, SUM 40 ms, MATCH over all of them 80 ms. Regular
+  expressions (`RE`) are not offered and `ARGREP … RE …` is blocked in the console: Redis evaluates them in its main
+  thread with no time limit and no way to stop them, at a cost of pattern states × value bytes, so no range, LIMIT or
+  pattern-length cap bounds them (`((.?){255}){4}b` took about 1 s for one 1 KiB element; `((a?){50}){5}b` blocked a
+  server for 60 s over 50,000 elements of 28 bytes). Per user: pages 20/s (burst 40), searches and aggregates 5/s
+  (burst 10), all inside the four data reads at once.
 - **Commands:** `commandTimeoutMs` 5 s (blocking: block time + 2 s); workbench script budget 30 s; SCAN time budget
   per key-browser page (`scanBudgetMs`, 300 ms) and a slot threshold per names request (`keyScanThresholdMax`); memory
   analysis sample and time caps.
