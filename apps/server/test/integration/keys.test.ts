@@ -267,13 +267,15 @@ describe.skipIf(!sandboxUp)('POST /key/read (details)', () => {
     expect(bf.json.value.message).toContain('BF.INFO');
   });
 
-  it('vectorset -> unsupported (when the module is present)', async () => {
+  it('vectorset -> summary and first member page (v0.4 S2; was unsupported)', async () => {
     const ok = await r.sendCommand(['VADD', `${P}vec`, 'VALUES', '2', '0.1', '0.2', 'el']).then(() => true, () => false);
     if (!ok) return;
     const c = await userSession(t, 'viewer');
     const res = await c.req('POST', READ, body(`${P}vec`));
     expect(res.json.type).toBe('vectorset');
-    expect(res.json.value.type).toBe('unsupported');
+    expect(res.json.value.type).toBe('vectorset');
+    expect(res.json.value.info).toMatchObject({ size: 1, dim: 2 });
+    expect(res.json.value.page.members).toEqual([{ member: { enc: 'utf8', data: 'el' } }]);
   });
 
   it('reads are side-effect free POSTs: no confirmation on prod, one audit entry each (review v0.2 M6)', async () => {
