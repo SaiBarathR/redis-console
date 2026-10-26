@@ -21,6 +21,7 @@ import { HashExpiry } from "./HashExpiry.tsx";
 import { InlineEdit } from "./InlineEdit.tsx";
 import { Empty, ErrorState, Modal } from "./ui.tsx";
 import { StreamInspector } from "./StreamInspector.tsx";
+import { VectorSetDetail } from "./VectorSetDetail.tsx";
 import { FORMATS, ValueViewer } from "./ValueViewer.tsx";
 
 /**
@@ -532,6 +533,9 @@ export function KeyContent({
           </details>
         </>
       );
+      break;
+    case "vectorset":
+      result = <VectorSetDetail details={details} value={value} refresh={refresh} />;
       break;
     case "unsupported":
       result = (

@@ -121,6 +121,10 @@ export const COMMAND_RULES: Record<string, CommandRule> = {
   'FT.SYNDUMP': { class: 'read' },
   'FT.DICTDUMP': { class: 'read' },
   'FT.ALIASLIST': { class: 'read' },
+  // v0.4 vector sets: every V* command has an explicit rule (module flags are not trusted alone; a command Redis adds
+  // later fails closed until it is reviewed). The inspector sends these as fixed typed reads and `vset.*` ops; in the
+  // console VREM needs no confirmation, like HDEL, SREM and ZREM (the inspector's typed `vset.remove` asks, like
+  // `hash.delete`). VADD replaces an existing member's vector: the inspector's `vset.add` refuses that (409).
   VCARD: { class: 'read' },
   VDIM: { class: 'read' },
   VEMB: { class: 'read' },
@@ -131,6 +135,9 @@ export const COMMAND_RULES: Record<string, CommandRule> = {
   VRANDMEMBER: { class: 'read' },
   VRANGE: { class: 'read' },
   VSIM: { class: 'read' },
+  VADD: { class: 'write' },
+  VREM: { class: 'write' },
+  VSETATTR: { class: 'write' },
   // Flagged readonly + @read, but they change state.
   'CF.COMPACT': { class: 'write' },
 };

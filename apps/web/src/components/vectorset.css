@@ -1,0 +1,91 @@
+/* Vector-set inspector (v0.4, F23). Tokens only (styles/tokens.css); shared table, lookup and footer styles come from
+   keys.css and detail.css. */
+
+.vset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.vset-filter {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.vset-filter label.checkbox {
+  margin-left: auto;
+}
+.vset-member {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.vset-attr {
+  display: inline-block;
+  max-width: 48ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}
+.vset-paging {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.vset-search-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 72rem;
+}
+.vset-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.vset-mode legend {
+  float: left;
+  margin-right: var(--space-2);
+  color: var(--graphite);
+}
+.vset-binary-member {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.vset-element-actions {
+  justify-content: flex-start;
+}
+.vset-element section {
+  margin-top: var(--space-3);
+}
+.vset-element h3 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--text-pane);
+}
+.vset-vector {
+  max-height: 12rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding: var(--space-2);
+  background: var(--surface-alt);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  font-size: var(--text-meta);
+}
+.vset-layer summary {
+  cursor: pointer;
+  color: var(--graphite);
+}
+.vset-layer ul {
+  margin: var(--space-1) 0 var(--space-2);
+  padding-left: var(--space-4);
+  columns: 2 22rem;
+}

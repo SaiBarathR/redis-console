@@ -191,7 +191,10 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
 - **Server timeouts:** request 120 s, headers 15 s, idle connection 30 s, keep-alive 5 s.
 - **Per user:** CLI 20/s; ops 20/s; workbench 2/s, one script at a time (16 server-wide), whose results share 4 ×
   `maxReplyBytes`; at most 4 console commands in flight and 1 blocking command; 4 typed data reads at once; key names
-  10/s (burst 20) and key metadata 10/s (burst 30), two of each at once; legacy scans 10/s; one pattern-delete job
+  10/s (burst 20) and key metadata 10/s (burst 30), two of each at once; vector sets: members 100 a page (at most 500),
+  attributes for at most 100 rows (1 KiB each in the table), embeddings up to 4,096 values (not read above 16,384
+  dimensions), neighbours 64 per layer, similarity search at most 100 results with EF ≤ 1,000 and a filter effort
+  always sent (≤ 100,000); legacy scans 10/s; one pattern-delete job
   (four per server); one memory analysis (four server-wide), analysis jobs 1/s with five held per account; imports
   (operator and up) two per account; 20 pending confirmations per session; 10 outstanding Pub/Sub subscription ids;
   admin user creation and password resets (each an argon2id hash) 2/s, burst 10.

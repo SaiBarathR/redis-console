@@ -8,7 +8,7 @@ import { ROUTES } from '@rconsole/shared';
 import { API, dbPath, utf8, type Api } from '../../lib/api.ts';
 import { roleApis, disposeAll, ROLE_KEYS, type RoleKey } from '../../lib/roles.ts';
 import { DB } from '../../lib/env.ts';
-import { K } from '../../lib/fixtures-data.ts';
+import { K, redisExec } from '../../lib/fixtures-data.ts';
 import { uniqueName, newPassword } from '../../lib/accounts.ts';
 import { registerExtraSecret } from '../../lib/leak.ts';
 import { knownBug } from '../../lib/findings.ts';
@@ -31,6 +31,8 @@ const ANON_WRITE = [401, 403]; // unauthenticated non-GET: 401 (or 403 if CSRF i
 const all = (anon: Expect, viewer: Expect, operator: Expect, admin: Expect) => ({ anon, viewer, operator, admin });
 const readRoute = all(401, 200, 200, 200);
 let throwawayUserId = '';
+/** v0.4: a small vector set for the vector-set routes, created in beforeAll and deleted in afterAll. */
+const VSET = `${K.scratchPrefix}matrix:vset`;
 
 const ROWS: Row[] = [
   { route: 'health', method: 'GET', path: '/healthz', expect: all(200, 200, 200, 200) },
@@ -102,6 +104,10 @@ const ROWS: Row[] = [
   { route: 'streamGroups', method: 'POST', path: e2e('streams/groups'), body: { key: utf8(K.stream) }, expect: all(ANON_WRITE, 200, 200, 200) },
   { route: 'streamPending', method: 'POST', path: e2e('streams/pending'), body: { key: utf8(K.stream), group: K.streamGroup }, expect: all(ANON_WRITE, 200, 200, 200) },
   { route: 'tsRange', method: 'POST', path: e2e('timeseries/range'), body: { key: utf8(K.ts) }, expect: all(ANON_WRITE, 200, 200, 200) },
+  { route: 'vsetMembers', method: 'POST', path: e2e('vectorset/members'), body: { key: utf8(VSET), count: 10 }, expect: all(ANON_WRITE, 200, 200, 200) },
+  { route: 'vsetAttributes', method: 'POST', path: e2e('vectorset/attributes'), body: { key: utf8(VSET), members: [utf8('m1')] }, expect: all(ANON_WRITE, 200, 200, 200) },
+  { route: 'vsetElement', method: 'POST', path: e2e('vectorset/element'), body: { key: utf8(VSET), member: utf8('m1') }, expect: all(ANON_WRITE, 200, 200, 200) },
+  { route: 'vsetSearch', method: 'POST', path: e2e('vectorset/search'), body: { key: utf8(VSET), query: { element: utf8('m1') }, count: 2 }, expect: all(ANON_WRITE, 200, 200, 200) },
   { route: 'audit', method: 'GET', path: `${API}/admin/audit`, expect: all(401, 403, 403, 200) },
   { route: 'users', method: 'GET', path: `${API}/admin/users`, expect: all(401, 403, 403, 200) },
   {
@@ -115,6 +121,8 @@ const ROWS: Row[] = [
 test.describe('role matrix', () => {
   let apis: Record<RoleKey, Api>;
   test.beforeAll(async () => {
+    await redisExec(['VADD', VSET, 'VALUES', '3', '0.1', '0.2', '0.3', 'm1', 'SETATTR', '{"n":1}']);
+    await redisExec(['VADD', VSET, 'VALUES', '3', '0.3', '0.2', '0.1', 'm2']);
     apis = await roleApis();
     const pw = newPassword();
     registerExtraSecret('pw:matrix-throwaway', pw);
@@ -122,7 +130,10 @@ test.describe('role matrix', () => {
     expect(r.status, r.text).toBeLessThan(300);
     throwawayUserId = r.json.user?.id ?? r.json.id;
   });
-  test.afterAll(async () => { await disposeAll(apis); });
+  test.afterAll(async () => {
+    await disposeAll(apis);
+    await redisExec(['DEL', VSET]).catch(() => undefined);
+  });
 
   test('every route in the shared ROUTES table is covered', () => {
     const covered = new Set(ROWS.map((r) => r.route));

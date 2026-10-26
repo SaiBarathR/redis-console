@@ -28,6 +28,7 @@ import { bootstrapAdmin } from './auth/local.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerDatabaseRoutes } from './routes/databases.ts';
 import { registerKeyRoutes } from './routes/keys.ts';
+import { registerVectorSetRoutes } from './routes/vectorset.ts';
 import { registerCliRoutes } from './routes/cli.ts';
 import { registerDiagnosticsRoutes } from './routes/diagnostics.ts';
 import { registerPubSubRoutes } from './routes/pubsub.ts';
@@ -439,6 +440,7 @@ export async function buildApp(config: AppConfig, opts: BuildOptions = {}): Prom
   registerAuthRoutes(app, ctx);
   registerDatabaseRoutes(app, ctx);
   registerKeyRoutes(app, ctx);
+  registerVectorSetRoutes(app, ctx);
   registerCliRoutes(app, ctx);
   registerDiagnosticsRoutes(app, ctx);
   registerPubSubRoutes(app, ctx);

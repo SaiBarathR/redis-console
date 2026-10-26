@@ -21,7 +21,10 @@ export type Probe =
   | { kind: 'list'; index: number }
   | { kind: 'zset'; member: Buffer }
   | { kind: 'json' }
-  | { kind: 'key' };
+  | { kind: 'key' }
+  // v0.4 vector sets: VSETATTR compares the member's attribute bytes (none = empty); VADD requires the member absent.
+  | { kind: 'vattr'; member: Buffer }
+  | { kind: 'vmember'; member: Buffer };
 
 export interface CheckedPlan {
   key: Buffer;
@@ -32,8 +35,10 @@ export interface CheckedPlan {
 }
 
 /** Types an expectation may name per probe (`none`: the key is absent, so the op creates it). */
-const NATURAL: Record<Exclude<Probe['kind'], 'key'>, string> = { string: 'string', hash: 'hash', list: 'list', zset: 'zset', json: 'ReJSON-RL' };
-const MAY_BE_ABSENT = new Set<Probe['kind']>(['string', 'hash', 'zset']);
+const NATURAL: Record<Exclude<Probe['kind'], 'key'>, string> = { string: 'string', hash: 'hash', list: 'list', zset: 'zset', json: 'ReJSON-RL', vattr: 'vectorset', vmember: 'vectorset' };
+const MAY_BE_ABSENT = new Set<Probe['kind']>(['string', 'hash', 'zset', 'vmember']);
+/** `State.sha` of a vector-set member that exists (the add probe compares presence, not bytes). */
+const MEMBER_PRESENT = 'member-present';
 /** Key-level ops compare bytes only for these types (a whole collection is never read). */
 const KEY_VALUE_TYPES = new Set(['string', 'ReJSON-RL']);
 /** WATCH aborts (someone wrote the key between the read and EXEC) before the server gives up with 409. */
@@ -54,6 +59,8 @@ export function validateExpect(probe: Probe, expect: EditExpect): void {
     return;
   }
   if (expect.type !== natural) bad(`type must be ${natural}${MAY_BE_ABSENT.has(probe.kind) ? ' or none' : ''} for this operation`);
+  if (probe.kind === 'vmember' && expect.sha256 !== null) bad('sha256 must be null: vset.add only adds a member that is absent (VADD would replace its vector)');
+  if (probe.kind === 'vattr' && typeof expect.sha256 !== 'string') bad('sha256 is required: the SHA-256 of the attributes as read (of no bytes when the member had none)');
   if (expect.sha256 === undefined) bad('sha256 is required for this operation (null when the element did not exist)');
 }
 
@@ -120,6 +127,17 @@ async function readElement(send: ExclusiveSend, plan: CheckedPlan, limit: number
     return { type, sha: sha(bytes), bytes, total: bytes.length };
   };
   switch (kind) {
+    case 'vattr':
+    case 'vmember': {
+      const member = (probe as Extract<Probe, { kind: 'vattr' | 'vmember' }>).member;
+      const present = await send(['VISMEMBER', key, member]);
+      // RESP3 boolean (an integer under RESP2).
+      if (present !== true && Number(present) !== 1) return { type, sha: null };
+      if (kind === 'vmember') return { type, sha: MEMBER_PRESENT };
+      const raw = await bounded(['VGETATTR', key, member]);
+      // No attributes compare as no bytes, so "had none" and "has none" match.
+      return done(raw === null || raw === undefined ? Buffer.alloc(0) : raw);
+    }
     case 'string': {
       const total = Number(await send(['STRLEN', key]));
       if (total > limit) {
@@ -173,7 +191,9 @@ export function conflictOf(plan: CheckedPlan, state: State): HttpError {
     if (cut) current.truncated = true;
   }
   if (state.total !== undefined && (state.tooLarge || current.truncated)) current.totalBytes = state.total;
-  if (!state.tooLarge && !state.changed && overwritable(plan.probe, state.type)) {
+  // A vector-set add never overwrites a member, and an attribute edit never targets a member that is gone.
+  const noOverwrite = plan.probe.kind === 'vmember' || (plan.probe.kind === 'vattr' && state.sha === null);
+  if (!state.tooLarge && !state.changed && !noOverwrite && overwritable(plan.probe, state.type)) {
     current.expect = { type: state.type };
     if (state.sha !== undefined) current.expect.sha256 = state.sha;
   }
@@ -181,7 +201,11 @@ export function conflictOf(plan: CheckedPlan, state: State): HttpError {
     ? state.type === 'none'
       ? 'This key no longer exists; nothing was written.'
       : `This key changed since you opened it: it is now a ${state.type} (you opened ${/^[A-Za-z0-9_-]{1,32}$/.test(plan.expect.type) ? `a ${plan.expect.type}` : 'a different type'}); nothing was written.`
-    : 'This value changed since you opened it; nothing was written.';
+    : plan.probe.kind === 'vmember'
+      ? 'This member already exists in the vector set; nothing was written (adding it again would replace its vector).'
+      : plan.probe.kind === 'vattr' && state.sha === null
+        ? 'This member no longer exists in the vector set; nothing was written.'
+        : 'This value changed since you opened it; nothing was written.';
   return new HttpError('conflict', message, { conflict: { reason, expected: plan.expect, current } });
 }
 
