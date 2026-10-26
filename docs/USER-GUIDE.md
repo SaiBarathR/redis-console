@@ -40,6 +40,7 @@ Redis is a fast key–value store. Everything in it is a **key** (a name such as
 | stream | an append-only log of entries with IDs | events, with **consumer groups** for workers |
 | JSON | a JSON document (RedisJSON module) | documents you update by path |
 | time series | timestamp → number samples (RedisTimeSeries module) | metrics |
+| vector set | members, each with a vector (embedding) and optional JSON attributes, searchable by similarity | semantic search, recommendations |
 
 Other things worth knowing:
 
@@ -114,6 +115,7 @@ You need the **operator** role (or higher), and the database must not be read-on
 - **Delete**: always asks for confirmation (see below).
 - **Delete by pattern**: first shows **how many keys** match and a sample, so you can check before confirming.
 - The 🗑 next to a field or member removes just that element.
+- **Vector sets**: the inspector shows how many members the set has, their dimensions and quantisation, then the members in byte order, 100 a page, with a **Members starting with** filter and each member's attributes (read for the rows on screen). Open a member to see its attributes, its embedding (the first 4,096 values; quantised sets show approximations) and its neighbours in the search graph. **Similarity search** finds the members closest to a member or to a vector you type, optionally narrowed by a filter expression on the attributes (for example `.year > 2000 and .genre == "drama"`; booleans are plain values: `.active`), and shows the exact `VSIM` it runs. Operators can edit a member's attributes (checked against what you opened) and remove members (after confirming); add members to an existing set with `VADD` in the console (**Add key** creates a new vector set).
 - **Changed since you opened it**: edits, renames and deletes are checked against what the editor (or the inspector) read. If another client changed the value meanwhile, nothing is written and you see "This value changed since you opened it" with the current value (and the differences, for short text). Choose **Reload** to start again from the current value, or **Overwrite anyway** to write your draft over exactly what is there now (it is checked again). If the key became another type, only Reload is offered. An open row editor closes on its own when a refresh shows that its element changed.
 
 Every change is recorded in the audit log with your name. Values themselves are never logged.

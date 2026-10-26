@@ -140,9 +140,9 @@ Run these as an administrative Redis user (`redis-cli`, interactive). `#<sha256>
 password; compute it with `printf '%s' "$PASSWORD" | openssl dgst -sha256 | awk '{print $NF}'`.
 
 ```
-ACL SETUSER rc-viewer on #<viewer-sha256> resetkeys ~* resetchannels &* -@all +@read +@connection -@dangerous -keys +info +slowlog|get +memory|usage +command|docs +command|info +command|count +command|list +pubsub|channels +pubsub|numsub +pubsub|numpat +subscribe +psubscribe +unsubscribe +punsubscribe +ssubscribe +sunsubscribe +ping +ft._list +ft.info
+ACL SETUSER rc-viewer on #<viewer-sha256> resetkeys ~* resetchannels &* -@all +@read +@connection -@dangerous -keys +info +slowlog|get +memory|usage +command|docs +command|info +command|count +command|list +pubsub|channels +pubsub|numsub +pubsub|numpat +subscribe +psubscribe +unsubscribe +punsubscribe +ssubscribe +sunsubscribe +ping +ft._list +ft.info +vcard +vdim +vemb +vgetattr +vinfo +vismember +vlinks +vrandmember +vrange +vsim
 
-ACL SETUSER rc-operator on #<operator-sha256> resetkeys ~* resetchannels &* -@all +@read +@write +@pubsub +@connection +@transaction -@dangerous -@scripting -keys +info +slowlog|get +memory|usage +command|docs +command|info +command|count +command|list +ping +ft._list +ft.info
+ACL SETUSER rc-operator on #<operator-sha256> resetkeys ~* resetchannels &* -@all +@read +@write +@pubsub +@connection +@transaction -@dangerous -@scripting -keys +info +slowlog|get +memory|usage +command|docs +command|info +command|count +command|list +ping +ft._list +ft.info +vcard +vdim +vemb +vgetattr +vinfo +vismember +vlinks +vrandmember +vrange +vsim +vadd +vrem +vsetattr
 
 ACL SETUSER rc-admin on #<admin-sha256> resetkeys ~* resetchannels &* +@all -@scripting -module -keys -debug -shutdown -replicaof -slaveof -failover -migrate -sync -psync -flushall -save -bgrewriteaof -acl|setuser -acl|deluser -acl|save -acl|load -acl|dryrun -config|set -config|rewrite -config|resetstat -cluster|reset -cluster|failover
 ```
@@ -164,6 +164,7 @@ What the rules do:
 | `-@dangerous`, `-@scripting`, `-keys` | No FLUSHALL, CONFIG, DEBUG, MONITOR, KEYS, CLIENT KILL; no Lua or Functions (a script could bypass per-command rules). Placed after the `+` categories, so they win. |
 | `+info +slowlog\|get +memory\|usage +command\|…` | Puts back the few introspection commands the dashboard, slow log, key sizes and autocomplete need. `cmd\|sub` allows one subcommand. |
 | `+ft._list +ft.info` | Lets viewers and operators list and describe Search indexes (`FT._LIST` is in Redis's `@admin` category). Leave out if you don't use Search. |
+| `+vcard +vdim … +vsim`, `+vadd +vrem +vsetattr` (operator) | Vector sets (Redis 8): their commands have no ACL category, so `+@read` and `+@write` do not include them. Viewers get the reads the vector-set inspector uses; operators also add, remove and set attributes. Leave out if you don't use vector sets. |
 | `+subscribe +psubscribe …` (viewer) | Viewers can watch Pub/Sub but not publish. |
 | `+@all -@scripting -module …` (admin) | Introspection and maintenance (CONFIG GET, CLIENT LIST/KILL, SLOWLOG RESET, FLUSHDB, MONITOR for the profiler, FT.CREATE/FT.DROPINDEX) without anything that escapes Redis or changes topology, persistence or ACLs. |
 

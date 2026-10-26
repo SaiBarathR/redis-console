@@ -2,6 +2,29 @@
 
 Changes to `packages/shared` made after the initial scaffold. Newest first. All are additive unless marked **breaking**.
 
+## 2026-10-26 — v0.4 S2 vector sets (feat/v04-vectorset)
+
+### `api.ts`
+- **`KeyValue` variant `vectorset`** (additive): `key/read` of a vector set returns `{ type: 'vectorset', info, page }`
+  (VCARD, VDIM and selected VINFO fields; the first `VRANGE` page). Before, vector sets read as `unsupported`.
+- **New read routes** (additive, POST bodies, viewer and up, the caller's tier, measured transport): `vectorset/members`
+  (`VRANGE` pages with an exclusive start and an optional byte prefix), `vectorset/attributes` (`VGETATTR` for up to
+  100 rows, 1 KiB each), `vectorset/element` (attributes up to `maxValueBytes`, `VEMB` up to 4,096 values and not
+  above 16,384 dimensions, `VLINKS … WITHSCORES` bounded per layer), `vectorset/search` (`VSIM` by `ELE` or `VALUES`,
+  COUNT ≤ 100, EF ≤ 1,000, a FILTER with FILTER-EF always sent, never TRUTH or NOTHREAD). Bounds are exported
+  (`VSET_*`). Audited like other data reads.
+- **New typed ops** (additive, operator and up, refused on read-only databases): `vset.add` (`VADD`; `expect` must
+  say the member is absent, so an existing member is a 409, never an overwrite), `vset.setattr` (`VSETATTR` with
+  compare-and-set on the attribute bytes), `vset.remove` (`VREM`, with the same confirmation as removing a hash field).
+
+### `commands.ts`
+- Explicit rules for every `V*` command: the reads already listed, plus `VADD`, `VREM`, `VSETATTR` as writes (no
+  console confirmation, like `HDEL`/`SREM`/`ZREM`). A command Redis adds to the family later fails closed until reviewed.
+
+### Redis ACL (deployment)
+- Vector-set commands have no ACL category: the viewer user needs the `V*` reads and the operator user also `+vadd
+  +vrem +vsetattr` (`infra/redis/users.acl.template`, `docs/INSTALL.md` §5). Without them the inspector answers 403.
+
 ## 2026-10-24 — v0.2.1 web review fixes (feat/v021-wfix)
 
 Fixes for `docs/research/24-v021-web-review.md` (`docs/REVIEW-LOG.md`, "v0.2.1 review – web (GPT reviewer)").
