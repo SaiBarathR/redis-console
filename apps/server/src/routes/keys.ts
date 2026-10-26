@@ -3,6 +3,7 @@ import { ErrorReply, RESP_TYPES } from 'redis';
 import {
   KEY_ELEMENT_PREVIEW_BYTES,
   KEY_VALUE_PREVIEW_BYTES,
+  VSET_PAGE_MAX,
   binFromBytes,
   bytesFromBin,
   zBulkDelete,
@@ -42,6 +43,8 @@ import { run, toHttpError } from '../redis/exec.ts';
 import { TM_BIN, TM_STR, type Arg, type Conn } from '../redis/manager.ts';
 import { TM_REPLY, asNum, asStr, kv, toReply } from '../redis/reply.ts';
 import { dbSize, globLiteral, scanPage, SCAN_COUNT_MAX } from '../redis/scan.ts';
+import { planVsetOp, vsetProbe } from '../redis/vectorset.ts';
+import { readVectorSet } from './vectorset.ts';
 
 const TM_BIN_DBL = { ...TM_BIN, [RESP_TYPES.DOUBLE]: String } as const;
 
@@ -93,6 +96,8 @@ interface OpPlan {
   keys: number[];
   /** Split into per-key commands in cluster mode (multi-key DEL across slots). */
   perKey?: boolean;
+  /** The audit argv when `redactArgv`'s one entry per argument would be needlessly long (v0.4 `vset.add`). */
+  redacted?: string[];
 }
 
 const b = (x: Bin) => Buffer.from(bytesFromBin(x));
@@ -160,6 +165,11 @@ export function planOp(op: KeyOp): OpPlan {
       return { argv: ['JSON.SET', b(op.key), op.path, op.json], confirm: 'none', summary: 'Set JSON value', keys: [1] };
     case 'json.delete':
       return { argv: ['JSON.DEL', b(op.key), op.path], confirm: 'confirm', summary: 'Delete JSON path', keys: [1] };
+    // v0.4 vector sets
+    case 'vset.add':
+    case 'vset.setattr':
+    case 'vset.remove':
+      return planVsetOp(op);
   }
 }
 
@@ -179,7 +189,7 @@ export function previewOp(plan: OpPlan, cluster: boolean) {
 }
 
 /** Ops whose schema has `expect` (compare-and-set). */
-export const CHECKED_OPS = ['string.set', 'hash.set', 'list.set', 'zset.add', 'json.set', 'json.delete', 'key.rename', 'key.delete'] as const;
+export const CHECKED_OPS = ['string.set', 'hash.set', 'list.set', 'zset.add', 'json.set', 'json.delete', 'key.rename', 'key.delete', 'vset.add', 'vset.setattr'] as const;
 
 /**
  * The compare-and-set form of an op that carries `expect` (web review v0.2 r3): which key is watched, what is
@@ -215,6 +225,10 @@ export function planChecked(op: KeyOp, plan: OpPlan, raw?: unknown): CheckedPlan
     case 'key.delete':
       if (op.keys.length !== 1) bad('key.delete with expect deletes exactly one key');
       probe = { kind: 'key' }; key = b(op.keys[0]!); break;
+    // v0.4 vector sets: `expect` is required by their schemas (an add must find the member absent).
+    case 'vset.add':
+    case 'vset.setattr':
+      probe = vsetProbe(op)!; key = b(op.key); break;
     default:
       return bad(`not supported for ${(op as KeyOp).op} (only ${CHECKED_OPS.join(', ')} can carry it)`);
   }
@@ -561,6 +575,13 @@ export function registerKeyRoutes(app: FastifyInstance, ctx: AppContext) {
         value = { type: 'timeseries', info, samples: samples.map(([t, v]) => [asNum(t), asStr(v)] as [number, string]).reverse() };
         break;
       }
+      // v0.4 vector sets: summary and the first VRANGE page (later pages: POST /vectorset/members).
+      case 'vectorset': {
+        const vset = await readVectorSet(scope, conn, key, { timeout: policy.commandTimeoutMs, count: Math.min(q.count, VSET_PAGE_MAX), budget: policy.maxReplyBytes, replyBudget: { remaining: policy.maxReadReplyBytes } });
+        value = vset.value;
+        length = vset.length;
+        break;
+      }
       default:
         value = { type: 'unsupported', message: `Values of type ${type} are not shown in the browser. Use the console (e.g. ${hintFor(type)}).` };
     }
@@ -586,7 +607,7 @@ export function registerKeyRoutes(app: FastifyInstance, ctx: AppContext) {
     const op = parse(zKeyOp, req.body);
     const plan = planOp(op);
     const checked = planChecked(op, plan, req.body);
-    const red = redactArgv(plan.argv, plan.argv[0] === 'XGROUP' ? 2 : 1, plan.keys);
+    const red = plan.redacted ? { argv: plan.redacted, keyCount: plan.keys.length } : redactArgv(plan.argv, plan.argv[0] === 'XGROUP' ? 2 : 1, plan.keys);
     const base = { action: op.op, databaseId: scope.db.id, command: String(plan.argv[0]), argvRedacted: red.argv, keyCount: red.keyCount };
     try {
       authorize(fixedCommand(String(plan.argv[0]), 'write', plan.confirm, plan.keys), scope);
@@ -634,12 +655,13 @@ export function registerKeyRoutes(app: FastifyInstance, ctx: AppContext) {
 /** The command that reads a type's value in the key browser (audit). */
 const VALUE_READ: Record<string, string> = {
   string: 'GETRANGE', hash: 'HSCAN', list: 'LRANGE', set: 'SSCAN', zset: 'ZRANGE', stream: 'XREVRANGE', 'ReJSON-RL': 'JSON.GET', 'TSDB-TYPE': 'TS.REVRANGE',
+  vectorset: 'VRANGE',
 };
 
 /** Audit detail of a key read: type and counts, never data. */
 export function keyReadDetail(d: KeyDetails): string {
   const v = d.value as Record<string, unknown>;
-  const list = ['entries', 'items', 'members', 'samples'].map((f) => v[f]).find(Array.isArray);
+  const list = ['entries', 'items', 'members', 'samples'].map((f) => v[f]).find(Array.isArray) ?? (d.value.type === 'vectorset' ? d.value.page.members : undefined);
   const parts = [`type=${/^[A-Za-z0-9_-]{1,32}$/.test(d.type) ? d.type : 'other'}`];
   if (list) parts.push(`returned=${list.length}`);
   if (d.length !== undefined) parts.push(`length=${d.length}`);
