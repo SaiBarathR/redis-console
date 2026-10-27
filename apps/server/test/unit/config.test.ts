@@ -318,6 +318,47 @@ describe('resolveConfig', () => {
       dev.databases[0].credentials = { viewer: v, default: a };
       expect(resolve(dev, prodEnv).databases[0]!.id).toBe('main');
     });
+    it('a tier that connects as Redis\'s "default" user is not its own ACL user (deployment trial)', () => {
+      // Found by configuring an app's bundled Redis (default user only) as `viewer: { username: "default" }`: the
+      // per-tier check passed without the exception, and nothing was logged.
+      const raw = prodOk();
+      raw.databases[0].environment = 'prod';
+      raw.databases[0].url = 'rediss://h:6380';
+      raw.databases[0].maxRole = 'viewer';
+      raw.databases[0].readOnly = true;
+      raw.databases[0].credentials = { viewer: { username: 'default', password: { env: 'PW_V' } } };
+      fails(raw, /viewer connects as Redis's "default" user.*"acceptRisks": \["default-credentials"\]/s, prodEnv);
+      raw.databases[0].maxRole = 'operator';
+      raw.databases[0].readOnly = false;
+      raw.databases[0].credentials = { viewer: { username: 'v', password: { env: 'PW_V' } }, operator: { username: 'default', password: { env: 'PW_O' } } };
+      fails(raw, /operator connects as Redis's "default" user/, prodEnv);
+      raw.databases[0].acceptRisks = ['default-credentials'];
+      const db = resolve(raw, prodEnv).databases[0]!;
+      expect(db.id).toBe('main');
+      // Outside prod it is allowed, and the startup warning says the app enforces the policy alone.
+      const dev = prodOk();
+      dev.databases[0].credentials = { viewer: { username: 'default' } };
+      const devDb = resolve(dev, prodEnv).databases[0]!;
+      expect(hasPerTierCredentials(devDb)).toBe(false);
+      expect(configWarnings(resolve(dev, prodEnv)).join('\n')).toMatch(/database main: .*"default" user.*enforces policy alone/);
+    });
+    it('logs every accepted risk at startup, and names an exception that is not needed (deployment trial)', () => {
+      const raw = prodOk();
+      raw.databases[0].environment = 'prod';
+      raw.databases[0].maxRole = 'viewer';
+      raw.databases[0].readOnly = true;
+      raw.databases[0].credentials = { viewer: { username: 'default' } };
+      raw.databases[0].acceptRisks = ['plaintext', 'default-credentials'];
+      let w = configWarnings(resolve(raw, prodEnv)).join('\n');
+      expect(w).toMatch(/database main: production database without TLS \(accepted risk "plaintext"\)/);
+      expect(w).toMatch(/database main: viewer connects as Redis's "default" user.*\(accepted risk "default-credentials"\)/);
+      // Listed but not needed: TLS is on and every reachable tier has its own user.
+      raw.databases[0].url = 'rediss://h:6380';
+      raw.databases[0].credentials = { viewer: { username: 'v', password: { env: 'PW_V' } } };
+      w = configWarnings(resolve(raw, prodEnv)).join('\n');
+      expect(w).toMatch(/database main: acceptRisks lists "plaintext", but the database uses TLS; remove it/);
+      expect(w).toMatch(/database main: acceptRisks lists "default-credentials", but every reachable tier has its own ACL user; remove it/);
+    });
     it('refuses disabled TLS verification on any database', () => {
       const raw = prodOk();
       raw.databases[0].url = 'rediss://h:6380';

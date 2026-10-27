@@ -414,6 +414,8 @@ export interface DatabaseConfig {
   credentials: Partial<Record<Tier, ResolvedCredential>>;
   tls?: { enabled: true; ca?: Secret; cert?: Secret; key?: Secret; servername?: string; rejectUnauthorized: boolean };
   poolSize: number;
+  /** Reviewed exceptions to the production rules; each is logged at every start (configWarnings). */
+  acceptRisks?: ('plaintext' | 'default-credentials')[];
 }
 
 export interface AppConfig {
@@ -500,26 +502,10 @@ export function resolveConfig(raw: unknown, opts: LoadOptions = {}): AppConfig {
       if (!tlsOn && !d.acceptRisks.includes('plaintext')) {
         problems.push(`production: databases.${d.id}: environment=prod requires TLS (rediss://), or "acceptRisks": ["plaintext"] as a reviewed exception`);
       }
-      // Every tier reachable under maxRole needs its own ACL user (review v0.2 M4): a tier without credentials connects
-      // as `default`, and tiers sharing one user cannot be told apart by Redis either. A tier with neither fails
-      // closed at runtime (503).
+      // Every tier reachable under maxRole needs its own ACL user (review v0.2 M4; Redis's `default` user since the
+      // deployment trial). A tier with no credential at all fails closed at runtime (503).
       if (!d.acceptRisks.includes('default-credentials')) {
-        const perTier = !!(d.credentials.viewer || d.credentials.operator || d.credentials.admin);
-        const reachable = (['viewer', 'operator', 'admin'] as const).filter((t) => roleAtLeast(d.maxRole, t));
-        const missing = reachable.filter((t) => !d.credentials[t]);
-        if (!perTier || (d.credentials.default && missing.length)) {
-          problems.push(`production: databases.${d.id}: environment=prod requires per-tier ACL users for every tier reachable under maxRole (missing: ${missing.join(', ')}${d.credentials.default ? '; they would connect as "default"' : ''}), or "acceptRisks": ["default-credentials"] as a reviewed exception`);
-        }
-        const byUser = new Map<string, string[]>();
-        for (const t of reachable) {
-          const u = d.credentials[t]?.username;
-          if (u !== undefined) byUser.set(u, [...(byUser.get(u) ?? []), t]);
-        }
-        for (const tiers of byUser.values()) {
-          if (tiers.length > 1) {
-            problems.push(`production: databases.${d.id}: ${tiers.join(' and ')} use the same ACL user, so Redis cannot tell these roles apart; give each tier its own user, or "acceptRisks": ["default-credentials"] as a reviewed exception`);
-          }
-        }
+        for (const p of tierUserProblems(d)) problems.push(`production: databases.${d.id}: ${p}, or "acceptRisks": ["default-credentials"] as a reviewed exception`);
       }
     }
   }
@@ -608,6 +594,7 @@ export function resolveConfig(raw: unknown, opts: LoadOptions = {}): AppConfig {
       maxRole: d.maxRole,
       credentials,
       poolSize: d.poolSize,
+      acceptRisks: d.acceptRisks,
     };
     if (d.description) out.description = d.description;
     if (d.tags?.length) out.tags = [...new Set(d.tags)];
@@ -672,6 +659,37 @@ export function loadConfig(opts: LoadOptions = {}): AppConfig {
   return resolveConfig(raw, opts);
 }
 
+type TierCredentials = Partial<Record<Tier, { username: string }>>;
+
+/**
+ * Why Redis cannot enforce a prod database's roles by itself: reachable tiers (under `maxRole`) that fall back to the
+ * `default` credential entry, connect as Redis's built-in `default` user, or share one ACL user with another tier.
+ * Empty when every reachable tier has its own user.
+ */
+export function tierUserProblems(d: { maxRole: Role; credentials: TierCredentials }): string[] {
+  const out: string[] = [];
+  const perTier = !!(d.credentials.viewer || d.credentials.operator || d.credentials.admin);
+  const reachable = (['viewer', 'operator', 'admin'] as const).filter((t) => roleAtLeast(d.maxRole, t));
+  const missing = reachable.filter((t) => !d.credentials[t]);
+  if (!perTier || (d.credentials.default && missing.length)) {
+    out.push(`environment=prod requires per-tier ACL users for every tier reachable under maxRole (missing: ${missing.join(', ')}${d.credentials.default ? '; they would connect as "default"' : ''})`);
+  }
+  const asDefault = reachable.filter((t) => d.credentials[t]?.username === 'default');
+  if (asDefault.length) {
+    const one = asDefault.length === 1;
+    out.push(`${asDefault.join(' and ')} ${one ? 'connects' : 'connect'} as Redis's "default" user, so Redis cannot enforce ${one ? 'that role' : 'those roles'}; give each tier its own ACL user`);
+  }
+  const byUser = new Map<string, string[]>();
+  for (const t of reachable) {
+    const u = d.credentials[t]?.username;
+    if (u !== undefined && u !== 'default') byUser.set(u, [...(byUser.get(u) ?? []), t]);
+  }
+  for (const tiers of byUser.values()) {
+    if (tiers.length > 1) out.push(`${tiers.join(' and ')} use the same ACL user, so Redis cannot tell these roles apart; give each tier its own user`);
+  }
+  return out;
+}
+
 /**
  * Risky but valid settings, logged at startup. (Hard errors are raised by resolveConfig.)
  */
@@ -681,8 +699,20 @@ export function configWarnings(c: AppConfig): string[] {
     w.push('server.trustProxy=true trusts every X-Forwarded-For hop, so clients can choose their own IP and evade the per-IP sign-in limit; set the number of proxy hops (e.g. 1) or the proxy CIDRs instead');
   }
   for (const d of c.databases) {
-    if (!hasPerTierCredentials(d)) w.push(`database ${d.id}: only "default" credentials configured; the app enforces policy alone (configure per-tier ACL users)`);
-    if (d.environment === 'prod' && !d.tls) w.push(`database ${d.id}: production database without TLS`);
+    if (!hasPerTierCredentials(d)) {
+      w.push(`database ${d.id}: only "default" credentials configured, or tiers that connect as Redis's "default" user; the app enforces policy alone (configure per-tier ACL users)`);
+    }
+    if (d.environment !== 'prod') continue;
+    // Each accepted risk is named at every start, and an exception that is no longer needed is called out.
+    const accepted = d.acceptRisks ?? [];
+    const plaintext = accepted.includes('plaintext');
+    if (!d.tls) w.push(`database ${d.id}: production database without TLS${plaintext ? ' (accepted risk "plaintext")' : ''}`);
+    else if (plaintext) w.push(`database ${d.id}: acceptRisks lists "plaintext", but the database uses TLS; remove it`);
+    if (accepted.includes('default-credentials')) {
+      const issues = tierUserProblems(d);
+      for (const p of issues) w.push(`database ${d.id}: ${p} (accepted risk "default-credentials")`);
+      if (!issues.length) w.push(`database ${d.id}: acceptRisks lists "default-credentials", but every reachable tier has its own ACL user; remove it`);
+    }
   }
   if (c.production && c.local?.enabled && !c.local.requireTotpForRoles.includes('admin')) {
     w.push('auth.local.requireTotpForRoles does not include "admin": local admins can sign in with a password only');
@@ -695,6 +725,7 @@ export function credentialForTier(db: DatabaseConfig, role: Role): ResolvedCrede
   return db.credentials[role] ?? db.credentials.default;
 }
 
+/** Whether some tier has its own ACL user (not the shared `default` entry, and not Redis's `default` user). */
 export function hasPerTierCredentials(db: DatabaseConfig): boolean {
-  return !!(db.credentials.viewer || db.credentials.operator || db.credentials.admin);
+  return (['viewer', 'operator', 'admin'] as const).some((t) => db.credentials[t] && db.credentials[t].username !== 'default');
 }
