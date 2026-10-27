@@ -73,6 +73,8 @@ export function readCommand(details: KeyDetails) {
       return `TS.RANGE ${key} - +`;
     case "array": // v0.4 arrays
       return `ARSCAN ${key} 0 18446744073709551614 LIMIT 100`;
+    case "vectorset": // v0.4 vector sets
+      return `VRANGE ${key} - + 100`;
     default:
       return `TYPE ${key}`;
   }
@@ -96,6 +98,7 @@ export function inspectCommands(key: Bin, details?: KeyDetails) {
         `JSON.GET ${k}`,
         `TS.INFO ${k}; TS.REVRANGE ${k} - + COUNT 100`,
         `ARINFO ${k}; ARSCAN ${k} 0 18446744073709551614 LIMIT 100`,
+        `VCARD ${k}; VDIM ${k}; VINFO ${k}; VRANGE ${k} - + 101`,
       ].join("\n")
     );
   const reads: Record<string, string> = {
@@ -108,6 +111,8 @@ export function inspectCommands(key: Bin, details?: KeyDetails) {
     json: `JSON.GET ${k}`,
     timeseries: `TS.INFO ${k}\nTS.REVRANGE ${k} - + COUNT 100`,
     array: `ARINFO ${k}\nARSCAN ${k} 0 18446744073709551614 LIMIT 100`,
+    // One member more than the page tells whether another page follows.
+    vectorset: `VCARD ${k}\nVDIM ${k}\nVINFO ${k}\nVRANGE ${k} - + 101`,
   };
   return (
     common + "\n" + (reads[details.value.type] ?? "# No supported value reader")

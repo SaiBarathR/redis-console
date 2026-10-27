@@ -100,7 +100,7 @@ export function query(params: Record<string, string | number | undefined>) {
  * POST or PATCH may change something and is never retried.
  */
 const READ_POSTS =
-  /^\/databases\/[^/]+\/(keys\/(scan|names|meta)|key\/(read|element)|streams\/(groups|pending)|timeseries\/range|search\/(query|index\/info|sample)|pubsub\/channels|array\/(range|search|aggregate))$/;
+  /^\/databases\/[^/]+\/(keys\/(scan|names|meta)|key\/(read|element)|streams\/(groups|pending)|timeseries\/range|search\/(query|index\/info|sample)|pubsub\/channels|array\/(range|search|aggregate)|vectorset\/(members|attributes|element|search))$/;
 /** Whether a 429 for this request may be retried: reads only, never writes (v0.3 follow-up 6). */
 export function retriesOnRateLimit(method: string, path: string): boolean {
   return method === "GET" || (method === "POST" && READ_POSTS.test(path));

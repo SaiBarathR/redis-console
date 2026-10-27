@@ -105,6 +105,9 @@ describe("429 retries for reads only", () => {
     for (const p of ["/databases/d/streams/pending", "/databases/d/streams/groups", "/databases/d/keys/names", "/databases/d/keys/meta", "/databases/d/key/read", "/databases/d/key/element", "/databases/d/timeseries/range", "/databases/d/search/query", "/databases/d/pubsub/channels"])
       expect(retriesOnRateLimit("POST", p)).toBe(true);
     expect(retriesOnRateLimit("GET", "/databases/d/overview")).toBe(true);
+    // v0.4 typed reads, vector sets as well as arrays (review v0.4 r1 L4).
+    for (const p of ["array/range", "array/search", "array/aggregate", "vectorset/members", "vectorset/attributes", "vectorset/element", "vectorset/search"])
+      expect(retriesOnRateLimit("POST", `/databases/d/${p}`), p).toBe(true);
     for (const p of ["/databases/d/ops", "/databases/d/cli", "/databases/d/workbench", "/databases/d/bulk-delete", "/databases/d/pubsub/publish", "/databases/d/analysis/jobs", "/databases/d/import", "/auth/login", "/databases/d/streams/pending/x"])
       expect(retriesOnRateLimit("POST", p)).toBe(false);
     expect(retriesOnRateLimit("PATCH", "/admin/users/1")).toBe(false);

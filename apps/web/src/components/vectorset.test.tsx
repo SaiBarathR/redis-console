@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { binFromString, type DatabaseSummary, type KeyDetails } from "@rconsole/shared";
 import { DatabaseContext } from "../lib/context.tsx";
 import { MemoryProvider } from "../lib/memory.tsx";
+import { inspectCommands, readCommand } from "./KeyInspector.tsx";
 import { parseVector, quantizationLabel, VectorSetDetail, vsimPreview } from "./VectorSetDetail.tsx";
 
 const bin = binFromString;
@@ -65,6 +66,12 @@ describe("vector-set inspector helpers (v0.4 F23)", () => {
     const preview = vsimPreview(bin("my set"), { query: { values: ["1", "0", "0"] }, count: 5, filter: ".even", withAttributes: true });
     expect(preview).toBe('VSIM "my set" VALUES 3 1 0 0 COUNT 5 WITHSCORES WITHATTRIBS FILTER .even FILTER-EF 500');
     expect(vsimPreview(bin("k"), { query: { element: bin("m") }, count: 10 })).toBe('VSIM "k" ELE "m" COUNT 10 WITHSCORES');
+  });
+  it("copies and explains the reads the inspector makes (review v0.4 r1 L4)", () => {
+    const d = details().details;
+    expect(readCommand(d)).toBe('VRANGE "v" - + 100');
+    expect(inspectCommands(d.key, d)).toContain('VCARD "v"\nVDIM "v"\nVINFO "v"\nVRANGE "v" - + 101');
+    expect(inspectCommands(d.key)).toContain("VRANGE");
   });
   it("names quantisation as VADD does", () => {
     expect(quantizationLabel("f32")).toContain("NOQUANT");
