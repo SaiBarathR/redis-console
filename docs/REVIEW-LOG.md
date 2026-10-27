@@ -1304,3 +1304,43 @@ handling partial (L1 below). **No finding at Medium or above**: the review loop 
 - `pnpm -r typecheck` clean; shared 73, web 544 passed; server with the cluster, Sentinel and mutual-TLS topology up
   1,109 passed, 8 skipped (the optional external read-only remote); full Playwright suite 701 passed, 0 failed,
   0 flaky, 2 skipped by design.
+
+## Deployment trial – a first-time install of 0.4.0 (Claude Opus 5.5)
+
+Record: [qa/v041-deployment-trial.md](qa/v041-deployment-trial.md). Fixer branch: `fix/deploy-trial-learnings`. The
+guide findings (F1–F12) are documentation changes listed in the record; the product findings:
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| G1 | fixed | Reproduced in the trial: a prod database with `viewer: { username: "default" }` started without `acceptRisks`, and nothing was logged. A tier that connects as Redis's `default` user now needs `"default-credentials"`; `tierUserProblems()` is shared by the check and the warnings. | `ca5d975` | `unit/config` › "a tier that connects as Redis's \"default\" user is not its own ACL user (deployment trial)" (failed before) |
+| G2 | fixed | Reproduced: accepted risks were never logged, contrary to OPERATIONS. Each is now logged at every start, and an exception that is not needed is named. | `ca5d975` | `unit/config` › "logs every accepted risk at startup, …" (failed before) |
+| G3 | skipped | Not a bug: warnings run on the resolved config, where a `rediss://` URL sets `tls`. | | |
+| G4 | fixed | Reproduced: Valkey 8.1.4 was listed as 7.2.4. Optional `server.engine` in the database summary; picker, status bar and overview show it. | `a9d2fe6` | `unit/engine`; web `valkey-label` (failed before) |
+| G5 | fixed | Reproduced: after signing in on `/login` the address bar kept `/login`. Unknown paths redirect to `/`. | `3cf7117` | web `signed-in-routes` (3 cases, failed before) |
+| G6 | documented | One local admin cannot recover a lost password (the CLI resets authenticators only). INSTALL 11: keep two admins, one sealed. A CLI password reset is left for a later release. | `dab5d84` | |
+| Flake | fixed | `integration/replycap` H1 failed once in CI (heap grew 49 MB against 32 MiB) on a change with no server code. Two causes: the baseline was taken without collecting garbage, and the measured request was the first on that path (one-time loading and pool setup grew the heap 10–41 MB in ~33 ms; it failed once in two local topology runs after the first fix). The test now warms the path with a one-step request, collects, then measures: 0 MB and 2 ms in three full topology runs. | `a8f1220`, `653e3a0` | the test itself |
+
+## Deployment trial – review (Claude Sonnet 5.5 reviewer)
+
+Report: `docs/research/35-deploy-trial-review.md` (snapshot `fix/deploy-trial-learnings` @ `a8f1220`). No High; the old
+production check's refusals are all kept (768 combinations compared).
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| M1 | kept by design, reworded | A prod `admin` tier as `default` is now refused. Intended: `rc-admin` (INSTALL 5) has no FLUSHALL, CONFIG SET, MODULE or scripting, and `default` usually has all of them, so Redis does lose that tier's limits. The message says so, and OPERATIONS has the upgrade note. | `ecd920b`, `de0fde4` | `unit/config` › "says why a tier … loses its limits (review M1)" (failed before) |
+| M2 | fixed | Reproduced by the reviewer: `docker cp` ignores the `umask`. INSTALL 12 now runs `chmod 600` on the copy. | `de0fde4` | |
+| L1 | fixed | Reproduced: a `server_name` of `constructor` or `__proto__` threw. A `Map` and own-property checks. | `5cf7572` | `unit/engine` › "does not trip over names that are Object properties" (failed before) |
+| L2 | fixed | The 7.5 snippet used another service name than the example; section 12 now says how to reach the container under Compose. | `de0fde4` | |
+| L3 | fixed | The appendix row was detached from its table. | `de0fde4` | |
+| L4 | fixed | `gw_priority` needs Compose 2.33.1+ and Docker Engine 28+; stated. | `de0fde4` | |
+| L5 | partly fixed | `acceptRisks` on a database that is not prod is now named. Skipped: a warning for a dev database that mixes a `default` tier with its own users (noise for ordinary dev setups); the duplicate lines for one gap stay (each names a different rule). | `ecd920b` | `unit/config` (failed before) |
+| L6 | fixed | INSTALL 5 explained `"plaintext"` with the wrong reason. | `de0fde4` | |
+| L7 | fixed | An unknown engine keeps its reported name; one without `<name>_version` shows no borrowed version. | `5cf7572` | `unit/engine`, web `lib/engine` (failed before) |
+
+### Final gates (fix/deploy-trial-learnings @ 653e3a0)
+- `pnpm -r typecheck` clean; shared 73, web 551, server unit 639 passed.
+- Server with the cluster, Sentinel and mutual-TLS topology up: 1,117 passed, 8 skipped, in three consecutive runs.
+- Full Playwright suite (at `de0fde4`; later commits change only a server integration test and docs): 701 passed,
+  0 failed, 0 flaky, 2 skipped by design.
+- Live: the deployment trial itself ([qa/v041-deployment-trial.md](qa/v041-deployment-trial.md)) on the published
+  0.4.0 image; the fixes here reach that deployment with the next release.

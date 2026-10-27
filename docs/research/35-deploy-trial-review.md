@@ -1,9 +1,9 @@
 # Deployment-trial fixes: independent review
 
 Reviewer: Claude Sonnet 5.5 (the author of the change set is a different model). Date: 2026-10-27.
-Snapshot: `fix/deploy-trial-learnings @ e78ba2d` (`e78ba2d1507c15819df57e3eab5a1ecaeb8c7fa0`).
-Range: `a8a4dae..HEAD`. Two commits landed while the review was running and are included: `029d8fa` (INSTALL 11 and
-the QA record: keep two local admins) and `e78ba2d` (a test-only change to an integration test's heap measurement).
+Snapshot: `fix/deploy-trial-learnings @ a8f1220` (`a8f12201507c15819df57e3eab5a1ecaeb8c7fa0`).
+Range: `a8a4dae..HEAD`. Two commits landed while the review was running and are included: `dab5d84` (INSTALL 11 and
+the QA record: keep two local admins) and `a8f1220` (a test-only change to an integration test's heap measurement).
 Only this report is added by the review; no source, test or doc file was changed.
 
 **No High finding. Two Medium (M1, M2), five Low. Every configuration the old production check refused is still refused
