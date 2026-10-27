@@ -12,6 +12,7 @@ import { mkdirSync, rmSync } from 'node:fs';
 import { DATA_DIR, E2E_REDIS, PROXY_PORT, STATE_DIR, envVar } from './lib/env.ts';
 import { loadReadonlyCommandSet, startReadonlyProxy, type ProxyHandle } from './lib/readonly-proxy.ts';
 import { ensureRemoteTarget, type RemoteTarget } from './lib/remote-target.ts';
+import { graphExec } from './lib/graph.ts';
 import { seedE2E } from './lib/fixtures-data.ts';
 import { buildApps, startServer, stopServer, writeE2EConfig } from './lib/server.ts';
 import { ensureE2ERedis, removeE2ERedis } from './lib/redis-container.ts';
@@ -36,6 +37,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   };
   try {
     await ensureE2ERedis();
+    await graphExec(['PING']);
     const readonlyCommands = await loadReadonlyCommandSet({ ...E2E_REDIS, username: 'default', password: envVar('SANDBOX_REDIS_DEFAULT_PASSWORD') });
     remote = await ensureRemoteTarget();
     writeE2EConfig(remote);

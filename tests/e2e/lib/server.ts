@@ -14,6 +14,8 @@ export const E2E_CONFIG = path.join(STATE_DIR, 'config.json');
 export function writeE2EConfig(remote: { username: string; password: string }): void {
   const config = JSON.parse(readFileSync(path.join(REPO_ROOT, 'config/rconsole.e2e.json'), 'utf8'));
   for (const db of config.databases) {
+    // The graph module lives on its own FalkorDB sandbox, not the disposable plain Redis.
+    if (db.id === 'sandbox-graph') continue;
     const port = db.id === 'remote-6390' ? process.env.RC_E2E_PROXY_PORT ?? '6430' : process.env.RC_E2E_REDIS_PORT ?? '6431';
     db.url = `redis://127.0.0.1:${port}`;
     if (db.id === 'remote-6390') db.credentials.default.username = remote.username;
