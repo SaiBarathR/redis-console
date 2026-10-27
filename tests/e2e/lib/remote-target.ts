@@ -60,6 +60,8 @@ export async function ensureRemoteTarget(): Promise<RemoteTarget> {
       await conn.cmd(['MSET', 'example:remote:a', 'one', 'example:remote:b', 'two']);
       await conn.cmd(['HSET', 'example:remote:hash', 'field', 'fixture value', 'another', 'second value']);
       await conn.cmd(['LPUSH', 'example:remote:list', 'first', 'second']);
+      // v0.4: an array, so array reads are proven through the proxy (a Redis without arrays just lacks the key).
+      await conn.cmd(['ARSET', 'example:remote:array', '0', 'alpha', 'beta', 'gamma']).catch(() => undefined);
     } finally { conn.close(); }
     console.log('[e2e] using a seeded disposable fixture upstream behind the read-only proxy');
     return { ...target, external: false, close };

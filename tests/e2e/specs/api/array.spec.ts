@@ -69,9 +69,20 @@ test.describe('arrays (v0.4)', () => {
   test('read-only remote: array reads pass the read-only proxy; every array write is refused for every role', async () => {
     const R = (s: string) => dbPath(DB.remote, s);
     const probe = utf8('rconsole-e2e:array-probe-never-created');
-    expect((await viewer.post(R('array/range'), { key: probe, count: 5 })).json.items).toEqual([]);
-    expect((await viewer.post(R('array/search'), { key: probe, predicates: [{ kind: 'exact', value: utf8('x') }] })).status).toBe(200);
-    expect((await viewer.post(R('array/aggregate'), { key: probe, start: '0', end: '10', op: 'sum' })).json).toEqual({ op: 'sum', result: null, elements: 0 });
+    // A missing key: TYPE (a read) passes the proxy and every array read answers 404 (review v0.4 r1 L3).
+    expect((await viewer.post(R('array/range'), { key: probe, count: 5 })).status).toBe(404);
+    expect((await viewer.post(R('array/search'), { key: probe, predicates: [{ kind: 'exact', value: utf8('x') }] })).status).toBe(404);
+    expect((await viewer.post(R('array/aggregate'), { key: probe, start: '0', end: '10', op: 'sum' })).status).toBe(404);
+    // The disposable fixture holds an array (an external upstream may not): ARSCAN, ARGREP with its MEMORY USAGE and
+    // ARCOUNT sizing, and AROP pass the read-only proxy, which the final spec checks recorded no other command.
+    const arr = utf8('example:remote:array');
+    const range = await viewer.post(R('array/range'), { key: arr, count: 5 });
+    if (range.status !== 404) {
+      expect(range.json.items.map((i: { index: string }) => i.index)).toEqual(['0', '1', '2']);
+      const found = await viewer.post(R('array/search'), { key: arr, predicates: [{ kind: 'match', value: utf8('ET') }], nocase: true });
+      expect(found.json).toMatchObject({ items: [{ index: '1' }], elements: 3 });
+      expect((await viewer.post(R('array/aggregate'), { key: arr, start: '0', end: '10', op: 'used' })).json).toMatchObject({ op: 'used', elements: 3 });
+    }
     for (const api of [viewer, operator, admin]) {
       for (const body of [
         { op: 'array.insert', key: probe, values: [utf8('x')], expect: { type: 'none' } },
