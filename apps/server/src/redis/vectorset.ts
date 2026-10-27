@@ -180,11 +180,17 @@ export function similarOf(raw: unknown, withAttributes: boolean): { member: Buff
 }
 
 /** A Redis error from VSIM/VEMB/VLINKS that describes the request, not a failure: shown as 404/400. */
-export function vsetRequestError(e: unknown): HttpError | undefined {
+export function vsetRequestError(e: unknown, filter?: string): HttpError | undefined {
   if (!(e instanceof HttpError) || e.code !== 'redis_error') return undefined;
   if (/element not found/i.test(e.message)) return new HttpError('not_found', 'This member does not exist in the vector set.');
   if (/dimension mismatch/i.test(e.message)) return new HttpError('validation', 'The query vector has a different number of dimensions than the set.');
-  if (/syntax error in FILTER/i.test(e.message)) return new HttpError('validation', `Invalid filter expression: ${e.message.replace(/^ERR\s+/, '').slice(0, 300)}`);
+  if (/syntax error in FILTER/i.test(e.message)) {
+    // Redis repeats the rest of the filter ("near: …"), which would reach the audit log: name the position instead
+    // (review v0.4 r2 M1). The rest is a suffix of the filter the user sent.
+    const near = /near:\s?([\s\S]*)$/.exec(e.message)?.[1];
+    const at = filter !== undefined && near !== undefined && near.length > 0 && filter.endsWith(near) ? filter.length - near.length + 1 : undefined;
+    return new HttpError('validation', `Invalid filter expression: Redis could not read it${at !== undefined ? ` from character ${at} on` : ''}.`);
+  }
   if (/invalid vector specification/i.test(e.message)) return new HttpError('validation', 'Redis refused the vector: each coordinate must be a number it can read as a double.');
   return undefined;
 }

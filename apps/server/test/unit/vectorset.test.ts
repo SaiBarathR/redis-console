@@ -105,7 +105,12 @@ describe('reply parsers', () => {
   it('maps request-shaped Redis errors to 404 and 400, and leaves the rest alone', () => {
     expect(vsetRequestError(new HttpError('redis_error', 'ERR element not found in set'))?.code).toBe('not_found');
     expect(vsetRequestError(new HttpError('redis_error', 'ERR Vector dimension mismatch - got 2 but set has 3'))?.code).toBe('validation');
-    expect(vsetRequestError(new HttpError('redis_error', 'ERR syntax error in FILTER expression near: x'))?.message).toContain('syntax error in FILTER expression');
+    // The filter's text is never repeated (it reaches the audit log); the position is (review v0.4 r2 M1).
+    const filter = '.x == "CANARY" &&&&';
+    const err = vsetRequestError(new HttpError('redis_error', `ERR syntax error in FILTER expression near: "CANARY" &&&&`), filter)!;
+    expect(err.code).toBe('validation');
+    expect(err.message).toBe('Invalid filter expression: Redis could not read it from character 7 on.');
+    expect(vsetRequestError(new HttpError('redis_error', 'ERR syntax error in FILTER expression near: CANARY'))?.message).toBe('Invalid filter expression: Redis could not read it.');
     expect(vsetRequestError(new HttpError('redis_error', 'ERR invalid vector specification'))?.code).toBe('validation');
     expect(vsetRequestError(new HttpError('redis_error', 'ERR something else'))).toBeUndefined();
     expect(vsetRequestError(new HttpError('timeout', 'element not found'))).toBeUndefined();

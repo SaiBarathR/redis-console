@@ -223,6 +223,14 @@ describe.skipIf(!aclReady)('vector-set inspector (v0.4 F23)', () => {
     expect((await post(viewer, 'vectorset/search', { key: utf8(k('v3')), query: { element: utf8('nope') } })).status).toBe(404);
     expect((await post(viewer, 'vectorset/search', { key: utf8(k('v3')), query: { values: ['1', '2'] } })).json.error.code).toBe('validation');
     expect((await post(viewer, 'vectorset/search', { key: utf8(k('v3')), query: { element: utf8('m000') }, filter: '.even ==' })).json.error.code).toBe('validation');
+    // An invalid filter's text reaches neither the audit lines nor the audit store (review v0.4 r2 M1).
+    const before = t.auditLines.length;
+    const bad = await post(viewer, 'vectorset/search', { key: utf8(k('v3')), query: { element: utf8('m000') }, filter: '.x == "R2DATA_FILTER_CANARY" &&&&' });
+    expect(bad.status).toBe(400);
+    expect(bad.json.error.message).toMatch(/^Invalid filter expression: Redis could not read it/);
+    expect(bad.body).not.toContain('R2DATA_FILTER_CANARY');
+    expect(t.auditLines.slice(before).join('\n')).not.toContain('R2DATA_FILTER_CANARY');
+    expect(JSON.stringify(t.ctx.audit.query({ limit: 20, action: 'vset.search' }).events)).not.toContain('R2DATA_FILTER_CANARY');
     // Bounds (as another user: the search rate limit is 5/s with a burst of 10 per user).
     for (const bad of [{ count: 101 }, { ef: 1001 }, { filter: 'x'.repeat(1025) }, { filterEf: 100_001 }, { query: { values: ['inf', '1', '2'] } }, { query: { values: ['0x10', '1', '2'] } }])
       expect((await post(admin, 'vectorset/search', { key: utf8(k('v3')), query: { element: utf8('m000') }, ...bad })).status, JSON.stringify(bad)).toBe(400);

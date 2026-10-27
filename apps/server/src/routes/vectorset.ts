@@ -228,7 +228,7 @@ export function registerVectorSetRoutes(app: FastifyInstance, ctx: AppContext) {
         try {
           raw = await detailRead(scope, conn, vsimArgs(key, q, element), { key, timeout: policy.commandTimeoutMs, typeMapping: TM_VSET, replyBudget: { remaining: policy.maxReadReplyBytes } });
         } catch (e) {
-          throw vsetRequestError(e) ?? e;
+          throw vsetRequestError(e, q.filter) ?? e;
         }
         let left = policy.maxReplyBytes;
         return {
