@@ -4,8 +4,10 @@ This guide takes you from nothing to a hardened deployment on any server. For da
 reference, secret rotation, restore, upgrades in detail, SIEM alerts) see [OPERATIONS.md](OPERATIONS.md). To find out
 why the product works the way it does, see [DECISIONS.md](DECISIONS.md).
 
-The steps in this guide were run on 2026-10-24 against commit `4875d5f` (the `v0.2` code plus documentation). [What was verified](#appendix-what-was-verified)
-lists exactly what was run and what was only reviewed.
+The steps in this guide were run on 2026-10-24 against commit `4875d5f` (the `v0.2` code plus documentation), and
+again on 2026-10-27 as a first-time deployment of the `0.4.0` image on a Linux server behind a Cloudflare Tunnel, next to
+other applications' Redis servers. [What was verified](#appendix-what-was-verified) lists exactly what was run and what
+was only reviewed.
 
 - [1. What you are deploying](#1-what-you-are-deploying)
 - [2. Requirements](#2-requirements)
@@ -13,8 +15,8 @@ lists exactly what was run and what was only reviewed.
 - [4. Generate the secrets](#4-generate-the-secrets)
 - [5. Create the Redis ACL users](#5-create-the-redis-acl-users)
 - [6. Write the configuration](#6-write-the-configuration)
-- [7. Run it](#7-run-it) (Docker, Docker Compose, Kubernetes, Node 24 with systemd)
-- [8. Put a TLS reverse proxy in front](#8-put-a-tls-reverse-proxy-in-front)
+- [7. Run it](#7-run-it) (Docker, Docker Compose, Kubernetes, Node 24 with systemd, Redis on the same Docker host)
+- [8. Put a TLS reverse proxy in front](#8-put-a-tls-reverse-proxy-in-front) (Caddy, nginx, Cloudflare Tunnel)
 - [9. Connect your identity provider](#9-connect-your-identity-provider)
 - [10. Local accounts and TOTP](#10-local-accounts-and-totp)
 - [11. First sign-in](#11-first-sign-in)
@@ -50,7 +52,7 @@ browser ──HTTPS──▶ reverse proxy (TLS) ──HTTP──▶ redis-conso
 | Runtime | Docker or another OCI runtime, Kubernetes, or Node.js **24.11 or later** on Linux. Building from source needs pnpm 11.7.0 (through corepack). |
 | Memory and CPU | 256 MiB requested, 768 MiB limit and 1 CPU are the shipped defaults (the image sets `--max-old-space-size=512`). |
 | Disk | A small persistent volume for the data directory (the Kubernetes example asks for 2 GiB). |
-| Redis | Redis 6 or later (ACL users and RESP3). Developed and tested with Redis 8; also used read-only against a Redis 7.2 server. Modules (Search, JSON, TimeSeries, Bloom) are optional; Redis 8 includes them. Standalone, Cluster and Sentinel are supported. |
+| Redis | Redis 6 or later (ACL users and RESP3). Developed and tested with Redis 8; also used read-only against Redis 7.2 and 7.4 servers and a Valkey 8.1 server. Valkey reports a Redis version for compatibility (`redis_version:7.2.4` for Valkey 8.1); the console shows Valkey's own version and enables the views that compatibility version supports, so Redis 8 types such as arrays stay off. Modules (Search, JSON, TimeSeries, Bloom) are optional; Redis 8 includes them. Standalone, Cluster and Sentinel are supported. |
 | TLS | A DNS name and a TLS-terminating reverse proxy or ingress. Production requires an `https://` public URL. |
 | Sign-in | An OIDC identity provider (Keycloak, Entra ID, Okta, Google through a broker, …), local accounts with TOTP, or both. |
 | Network | Outbound access from the server to Redis and the OIDC issuer only. Nothing else is contacted at runtime: there is no telemetry. |
@@ -68,6 +70,10 @@ gh attestation verify oci://ghcr.io/saibarathr/redis-console:0.4.0 --repo SaiBar
 
 Tags: the exact version (`0.4.0`), the minor line (`0.4`) and `latest`. In production, pin the digest that
 `docker pull` printed (`ghcr.io/saibarathr/redis-console@sha256:…`).
+
+`gh attestation` needs GitHub CLI 2.49 or later; some distributions package an older one (Ubuntu 24.04's `gh` has no
+`attestation` command). Then verify on a workstation and compare the digest it reports with the one the server pulled
+(`docker image inspect ghcr.io/saibarathr/redis-console:0.4.0 --format '{{index .RepoDigests 0}}'`).
 
 Or build it yourself from a checkout of the release tag:
 
@@ -184,6 +190,34 @@ Optional grants (verified on Redis 8):
 
 For a production database, configure only the tiers you need and cap the role with `maxRole`. A tier without
 credentials cannot use that database at all (503); a role never falls back to another tier's user.
+
+### Redis servers you cannot add ACL users to
+
+Applications often ship their own Redis: a queue or cache started by their Compose file with the `default` user only,
+sometimes without a password, and with no config file in which ACL users could persist (`ACL SETUSER` alone is lost at
+the next restart). Adding users there means changing how that application starts its Redis. If you only want to
+inspect it, add it **read-only with its existing login** instead:
+
+```json
+{
+  "id": "app-queue",
+  "name": "App queue",
+  "environment": "prod",
+  "readOnly": true,
+  "maxRole": "viewer",
+  "url": "redis://app-redis:6379",
+  "credentials": { "viewer": { "username": "default" } },
+  "acceptRisks": ["plaintext", "default-credentials"]
+}
+```
+
+Add `"password": { "file": "/run/secrets/app_redis_password" }` when the server has one (copy it from that
+application's configuration into its own secret file). The console then refuses writes itself (policy, `readOnly`
+and `maxRole`), but Redis cannot refuse them a second time: `default` usually may do everything. That is why a prod
+database needs both exceptions, and why a tier whose `username` is `"default"` counts as Redis's `default` user, not
+as an ACL user of its own. The server logs each accepted risk at every start, for example
+`database app-queue: viewer connects as Redis's "default" user … (accepted risk "default-credentials")`. Remove an
+exception once the gap is closed; the log also names an exception that is no longer needed.
 
 ### Optional FalkorDB graph sandbox and ACLs
 
@@ -326,8 +360,10 @@ The port is published on `127.0.0.1` only; the reverse proxy (section 8) is the 
 
 ```bash
 mkdir -p /srv/redis-console/secrets && cd /srv/redis-console
-cp <checkout>/deploy/docker-compose.example.yml docker-compose.yml
-cp <checkout>/deploy/config.prod.example.json config.prod.json    # then edit it (section 6)
+# the two example files of the release; no checkout needed
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/SaiBarathR/redis-console/v0.4/deploy/docker-compose.example.yml
+curl -fsSL -o config.prod.json https://raw.githubusercontent.com/SaiBarathR/redis-console/v0.4/deploy/config.prod.example.json
+# then edit config.prod.json (section 6)
 # put one file per secret in ./secrets: oidc_client_secret, redis_viewer_password, redis_operator_password,
 # redis_admin_password, bootstrap_admin_password, totp_encryption_key (section 4)
 # image: is the published release; pin its digest, or use your own build
@@ -436,6 +472,55 @@ journalctl -u redis-console -f
 
 Adjust the `node` path to your installation. Do not add `MemoryDenyWriteExecute=yes`: V8's JIT needs it off.
 
+### 7.5 Redis servers on the same Docker host
+
+The console reaches Redis over TCP from inside its container, where `127.0.0.1` is the container itself. Two common
+cases on a single Docker host:
+
+**Redis in another Compose project** (an application's queue or cache, not published on a host port). Attach the
+console to that project's network and use the Redis container's name as the host:
+
+```yaml
+services:
+  redis-console:
+    networks:
+      default: { gw_priority: 1 }   # its own network first: default route and published port
+      app: {}
+networks:
+  default:
+    ipam: { config: [{ subnet: 10.251.0.0/24 }] }   # any free private range; fixed, so trustProxy can name its gateway
+  app: { external: true, name: app_default }         # `docker network ls` shows the name
+```
+
+```json
+"url": "redis://app-redis-1:6379"
+```
+
+- Containers on those networks can now reach the console's port directly, so a `trustProxy` **hop count is no longer
+  safe**: set it to the gateway of the console's own network (`"10.251.0.1"` above), which is where the published
+  port's traffic comes from (section 8).
+- While the console is attached, `docker compose down` in the other project cannot remove its network (Docker reports
+  it has active endpoints) and leaves it in place; `up` reuses it.
+
+**Redis installed on the host itself** (a distribution package listening on `127.0.0.1`). The container reaches the
+host through the Docker bridge's gateway, so Redis must also listen there:
+
+```yaml
+    extra_hosts: ["host.docker.internal:host-gateway"]   # the docker0 address, usually 172.17.0.1
+```
+
+```
+# redis.conf (or CONFIG SET bind … then CONFIG REWRITE): the leading "-" lets Redis start when the address is missing
+bind 127.0.0.1 -::1 -172.17.0.1
+```
+
+- Every container on the host can reach that address, not only the console: give Redis a password or ACL users. A
+  Redis without a password refuses non-loopback clients until `protected-mode no`, which leaves it open to all of them.
+- Redis can start before Docker has created `docker0`; with the `-` it then starts without that address and the
+  console reports the database as unreachable. Order it after Docker:
+  `sudo systemctl edit redis-server` → `[Unit]` `After=docker.service`.
+- Check from a container: `docker run --rm --add-host=host.docker.internal:host-gateway redis:8-alpine redis-cli -h host.docker.internal PING`.
+
 ## 8. Put a TLS reverse proxy in front
 
 The proxy must:
@@ -521,6 +606,39 @@ server {
 ```
 
 Don't add `add_header` lines for CSP, HSTS or framing: the server already sends them, with a fresh nonce per request.
+
+### Cloudflare Tunnel
+
+With `cloudflared` on the Docker host and the console published on `127.0.0.1:4000`, add an ingress rule above the
+catch-all in the tunnel's `config.yml`, create the DNS record and restart the tunnel:
+
+```yaml
+ingress:
+  - hostname: redis-console.example.com
+    service: http://127.0.0.1:4000     # not "localhost": the port is published on IPv4 loopback only
+  - service: http_status:404
+```
+
+```bash
+cloudflared tunnel ingress validate && cloudflared tunnel ingress rule https://redis-console.example.com
+cloudflared tunnel route dns <tunnel> redis-console.example.com
+sudo systemctl restart cloudflared      # the service name may differ; restarting briefly drops every tunneled site
+```
+
+- **`trustProxy`**: Cloudflare puts the client's address in `X-Forwarded-For` (appended to any the client sent), and
+  `cloudflared` passes it on. The server sees the connection come from the published port, which is the gateway of
+  the console's Docker network. Find it as in [Setting `trustProxy`](#setting-trustproxy), then set that address (a
+  fixed subnet keeps it stable, section 7.5). Check that a sign-in records your own address even when you send
+  `X-Forwarded-For` yourself.
+- **Server-Sent Events** work through the tunnel: the server writes at least every 5 seconds, well inside Cloudflare's
+  100-second idle limit. The request body limit (100 MB on the Free plan) is above the server's 12 MiB.
+- **Injected scripts are blocked.** Cloudflare features that add scripts to pages (JavaScript Detections of Bot Fight
+  Mode, Rocket Loader, Email Address Obfuscation, Web Analytics' automatic setup) are refused by the console's CSP,
+  which allows only its own scripts. The page works; the browser console shows one CSP error per page load, naming an
+  inline script with `__CF$cv$params` for JavaScript Detections. Turn those features off for the hostname or zone if the
+  error bothers you. Never relax the CSP for them.
+- **Cloudflare Access** in front (an extra sign-in at Cloudflare's edge) is optional defence in depth; the console's
+  own sign-in, TOTP and rate limits apply either way.
 
 ## 9. Connect your identity provider
 
@@ -654,8 +772,11 @@ SQLite, and exits within 10 seconds.
    Node's:
    ```bash
    docker exec redis-console node -e "require('node:sqlite').backup(new (require('node:sqlite').DatabaseSync)('/data/rconsole.sqlite',{readOnly:true}),'/data/backup.sqlite').then(()=>console.log('ok'))"
-   docker cp redis-console:/data/backup.sqlite ./rconsole-$(date +%F).sqlite && docker exec redis-console rm /data/backup.sqlite
+   (umask 077; docker cp redis-console:/data/backup.sqlite ./rconsole-$(date +%F).sqlite) && docker exec redis-console rm /data/backup.sqlite
    ```
+   `docker cp` keeps the file's mode inside the container (0644); restrict the copy yourself (`chmod 600`). If you
+   already run a nightly dump job, add the console's volume to it: an SQLite `.backup` from a helper container that
+   mounts the `/data` volume read-write as uid 1000 is just as consistent.
    On a plain host: `sqlite3 /var/lib/redis-console/rconsole.sqlite ".backup '/backup/rconsole-$(date +%F).sqlite'"`.
    Encrypt backups: they contain password hashes and the audit trail.
 2. The **keys**: `totp_encryption_key` (without it, enrolled users must re-enroll) and your other secrets, in your
@@ -712,6 +833,8 @@ redacted (key names become `key#<sha256 prefix>`, values `<n bytes>`). Ship stdo
 | SSO returns to `/login?error=oidc_state` | The 10-minute flow cookie expired or the flow was replayed. | Start the sign-in again. |
 | 429 with a message naming a limit | A per-user or server-wide budget was full. | Usually transient. Limits are in [OPERATIONS.md](OPERATIONS.md#policy). |
 | 413 `too_large` naming `maxReadReplyBytes` | One Redis reply exceeded the wire cap (16 MiB by default). | Read less (ranges, `COUNT`), or raise the cap with the memory budget in mind. |
+| A Redis on the Docker host shows `status: error` (connection refused) | It listens on `127.0.0.1` only, which is the container itself from the console's side, or it started before Docker created the gateway address. | Section 7.5: `host-gateway`, `bind` with the gateway address, `After=docker.service`. |
+| The browser console shows a CSP error for an inline script (`__CF$cv$params`) | A Cloudflare feature injected a script; the CSP refused it. | Harmless. Turn the feature off at Cloudflare (section 8); don't relax the CSP. |
 
 ---
 
@@ -737,6 +860,8 @@ Redis 8 on port 6411 that has the three ACL users above. Ports 4900 (app) and 49
 | Backups (12) | The `node:sqlite` online backup inside the read-only container produced a copy that passes `PRAGMA integrity_check`. |
 | Health (12) | `/healthz` → `{"status":"ok"}`, `/readyz` → `{"status":"ready",…}`; the container `HEALTHCHECK` reports healthy. |
 | Development quick start (README) | Server on the generic sandbox config (port overridden to 4900): SPA served, Keycloak `viewer1` and `operator1` get their roles on all sandbox databases, `nogroup1` is refused. |
+
+| Deployment trial (sections 3, 5, 6, 7.2, 7.5, 8, 11, 12) | 2026-10-27, `0.4.0` image pinned by digest on Ubuntu 24.04 (Docker 29, Compose 5), behind a Cloudflare Tunnel, local accounts only. Six Redis-compatible servers: two Redis 8.10 (one installed on the host, one in another Compose project), Redis 7.2 and two Redis 7.4 in other projects, one Valkey 8.1. The config started on the first try; through the tunnel: bootstrap sign-in, forced password change, TOTP enrollment, ten recovery codes, every database connected with the expected role. Reads and the key inspector worked on all six; writes were refused on the read-only ones without reaching Redis; a write round trip with confirmation on a writable one. Live metrics (Server-Sent Events) arrived every 2 s and a Pub/Sub message in 2 s through the tunnel. `trustProxy` set to the console network's gateway recorded the real client address, also when the client sent its own `X-Forwarded-For`. The online backup passed `integrity_check`. What it changed in this guide: sections 3, 5 (servers without ACL users), 7.2, 7.5, 8 (Cloudflare Tunnel), 12 and 14; in the code, the `default`-user production check and the accepted-risk log lines (G1, G2), the Valkey version label and the `/login` redirect after sign-in ([qa/v041-deployment-trial.md](qa/v041-deployment-trial.md)). |
 
 **Not verified here:** OIDC in production mode (the sandbox Keycloak is plain HTTP, which production refuses; OIDC is
 covered by the end-to-end suite in development mode), Entra ID, Okta and Google, TLS to Redis in production (covered

@@ -172,10 +172,12 @@ The server refuses to start when:
 - any database disables TLS verification;
 - an `environment: "prod"` database doesn't use TLS (`rediss://` or a `tls` block), unless `acceptRisks` has `"plaintext"`;
 - an `environment: "prod"` database lacks its own ACL user for a tier reachable under `maxRole` (it would connect as
-  `default`), or two reachable tiers share one user, unless `acceptRisks` has `"default-credentials"`.
+  `default`), a reachable tier is configured with `"username": "default"` (Redis's built-in user, not an ACL user of
+  its own), or two reachable tiers share one user, unless `acceptRisks` has `"default-credentials"`.
 
 Warnings (logged, not fatal): `trustProxy: true` outside production, prod databases without TLS, databases with only
-`default` credentials, and local admins without required TOTP in production.
+`default` credentials (or tiers that connect as Redis's `default` user), every accepted risk (`… (accepted risk
+"plaintext")`), an `acceptRisks` entry that is no longer needed, and local admins without required TOTP in production.
 
 Use `acceptRisks` only for situations you have assessed, for example a managed Redis on a private link without TLS
 (`plaintext`), or a legacy instance where ACL users can't be created yet (`default-credentials`). Keep it per
