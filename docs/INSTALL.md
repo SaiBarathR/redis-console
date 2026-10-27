@@ -61,12 +61,12 @@ Each release is published to GitHub Container Registry for `linux/amd64` and `li
 build provenance attestation:
 
 ```bash
-docker pull ghcr.io/saibarathr/redis-console:0.3.0
+docker pull ghcr.io/saibarathr/redis-console:0.4.0
 # optional: check that the image was built by this repository's release workflow
-gh attestation verify oci://ghcr.io/saibarathr/redis-console:0.3.0 --repo SaiBarathR/redis-console
+gh attestation verify oci://ghcr.io/saibarathr/redis-console:0.4.0 --repo SaiBarathR/redis-console
 ```
 
-Tags: the exact version (`0.3.0`), the minor line (`0.3`) and `latest`. In production, pin the digest that
+Tags: the exact version (`0.4.0`), the minor line (`0.4`) and `latest`. In production, pin the digest that
 `docker pull` printed (`ghcr.io/saibarathr/redis-console@sha256:…`).
 
 Or build it yourself from a checkout of the release tag:
@@ -74,8 +74,8 @@ Or build it yourself from a checkout of the release tag:
 ```bash
 git clone https://github.com/SaiBarathR/redis-console.git
 cd redis-console
-git checkout v0.3
-docker build -t redis-console:0.3.0 .
+git checkout v0.4
+docker build -t redis-console:0.4.0 .
 ```
 
 The `Dockerfile` is multi-stage. The final stage is `node:24-slim` without npm, corepack or yarn. It runs as the
@@ -314,7 +314,7 @@ docker run -d --name redis-console --restart unless-stopped \
   -v /etc/redis-console/config.json:/etc/rconsole/config.json:ro \
   -v /etc/redis-console/secrets:/run/secrets:ro \
   -v redis-console-data:/data \
-  ghcr.io/saibarathr/redis-console:0.3.0
+  ghcr.io/saibarathr/redis-console:0.4.0
 docker logs redis-console     # "Redis Console listening on 0.0.0.0:4000 (public URL https://…)"
 ```
 
@@ -377,7 +377,7 @@ On a Linux host with Node.js 24.11 or later:
 ```bash
 sudo useradd --system --home /var/lib/redis-console --shell /usr/sbin/nologin rconsole
 sudo git clone https://github.com/SaiBarathR/redis-console.git /opt/redis-console
-cd /opt/redis-console && sudo git checkout v0.3
+cd /opt/redis-console && sudo git checkout v0.4
 sudo corepack enable && sudo corepack prepare pnpm@11.7.0 --activate
 sudo pnpm install --frozen-lockfile
 sudo pnpm --filter @rconsole/web build              # writes apps/web/dist, served by the server

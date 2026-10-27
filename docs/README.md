@@ -13,6 +13,7 @@
 | [INSTALL.md](INSTALL.md) | Deploying on any server: Docker, Compose, Kubernetes, Node with systemd, TLS proxy, identity providers, Redis ACL users, secrets, minimal config, first sign-in, hardening checklist, troubleshooting, and what was verified. |
 | [OPERATIONS.md](OPERATIONS.md) | Full configuration reference, TLS to Redis, secret rotation (including the TOTP key), backup and restore, upgrades, logs and SIEM, limits. |
 | [SECURITY.md](SECURITY.md) | Threat model, every control and the test that checks it, known limitations, reporting a vulnerability. |
+| [RELEASE-NOTES-v0.4.md](RELEASE-NOTES-v0.4.md) | What changed in v0.4 and the upgrade notes. |
 | [RELEASE-NOTES-v0.3.md](RELEASE-NOTES-v0.3.md) | What changed in v0.3 and the upgrade notes. |
 | [RELEASE-NOTES-v0.2.md](RELEASE-NOTES-v0.2.md) | What changed in v0.2 and the upgrade notes. |
 

@@ -117,8 +117,9 @@ production rules, confirmations, rate limits and every UI feature. See [tests/e2
 
 ## Status and license
 
-Version **0.3** (tag `v0.3`, image `ghcr.io/saibarathr/redis-console:0.3.0`). Release notes:
-[docs/RELEASE-NOTES-v0.3.md](docs/RELEASE-NOTES-v0.3.md) (earlier: [v0.2](docs/RELEASE-NOTES-v0.2.md)). The public history starts at
+Version **0.4** (tag `v0.4`, image `ghcr.io/saibarathr/redis-console:0.4.0`). Release notes:
+[docs/RELEASE-NOTES-v0.4.md](docs/RELEASE-NOTES-v0.4.md) (earlier: [v0.3](docs/RELEASE-NOTES-v0.3.md),
+[v0.2](docs/RELEASE-NOTES-v0.2.md)). The public history starts at
 v0.3; earlier releases were developed privately. Single instance per data directory; see the known
 limitations in [docs/SECURITY.md](docs/SECURITY.md#known-limitations).
 
