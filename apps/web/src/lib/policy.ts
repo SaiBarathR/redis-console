@@ -51,6 +51,11 @@ export function commandPolicy(
     docs.find((item) => item.name.toUpperCase() === pair) ??
     docs.find((item) => item.name.toUpperCase() === name);
   const rule = argumentRule(argv) ?? lookupRule(argv);
+  // A shared rule for this exact argv decides, as it does on the server (authorize checks the rule's class against the
+  // role, read-only and prod, all known here). The catalog classifies bare names, and a rule that refuses some argument
+  // shapes (GRAPH.INFO without ObjectPool) marks the bare name blocked there, so its verdict and hint apply only to
+  // commands without a shared rule (v0.4 r1 live QA).
+  const verdict = rule ? undefined : doc;
   if (!rule && !doc && catalog !== "ready")
     return catalog === "loading"
       ? { class: "loading", allowed: false, pending: true, hint: LOADING_HINT }
@@ -66,7 +71,7 @@ export function commandPolicy(
     required !== undefined &&
     roleAtLeast(database.effectiveRole, required) &&
     !(database.readOnly && commandClass !== "read") &&
-    doc?.allowed !== false &&
+    verdict?.allowed !== false &&
     !(rule?.nonProdOnly && database.environment === "prod");
   const destructive = !!rule?.confirm && rule.confirm !== "none";
   const hint =
@@ -74,7 +79,7 @@ export function commandPolicy(
       ? "This database is read-only. Writes are refused for every role."
       : undefined) ??
     rule?.hint ??
-    doc?.hint ??
+    verdict?.hint ??
     (database.readOnly && commandClass !== "read"
       ? "This database is read-only."
       : !allowed

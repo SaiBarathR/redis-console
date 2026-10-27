@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { argumentRule, COMMAND_RULES, isRedisSpace, lookupRule, SUBCOMMAND_RULES, tokenizeCommandLine, tokenizeCommandLineBytes } from './commands.ts';
+import { isRedisSpace, tokenizeCommandLine, tokenizeCommandLineBytes } from './commands.ts';
 
 const utf8 = (b: Uint8Array) => new TextDecoder('utf-8', { ignoreBOM: true }).decode(b);
 
@@ -21,17 +21,5 @@ describe('command tokenizer whitespace (redis-cli isspace semantics)', () => {
 
   it('still splits on ASCII whitespace runs', () => {
     expect(tokenizeCommandLine(' SET\tk \r\n v ')).toEqual(['SET', 'k', 'v']);
-  });
-});
-
-describe('argument rules judge arguments, never a bare command name', () => {
-  it('no command or subcommand name alone is blocked by an argument rule (the console catalog classifies bare names)', () => {
-    // GET /commands classifies `name.split(' ')`; a rule that blocked a bare name would mark the whole command
-    // unavailable in the browser although valid uses run (found in the v0.4 r1 live QA with VSIM).
-    for (const name of [...Object.keys(COMMAND_RULES), ...Object.keys(SUBCOMMAND_RULES)]) {
-      const argv = name.split(' ');
-      if (lookupRule(argv)?.class === 'blocked') continue;
-      expect(argumentRule(argv), name).toBeUndefined();
-    }
   });
 });
