@@ -1277,3 +1277,15 @@ and M2 (cut slow-log entries) fixed; H1 (matching allowance) partial, with this 
   the chain…" with a 502 from the test's own in-process proxy (its upstream connection failed before reaching the app).
   It did not recur in six runs alone or alongside the array suite, and the code it tests did not change. The proxy now
   reports the connection error in the 502 body and the assertion prints it (`9ecef3b`).
+
+## v0.4 Round 5 – final targeted verification (GPT-6.1 Sol reviewer)
+
+Report: `docs/research/34-v04-review-r5-verify.md` (snapshot `release/v0.4` @ `5253c7f`). Fixer branch:
+`fix/v04-review-r6` (Claude Opus 5.5). Verified: the large-value scans in pieces (round-4 M1; the reviewer's
+independent-client latency case and other shapes, results equal to the one-go matcher), browser and server argument
+rules on the same bytes (round-4 L1, L2), a pool of one refusing graph queries before confirmation; Import cancel
+handling partial (L1 below). **No finding at Medium or above**: the review loop is complete.
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| L1 | fixed | Reproduced: with stop-on-error, a cancelled graph import whose query returned an error ended `stopped` (the stop-on-error return came before the cancel check). A cancel requested while the line ran now comes first; the line is counted. | `a4e77b1` | server `integration/graph.test.ts` › "Import cancel with graph lines…" (the stop-on-error case failed before) |
