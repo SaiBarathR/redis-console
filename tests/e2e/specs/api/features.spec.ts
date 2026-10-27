@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { API, Api, dbPath, utf8 } from '../../lib/api.ts';
 import { DB } from '../../lib/env.ts';
+import { GRAPH_DB } from '../../lib/graph.ts';
 import { AUDIT_CANARY_VALUE, K, redisExec } from '../../lib/fixtures-data.ts';
 import { createUser, uniqueName } from '../../lib/accounts.ts';
 import { knownBug } from '../../lib/findings.ts';
@@ -22,7 +23,10 @@ test.describe('features API', () => {
   test('databases list and overview', async () => {
     const r = await viewer.get(`${API}/databases`);
     const ids = (r.json.databases as any[]).map((d) => d.id).sort();
-    expect(ids).toEqual([DB.prodSim, DB.remote, DB.e2e].sort());
+    expect(ids).toEqual([DB.prodSim, DB.remote, DB.e2e, GRAPH_DB].sort());
+    const graph = (r.json.databases as any[]).find((d) => d.id === GRAPH_DB);
+    expect(graph.status).toBe('connected');
+    expect(graph.server.modules.map((m: any) => m.name.toLowerCase())).toContain('graph');
     const e2e = (r.json.databases as any[]).find((d) => d.id === DB.e2e);
     expect(e2e.status).toBe('connected');
     expect(e2e.server.modules.map((m: any) => m.name.toLowerCase())).toEqual(expect.arrayContaining(['search', 'timeseries']));
