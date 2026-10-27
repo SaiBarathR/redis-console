@@ -31,7 +31,8 @@ async function proxy(listen: string, upstream: { host: string; port: number }, c
       res.writeHead(r.statusCode ?? 502, r.headers);
       r.pipe(res);
     });
-    up.on('error', () => { res.writeHead(502); res.end(); });
+    // The connection error goes in the body, so a 502 in a run says what failed (a full-suite run once saw one).
+    up.on('error', (e: NodeJS.ErrnoException) => { res.writeHead(502); res.end(`proxy upstream error: ${e.code ?? e.message}`); });
     req.pipe(up);
   });
   await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen(0, listen, resolve); });
@@ -42,15 +43,19 @@ async function proxy(listen: string, upstream: { host: string; port: number }, c
 async function auditedIp(t: Started, to: { host: string; port: number }, forged?: string): Promise<string> {
   const before = t.auditLines.length;
   const body = JSON.stringify({ username: `nobody-${Math.random().toString(36).slice(2, 8)}`, password: 'not the password at all' });
-  const status = await new Promise<number>((resolve, reject) => {
+  const { status, text } = await new Promise<{ status: number; text: string }>((resolve, reject) => {
     const r = http.request({
       host: to.host, port: to.port, method: 'POST', path: '/api/v1/auth/login',
       headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body), origin: PUBLIC_URL, ...(forged ? { 'x-forwarded-for': forged } : {}) },
-    }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode ?? 0)); });
+    }, (res) => {
+      let text = '';
+      res.setEncoding('utf8').on('data', (d: string) => { text += d; });
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, text }));
+    });
     r.on('error', reject);
     r.end(body);
   });
-  expect(status).toBe(401);
+  expect(status, text.slice(0, 200)).toBe(401);
   const line = t.auditLines.slice(before).map((l) => JSON.parse(l) as { action: string; ip: string }).find((e) => e.action === 'auth.login');
   expect(line, 'the failed sign-in is audited').toBeDefined();
   return line!.ip;
