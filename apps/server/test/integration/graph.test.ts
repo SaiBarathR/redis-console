@@ -48,7 +48,9 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
     await t?.close();
   });
   it('keeps both read and write time bounds, row bounds and queue bounds in module config', async () => {
-    for (const [name, value] of [['TIMEOUT_DEFAULT', 1000], ['TIMEOUT_MAX', 1000], ['RESULTSET_SIZE', 10000], ['MAX_QUEUED_QUERIES', 25]] as const) expect(await fixture.sendCommand(['GRAPH.CONFIG', 'GET', name])).toEqual([name, value]);
+    for (const [name, value] of [['TIMEOUT_DEFAULT', 1000], ['TIMEOUT_MAX', 1000], ['RESULTSET_SIZE', 10000], ['MAX_QUEUED_QUERIES', 25], ['QUERY_MEM_CAPACITY', 268435456], ['IMPORT_FOLDER', '/var/empty/falkordb-import/']] as const) expect(await fixture.sendCommand(['GRAPH.CONFIG', 'GET', name])).toEqual([name, value]);
+    // No import folder: LOAD CSV cannot read a file even if a query got past the guard (review v0.4 r2 graph H1).
+    await expect(fixture.sendCommand(['GRAPH.RO_QUERY', k, "LOAD CSV FROM 'file:///etc/passwd' AS r RETURN r LIMIT 1"])).rejects.toThrow(/import folder/);
   });
   it.each(['viewer', 'operator', 'admin'] as const)('%s reads verbose node/edge replies and plans on its own ACL tier', async (role) => {
     const c = clients[role];

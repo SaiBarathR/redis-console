@@ -50,6 +50,9 @@ services:
     read_only: true
     tmpfs: ["/data", "/tmp"]
     security_opt: ["no-new-privileges:true"]
+    # One graph query's memory is not bounded inside FalkorDB 6.0.3 (QUERY_MEM_CAPACITY does not count list building),
+    # so the container's limit keeps a runaway query to this service (review v0.4 r2 graph H2).
+    mem_limit: 1g
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: ["start-dev", "--import-realm", "--http-port=8080"]
