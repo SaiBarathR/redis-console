@@ -134,11 +134,13 @@ function named(v: unknown): { member: Bin; truncated?: true } {
 }
 
 /**
- * VLINKS … WITHSCORES (RESP3, maps as flat arrays): one entry per layer, each `[member, score, …]`. At most
- * VSET_LINK_LAYERS_MAX layers and VSET_LINKS_PER_LAYER_MAX neighbours each are listed; the rest are counted.
+ * VLINKS … WITHSCORES (RESP3, maps as flat arrays): one entry per layer, each `[member, score, …]`, the highest layer
+ * first and layer 0 last (Redis 8.10: a member on layer 1 of a three-member set answers `[[], [n1, n2]]`). Listed
+ * from layer 0 up, at most VSET_LINK_LAYERS_MAX layers (the highest are left out) and VSET_LINKS_PER_LAYER_MAX
+ * neighbours each; the rest are counted.
  */
 export function linksOf(raw: unknown): { links: { layer: number; neighbours: VsetNeighbour[]; more?: number }[]; moreLayers?: number } {
-  const layers = Array.isArray(raw) ? raw : [];
+  const layers = Array.isArray(raw) ? [...raw].reverse() : [];
   const links = layers.slice(0, VSET_LINK_LAYERS_MAX).map((layer, i) => {
     const flat = Array.isArray(layer) ? layer : [];
     const total = Math.floor(flat.length / 2);

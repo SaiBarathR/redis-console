@@ -69,12 +69,21 @@ describe('reply parsers', () => {
 
   it('linksOf bounds layers and neighbours per layer and counts the rest', () => {
     const layer = (n: number) => Array.from({ length: n }, (_, i) => [B(`n${i}`), '0.5']).flat();
-    const r = linksOf([layer(VSET_LINKS_PER_LAYER_MAX + 3), layer(2)]);
+    // Redis lists the highest layer first and layer 0 (the densest) last.
+    const r = linksOf([layer(2), layer(VSET_LINKS_PER_LAYER_MAX + 3)]);
+    expect(r.links[0]).toMatchObject({ layer: 0, more: 3 });
     expect(r.links[0]!.neighbours.length).toBe(VSET_LINKS_PER_LAYER_MAX);
-    expect(r.links[0]!.more).toBe(3);
     expect(r.links[1]).toEqual({ layer: 1, neighbours: [{ member: utf8('n0'), score: '0.5' }, { member: utf8('n1'), score: '0.5' }] });
-    const many = linksOf(Array.from({ length: VSET_LINK_LAYERS_MAX + 2 }, () => layer(1)));
+    // A member on layer 1 of a small set: nothing else on layer 1, its neighbours on layer 0 (seen live, 1 in 6 builds).
+    expect(linksOf([[], [B('huge'), '0.9', B('plain'), '0.8']]).links).toEqual([
+      { layer: 0, neighbours: [{ member: utf8('huge'), score: '0.9' }, { member: utf8('plain'), score: '0.8' }] },
+      { layer: 1, neighbours: [] },
+    ]);
+    // Past the layer bound, the highest layers are the ones left out; layer 0 is always listed.
+    const many = linksOf([...Array.from({ length: VSET_LINK_LAYERS_MAX + 1 }, () => layer(1)), layer(5)]);
     expect(many.links.length).toBe(VSET_LINK_LAYERS_MAX);
+    expect(many.links[0]).toMatchObject({ layer: 0 });
+    expect(many.links[0]!.neighbours.length).toBe(5);
     expect(many.moreLayers).toBe(2);
     expect(linksOf(null)).toEqual({ links: [] });
     const big = linksOf([[Buffer.alloc(VSET_MEMBER_MAX_BYTES + 1), '1']]);

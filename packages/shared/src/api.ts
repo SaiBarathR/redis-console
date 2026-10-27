@@ -706,7 +706,7 @@ export interface VsetElementResponse {
    */
   embedding: { values: string[]; dim: number; truncated: boolean; skipped?: true };
   quantization?: string;
-  /** Layers in the order Redis returns them (layer 0, the densest, first). `more`: neighbours not listed. */
+  /** Layer 0 (the densest) first, upwards; Redis lists the highest layer first. `more`: neighbours not listed. */
   links?: { layer: number; neighbours: VsetNeighbour[]; more?: number }[];
   /** Layers not listed (beyond VSET_LINK_LAYERS_MAX). */
   moreLayers?: number;
