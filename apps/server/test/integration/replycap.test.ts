@@ -6,6 +6,8 @@ import { failureDetail } from '../../src/audit.ts';
 import { toHttpError } from '../../src/redis/exec.ts';
 import { fixedReply } from '../../src/redis/manager.ts';
 import { ErrorReply } from 'redis';
+import { setFlagsFromString } from 'node:v8';
+import { runInNewContext } from 'node:vm';
 const CLI='/api/v1/databases/e2e/cli';
 const P=keyPrefix('r3cap');
 describe.skipIf(!sandboxUp)('round 3 measured reply regressions',()=>{
@@ -26,6 +28,9 @@ describe.skipIf(!sandboxUp)('round 3 measured reply regressions',()=>{
   for(const cmd of ['FT.AGGREGATE','FT.PROFILE']){
    const argv=cmd==='FT.AGGREGATE'?[cmd,'noidx','*','LOAD','1','@x']:[cmd,'noidx','AGGREGATE','QUERY','*','LOAD','1','@x'];
    for(let i=0;i<30;i++)argv.push('APPLY','@x+@x','AS','x');
+   // Collect first: garbage left from the fixtures and the sign-in counted as "growth" (49 MB once in CI). No collection
+   // after the request, so a transient local expansion (the H1 bug allocated far more than the bound) still shows.
+   setFlagsFromString('--expose-gc');const gc=runInNewContext('gc') as ()=>void;gc();gc();
    const before=process.memoryUsage().heapUsed,start=performance.now();
    const out=await v.req('POST',CLI,{argv});expect(out.status).toBe(200);expect(out.json.reply.t).toBe('err');
    expect(performance.now()-start).toBeLessThan(1000);expect(process.memoryUsage().heapUsed-before).toBeLessThan(32*1024*1024);
