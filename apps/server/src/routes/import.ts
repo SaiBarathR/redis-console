@@ -411,12 +411,16 @@ export function registerImportRoutes(app: FastifyInstance, ctx: AppContext) {
               await sleep(250, signal);
               continue;
             }
-            outcome = { ok: false, he };
+            // Every rate_limited refusal (a graph slot, the pool gate, the command budget) comes before anything is
+            // sent (review v0.4 r4 graph L2).
+            outcome = he.code === 'rate_limited' ? { ok: false, he, notSent: true } : { ok: false, he };
           }
           break;
         }
         if (c.p.c.blocking) blockingMs += Date.now() - started;
       }
+      // Cancelled while this line waited to be sent: it was not run.
+      if (signal.aborted && !outcome.ok && outcome.notSent && c.p) return end('cancelled', 'Cancelled; the remaining commands were not sent.', i);
       if (signal.aborted && !outcome.ok && !outcome.notSent && outcome.he.code !== 'unauthenticated') {
         // Aborted while in flight: Redis may have run it.
         st.inFlightLine = it.line;
@@ -437,6 +441,8 @@ export function registerImportRoutes(app: FastifyInstance, ctx: AppContext) {
       if (opts.stopOnError) return end('stopped', `Stopped at the first failure (line ${it.line}); the remaining commands were not sent.`, i + 1);
     }
     st.chunks.done = st.chunks.total;
+    // Cancelled while the last line ran and Redis answered it (a graph query is never aborted; review v0.4 r4 graph L1).
+    if (signal.aborted) return end('cancelled', `Cancelled while line ${items.at(-1)!.line} was running; it finished and is counted above.`, items.length);
     st.state = 'done';
   }
 }

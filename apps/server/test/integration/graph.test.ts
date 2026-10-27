@@ -189,6 +189,51 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
       }
     } finally { await fixture.sendCommand(['GRAPH.UDF', 'DELETE', lib]); }
   });
+  it('Import cancel with graph lines: ends cancelled, and a line refused before sending is not reported as possibly run (review v0.4 r4 graph L1, L2)', async () => {
+    const IMP = '/api/v1/databases/graph/import';
+    const op = clients.operator;
+    const slow = (n: number) => `GRAPH.RO_QUERY ${k} "RETURN size(reduce(s = '', i IN range(1,${n}) | s + 'x'))"`;
+    const status = async (id: string) => {
+      for (let i = 0; i < 80; i++) {
+        const s = await op.req('GET', `${IMP}/${id}`);
+        if (s.json.state !== 'running' && s.json.state !== 'planned') return s.json;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      throw new Error('import did not end');
+    };
+    const freeSlot = async () => {
+      for (let i = 0; i < 80; i++) {
+        if ((await op.req('POST', endpoint(), { argv: ['GRAPH.RO_QUERY', k, 'RETURN 1'] })).status === 200) return;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    };
+    // L1: one graph line in flight when cancelled: the job ends cancelled, not done.
+    let plan = await op.req('POST', IMP, { script: slow(300_000) });
+    expect((await op.req('POST', `${IMP}/${plan.json.id}/start`, {})).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 300));
+    await op.req('POST', `${IMP}/${plan.json.id}/cancel`, {});
+    let end = await status(plan.json.id);
+    expect(end.state).toBe('cancelled');
+    await freeSlot();
+    // L2: the second line waits for the graph slot (refused before sending); cancelled there, it is not "may have run".
+    const before = t.auditLines.length;
+    plan = await op.req('POST', IMP, { script: `${slow(800_000)}\nGRAPH.RO_QUERY ${k} "RETURN 9"` });
+    expect((await op.req('POST', `${IMP}/${plan.json.id}/start`, {})).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 300));
+    // Cancelling now aborts nothing in flight (the graph line keeps its slot); line 2 is reached once line 1 is answered.
+    for (let i = 0; i < 40; i++) {
+      const s = await op.req('GET', `${IMP}/${plan.json.id}`);
+      if (s.json.processed >= 1) break;
+      await new Promise((r) => setTimeout(r, 250));
+    }
+    await op.req('POST', `${IMP}/${plan.json.id}/cancel`, {});
+    end = await status(plan.json.id);
+    expect(end.state).toBe('cancelled');
+    expect(String(end.stopReason ?? '')).not.toMatch(/may have run/);
+    expect(t.auditLines.slice(before).join('\n')).not.toContain('cancelled while in flight');
+    await freeSlot();
+  }, 90_000);
+
   it('Import: the confirmation shows the whole Cypher, and a cancelled graph query keeps its slots until FalkorDB answers (review v0.4 r3 graph M1, M2)', async () => {
     const IMP = '/api/v1/databases/graph/import';
     const op = clients.operator;
