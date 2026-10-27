@@ -1164,3 +1164,27 @@ layer order and the console catalog fixes were confirmed; round-1 H1 was found p
 - The reviewer's worst case on the new search (Redis 8.10.2, 5,000 values of 4 KiB `a…`, through the route): a 64-byte
   NOCASE MATCH covered the 20 MiB range in 2 requests, the worst 162 ms; eight such predicates 168 ms; GLOB
   `a*a*a*a*a*a*a*b` 105 ms. Redis only copies bounded batches (ARGREP held its main thread 589–1,054 ms on this range).
+
+## v0.4 Round 2 – FalkorDB graph support (Claude Sonnet 5.5 reviewer)
+
+Report: `docs/research/28-v04-graph-review.md` (snapshot `release/v0.4` @ `79663bb`). Fixer branch:
+`fix/v04-review-r2` (Claude Opus 5.5; L4 and L5 by Claude Sonnet 5.5 on `fix/v04-review-r2-graph-ui`, merged). The
+stream was written by GPT-6.1 Sol.
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| H1 | fixed | Reproduced by the reviewer as a viewer (API and Workbench): FalkorDB ends a `//` comment at LF only, the guard also at CR, so a lone CR followed by a backtick hid LOAD CSV (the engine's loader ran), UDF calls and procedures. Comments now end at LF (CR LF allowed, a lone CR refused), and outside strings only ASCII whitespace is accepted. As defence in depth the sandbox's `IMPORT_FOLDER` is a missing directory, so LOAD CSV reads nothing even past the guard. | `bdd7d44`, `96be7b1` | shared `graphPolicy.test.ts` › "refuses a lone CR inside a line comment" (3 cases, failed before); server `integration/graph.test.ts` › "the guard refuses whatever FalkorDB reads as LOAD CSV, a procedure call or a namespaced call (differential…)" (1,452 probes planned by the engine; failed on the old guard), "keeps both read and write time bounds… in module config" (import folder) |
+| H2 | fixed in the console; partly a deployment bound | Reproduced by the reviewer: FalkorDB checks TIMEOUT between steps, so `reduce` over `range(1,1000000)` ran 13–16 s, went on after the console answered 504 at 7 s, and a repeat every 7 s pinned another engine thread. The console cannot cancel engine work; graph queries now hold one slot per user and two per database until FalkorDB answers (socket kept open, at most 15 minutes). One query's own CPU and memory stay a deployment bound: `QUERY_MEM_CAPACITY` (now set) did not stop a 40,000,000-element `range` in 6.0.3, so the sandbox container has a 1 GiB limit and INSTALL, SECURITY and D21 say to set one, deny the graph host egress, and withhold viewer `+graph.ro_query` where viewers are not trusted with engine time. | `e880611`, `96be7b1`, `858fd3e` | server `unit/graph-engine-slots.test.ts` (3 tests); live: first request 504 at 7.0 s, an immediate retry 429, the slot freed when the engine finished at 13.6 s, then 200 |
+| M1 | fixed | Reproduced: the confirmation of a 70-byte `MATCH … DETACH DELETE n` showed `MATCH (n:Person)`. A graph query's Cypher is shown up to 4 KiB (`PREVIEW_QUERY_MAX_BYTES`), then cut with its size; the workbench summary counts commands that need confirmation. | `dfb21dd` | server `integration/graph.test.ts` › "destructive Cypher changes nothing until confirmation…" (full text and 4 KiB cut; failed before) |
+| M2 | fixed | Reproduced: a viewer's `SLOWLOG GET` and Diagnostics slow log showed an operator's Cypher literals. Non-admins now see command names and keys, every other argument as its size, in both. | `57440eb` | server `integration/diagnostics.test.ts` › "slow-log arguments other than command names and keys are shown to admins only" (failed before) |
+| L1 | fixed | Confirmed: the browser refused admin `GRAPH.SLOWLOG`, `GRAPH.CONFIG GET` and `CONFIG GET` on read-only databases, which the server allows. The admin-read list is shared (`ADMIN_READS`). | `a883554` | web `lib/policy.test.ts` › "allows the reads the server exempts…" (failed before) |
+| L2 | fixed | Confirmed: `[0..size(x)]` was refused as a namespaced call, and U+00A0 between tokens passed in the browser but not on the server. A dot is a namespace separator only after a name; whitespace is ASCII only on both sides. The other documented false positives are listed in the user guide. | `bdd7d44`, `a978852` | shared `graphPolicy.test.ts` › "a range or list slice is not a namespaced call…", "comments end at LF or CRLF… whitespace is ASCII only…" |
+| L3 | fixed (docs) | `GRAPH.DELETE` is the admin tier for that command; operators can still remove graph data with DEL, RENAME or Cypher like any key. D21 and SECURITY now say so. | `a978852` | |
+| L4 | fixed | Graph keys showed core `MEMORY USAGE` (40 bytes) and two hints; they now show "not measured" and the graph hint only. The Analysis biggest-keys ranking still uses core MEMORY USAGE (not changed this round). | `b26ab1c` | web `graphKeys.test.tsx`; server `unit/key-meta.test.ts`, `integration/graph.test.ts` (key read and metadata carry no size) |
+| L5 | fixed | The diagram is one tab stop with arrow keys, Home and End; a selected node lists its edges (focusable), and an edge's properties show as text. | `700671c` | web `graph.test.tsx` (4 tests, failed before) |
+
+### Validation
+- Each regression test failed before its fix and passes after it (the differential test was checked to fail on the
+  old guard; the slot test and the preview, slow-log and policy tests failed before their fixes).
+- Live, on the FalkorDB sandbox: the slot hold (above); IMPORT_FOLDER and QUERY_MEM_CAPACITY checked in a throwaway
+  FalkorDB 6.0.3 container (LOAD CSV fails on the missing folder; a 40,000,000-element range passed the 256 MiB cap).
