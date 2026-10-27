@@ -1289,3 +1289,17 @@ handling partial (L1 below). **No finding at Medium or above**: the review loop 
 | ID | Verdict | Reason | Commit | Regression tests |
 |---|---|---|---|---|
 | L1 | fixed | Reproduced: with stop-on-error, a cancelled graph import whose query returned an error ended `stopped` (the stop-on-error return came before the cancel check). A cancel requested while the line ran now comes first; the line is counted. | `a4e77b1` | server `integration/graph.test.ts` › "Import cancel with graph lines…" (the stop-on-error case failed before) |
+
+### Targeted verification of the last fix (Claude Sonnet 5.5)
+- `a4e77b1` **fixed**: every exit of an Import line was walked with the cancel before, during and after the line and
+  stop-on-error on and off; no path ends `done` or `stopped` after a cancel requested while the line ran, nothing is
+  double-counted, and audits agree with the final status (graph 20, insight 20, slot unit 5 tests passed).
+- Deferred, Low, not data or bounds: a non-graph line cancelled while it waits for a pool or command slot (not sent) is
+  still described as "may have run" (older than this round; the gate's "cancelled before it was sent" error is not yet
+  read as not sent); a graph line that times out after a cancel is recorded as in flight rather than counted (FalkorDB
+  may still be running it, so this is kept); the "finished and is counted" stop reason does not add that the remaining
+  commands were not sent (the counts say so). Follow-ups for v0.4.x.
+
+### Final gates (release/v0.4 @ 603fbf9)
+- `pnpm -r typecheck` clean; shared 73, web 544 passed; server with the cluster, Sentinel and mutual-TLS topology up
+  1,109 passed, 8 skipped (the optional external read-only remote).
