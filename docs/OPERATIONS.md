@@ -159,7 +159,7 @@ At most 200. Hosts, ports and TLS settings exist only here; the browser refers t
 | `maxRole` | `admin` | Effective role = min(user role, `maxRole`). |
 | `credentials` | required | `{ viewer?, operator?, admin?, default? }`, each `{ username, password?: <secret> }`. Each role connects as its own tier's ACL user. A missing tier never falls back to another one: the role uses `default` if set, otherwise gets 503 on this database. With only `default`, the app enforces the policy alone (a warning is logged). |
 | `tls` | — | `{ ca?, cert?, key?, servername?, rejectUnauthorized }`; `ca`/`cert`/`key` are secret references holding PEM; `cert` and `key` go together. Requires `rediss://`. Verification can't be disabled for prod databases or in production. |
-| `poolSize` | `4` | Sockets per tier in each pool (1–32). Streams have their own limits. |
+| `poolSize` | `4` | Sockets per tier in each pool (1–32). Streams have their own limits. A FalkorDB database needs 2 or more (3 or more recommended): a long graph query keeps its socket until the engine answers, so the console runs at most `poolSize - 1` of them and refuses graph queries on a pool of one. |
 | `acceptRisks` | `[]` | Reviewed exceptions to the production rules: `"plaintext"`, `"default-credentials"`. Each listed risk is logged as a warning at every start. |
 
 ### Production checks (`NODE_ENV=production`)
