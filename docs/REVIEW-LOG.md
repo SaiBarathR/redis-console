@@ -1212,3 +1212,23 @@ graph UI changes (L4, L5) reviewed, with M2 below. Its own ARGREP comparison (3,
 - Each regression test failed before its fix and passes after it.
 - The reviewer's H1 case after the fix: 73 ms with the value skipped (8 such globs: 53 ms), health check 1 ms. Eight
   NOCASE MATCH predicates over 5,000 values of 4 KiB: 2 requests, the worst 153 ms (unchanged).
+
+## v0.4 Round 3 – graph fix verification (Claude Sonnet 5.5 reviewer)
+
+Report: `docs/research/31-v04-review-r3-graph.md` (snapshot `release/v0.4` @ `2fdffbe`). Fixer branch:
+`fix/v04-review-r3` (Claude Opus 5.5). Round-2 verdicts: H1, M2, L1, L2, L3 fixed (H1: a 411-million-candidate
+differential against FalkorDB 6.0.3 found no bypass, where the same search finds 135 on the old guard); H2 and M1 fixed
+for the console and the Workbench but not for Import (this round's M1, M2). No High finding.
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| M1 | fixed | Reproduced: Import's connection wrapper put the job's abort signal over the one a graph query leaves unset on purpose, so cancelling an import freed its graph slots while FalkorDB ran on. The wrapper keeps a command's own signal. | `edc4628` | server `integration/graph.test.ts` › "Import: the confirmation shows the whole Cypher, and a cancelled graph query keeps its slots…" (cancel half failed before: the next query got 200, not 429) |
+| M2 | fixed | Reproduced: Import's start confirmation showed `MATCH (n:Person)` for a 70-byte query. Console, Workbench and Import share one preview builder (`commandPreview`). | `edc4628` | same test (preview half failed before) |
+| L1 | fixed (docs) | The docs said "never more than two"; the bound is per database entry and console process, counted for at most 15 minutes, and the next query is refused, not queued. SECURITY, INSTALL, the user guide and D21 now say so. | `90566fc` | |
+| L2 | fixed | A held graph query keeps a pooled connection: per-database graph slots are now `min(2, poolSize - 1)`, and `poolSize` 1 refuses graph queries; INSTALL asks for `poolSize` 3 or more and names the server-wide command slot it holds. The 15-minute connect deadline (unreproduced suspicion) is left as is: a connect that never completes is bounded by the same hold. | `a085bb2`, `90566fc` | server `unit/graph-engine-slots.test.ts` › "never holds every connection of a pool…" (failed before) |
+| L3 | fixed (docs) | FalkorDB 6.0.3 refuses doubled backticks; D21 and the guard's comment said they escape. The guard's reading only widens a name in a query the engine refuses. | `de20cc4` | |
+| L4 | fixed | The guard's refusal names its reason: unbalanced quoting, a lone CR in a line comment, or characters outside printable ASCII between tokens. | `368e76a` | shared `graphPolicy.test.ts` › "names why a query is refused" (failed before) |
+| L5 | fixed | The browser ran the argument rules on JS strings, the server on bytes (the 64 KiB limit counted characters in one, bytes in the other). The browser now gives the rules the UTF-8 bytes as latin1, like the server. | `1655251` | web `lib/policy.test.ts` › "the graph query size limit counts UTF-8 bytes in the browser too" (failed before) |
+
+### Validation
+- Each regression test failed before its fix and passes after it.
