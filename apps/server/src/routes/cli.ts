@@ -1,6 +1,7 @@
 import { ErrorReply } from 'redis';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
+  GRAPH_QUERY_COMMANDS,
   bytesFromBin,
   tokenizeCommandLine,
   tokenizeCommandLineBytes,
@@ -65,8 +66,18 @@ export function prepare(argv: Buffer[], table: CommandTable | undefined, scope: 
 /** Concurrent console commands per user, and concurrent blocking commands per user. */
 export const MAX_INFLIGHT_PER_USER = 4;
 export const MAX_BLOCKING_PER_USER = 1;
+/**
+ * v0.4 graph (review v0.4 r2 graph H2): FalkorDB checks a query's TIMEOUT between steps, so one expression (a `reduce`
+ * over a long `range`) can run for seconds or minutes after the console has answered, and closing the socket does not
+ * stop it. The console cannot cancel it, so it stops adding work: a graph query holds one slot per user and one of
+ * GRAPH_ENGINE_SLOTS_PER_DB per database until the engine answers (its socket stays open, at most
+ * GRAPH_ENGINE_HOLD_MS). Two per database, below the default pool of four connections per database and tier.
+ */
+export const GRAPH_ENGINE_SLOTS_PER_DB = 2;
+export const GRAPH_ENGINE_HOLD_MS = 15 * 60_000;
 
 export async function execute(ctx: AppContext, scope: DbScope, p: Prepared, signal?: AbortSignal): Promise<CliResponse> {
+  if (GRAPH_QUERY_COMMANDS.has(p.c.command)) return executeGraph(ctx, scope, p);
   // Blocking commands hold a pooled connection for up to 5 s; without a cap one user could park every
   // connection of a (database, tier) pool and stall everyone else on it.
   const uid = scope.session.userId;
@@ -85,7 +96,34 @@ export async function execute(ctx: AppContext, scope: DbScope, p: Prepared, sign
   }
 }
 
-async function executeNow(ctx: AppContext, scope: DbScope, p: Prepared, signal?: AbortSignal): Promise<CliResponse> {
+/** A graph query (see GRAPH_ENGINE_SLOTS_PER_DB): answered within the console timeout, its slots held until FalkorDB answers. */
+async function executeGraph(ctx: AppContext, scope: DbScope, p: Prepared): Promise<CliResponse> {
+  const uid = scope.session.userId;
+  const mine = ctx.slots.acquire(`graph-engine:${scope.db.id}:${uid}`, 1);
+  if (!mine) throw new HttpError('rate_limited', 'Your previous graph query is still running in FalkorDB; run the next one when it has finished.');
+  const db = ctx.slots.acquire(`graph-engine:${scope.db.id}`, GRAPH_ENGINE_SLOTS_PER_DB);
+  if (!db) {
+    mine();
+    throw new HttpError('rate_limited', `FalkorDB is still running ${GRAPH_ENGINE_SLOTS_PER_DB} console queries on this database; try again when one has finished.`);
+  }
+  // No abort signal and a long transport timeout: the socket stays open until the engine answers, so the slots
+  // free when the work does. The request itself is answered within the console timeout.
+  const run = executeNow(ctx, scope, p, undefined, GRAPH_ENGINE_HOLD_MS);
+  const release = () => { db(); mine(); };
+  run.then(release, release);
+  const answerMs = timeoutFor(p.c, ctx.config.policy.commandTimeoutMs);
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new HttpError('timeout', `FalkorDB is still running this query: its time limit is checked between steps, so one expression can run longer. Your graph slot stays taken until it finishes (at most ${GRAPH_ENGINE_HOLD_MS / 60_000} minutes).`)), answerMs);
+  });
+  try {
+    return await Promise.race([run, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function executeNow(ctx: AppContext, scope: DbScope, p: Prepared, signal?: AbortSignal, timeoutMs?: number): Promise<CliResponse> {
   const conn = await scope.conn();
   const { maxReplyBytes, commandTimeoutMs } = ctx.config.policy;
   const pairs = PAIR_MAP_COMMANDS.has(p.c.command);
@@ -98,7 +136,7 @@ async function executeNow(ctx: AppContext, scope: DbScope, p: Prepared, signal?:
         capped: true, signal,
         key: p.argv[p.c.keyIndexes[0] ?? -1],
         readonly: p.c.class === 'read',
-        timeout: timeoutFor(p.c, commandTimeoutMs),
+        timeout: timeoutMs ?? timeoutFor(p.c, commandTimeoutMs),
         typeMapping: pairs ? TM_REPLY_PAIRS : TM_REPLY,
       });
     } catch (e) {
