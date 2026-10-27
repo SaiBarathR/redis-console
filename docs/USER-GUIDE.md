@@ -298,3 +298,28 @@ Commands Redis Console doesn't recognise are blocked too ("fail closed").
 **I deleted something by mistake.** Redis has no undo. Contact the owning team: they may be able to restore from a backup or replay the data. The audit log shows exactly what was run and when.
 
 **Something looks wrong or insecure.** See `docs/SECURITY.md` for how to report it.
+
+### Graph results in the Workbench
+
+Choose a FalkorDB database and run, for example:
+
+```text
+GRAPH.RO_QUERY graph:demo "MATCH (a)-[r]->(b) RETURN a,r,b LIMIT 50"
+GRAPH.EXPLAIN graph:demo "MATCH (a)-[r]->(b) RETURN a,r,b LIMIT 50"
+```
+
+Tree view shows a graph diagram, a result table and execution statistics. Select a node with the mouse or focus it
+and press Enter/Space to inspect its labels, ID and properties. Edges are directed; dashed nodes are endpoint
+placeholders when the query returned only an edge. The offline diagram draws up to 200 nodes and 400 edges and
+counts the remaining received entities. Narrow the query with LIMIT for a clearer view; raw replies are still
+subject to server limits. Large diagrams show node labels on selection. EXPLAIN and PROFILE show plan trees.
+Scalar results appear in the table; writes without RETURN show statistics. `--compact` uses the generic reply view.
+The key browser recognizes `graphdata` and points you to the Workbench.
+
+Viewers use RO_QUERY (FalkorDB rejects mutations) and EXPLAIN. Operators can use QUERY and PROFILE, both of which
+always ask for confirmation because they can mutate the graph. PROFILE executes the query. Admins can GRAPH.DELETE
+with the typed database name; prod writes also need a reason. Timeouts do not guarantee rollback, so check the graph
+before retrying a write that failed. The console sends a timeout of at most one second and refuses LOAD CSV,
+user-defined code, unreviewed procedures, internal graph commands and configuration changes. Only the metadata
+procedures `CALL db.labels()`, `db.relationshipTypes()` and `db.propertyKeys()` are enabled. A conservative query
+guard can also refuse namespaced or quoted function calls and reserved words used as properties (D21).

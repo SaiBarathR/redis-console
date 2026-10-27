@@ -16,6 +16,12 @@ for _ in $(seq 1 60); do
   if docker compose -f "$ROOT/infra/docker-compose.yml" --env-file "$ROOT/.env" exec -T -e REDISCLI_AUTH redis-main redis-cli PING | grep -q PONG; then break; fi
   sleep 1
 done
+# Graph integration/e2e is mandatory in CI. The pinned module must have loaded with its configured ACLs.
+for _ in $(seq 1 60); do
+  if docker compose -f "$ROOT/infra/docker-compose.yml" --env-file "$ROOT/.env" exec -T -e REDISCLI_AUTH redis-graph redis-cli PING | grep -q PONG; then break; fi
+  sleep 1
+done
+docker compose -f "$ROOT/infra/docker-compose.yml" --env-file "$ROOT/.env" exec -T -e REDISCLI_AUTH redis-graph redis-cli GRAPH.CONFIG GET TIMEOUT_MAX | grep -q 1000
 docker compose -f "$ROOT/infra/docker-compose.yml" --env-file "$ROOT/.env" exec -T -e REDISCLI_AUTH redis-main redis-cli MSET example:one first example:two second >/dev/null
 for _ in $(seq 1 90); do
   curl -fsS http://localhost:8089/realms/rconsole/.well-known/openid-configuration >/dev/null 2>&1 && { echo 'sandbox ready'; exit 0; }

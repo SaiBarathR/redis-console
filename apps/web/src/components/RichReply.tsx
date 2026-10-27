@@ -11,6 +11,8 @@ import {
   aggregateTable,
   explainPlan,
   geoView,
+  graphView,
+  graphPlan,
   multiSeriesOf,
   profileView,
   replyText,
@@ -23,6 +25,7 @@ import {
 } from "../lib/richReply.ts";
 import { displayBin, visibleText } from "../lib/format.ts";
 import { Chart } from "./Chart.tsx";
+import { GraphView } from "./GraphView.tsx";
 import { GeoMap } from "./GeoMap.tsx";
 import { KeyName } from "./anatomy.tsx";
 import "../styles/insight.css";
@@ -296,6 +299,17 @@ export function RichReply({
         {list.length ? list.map((s, i) => <SeriesBlock key={i} series={s} single={kind === "series"} />) : <p className="muted">No series matched.</p>}
       </div>
     );
+  }
+  if (kind === "graph") {
+    const view = graphView(reply);
+    return view ? <div data-testid="result-rich" data-kind={kind}>
+      <GraphView view={view} />
+      <RichTableView table={view.table} label="Graph result table" onRaw={onRaw} />
+    </div> : null;
+  }
+  if (kind === "graphPlan") {
+    const plan = graphPlan(reply);
+    return plan ? <div data-testid="result-rich" data-kind={kind}><PlanTree node={plan} /></div> : null;
   }
   if (kind === "geo") {
     const view = geoView(argv, reply);

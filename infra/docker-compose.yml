@@ -36,6 +36,20 @@ services:
       - ./.generated/users.acl:/usr/local/etc/redis/users.acl:ro
     tmpfs: ["/data", "/tmp"]
     security_opt: ["no-new-privileges:true"]
+  redis-graph:
+    # Optional graph sandbox; graph commands have no ACL categories.
+    image: falkordb/falkordb:6.0.3
+    # Bypass the image launcher, which ignores command and starts its own unauthenticated Redis.
+    entrypoint: ["redis-server"]
+    user: "999:999"
+    command: ["/usr/local/etc/redis/redis.conf"]
+    ports: ["127.0.0.1:6413:6379"]
+    volumes:
+      - ./.generated/redis-graph.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./.generated/users-graph.acl:/usr/local/etc/redis/users.acl:ro
+    read_only: true
+    tmpfs: ["/data", "/tmp"]
+    security_opt: ["no-new-privileges:true"]
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: ["start-dev", "--import-realm", "--http-port=8080"]

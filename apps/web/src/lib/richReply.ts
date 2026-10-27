@@ -8,7 +8,10 @@
  */
 import { bytesFromBin, type Bin, type Reply } from "@rconsole/shared";
 
-export type RichKind = "search" | "aggregate" | "series" | "multiSeries" | "explain" | "profile" | "geo";
+import { graphPlan, graphView } from "./graphReply.ts";
+export { graphPlan, graphView } from "./graphReply.ts";
+
+export type RichKind = "search" | "aggregate" | "series" | "multiSeries" | "explain" | "profile" | "geo" | "graph" | "graphPlan";
 
 /** One table row: an optional document id (exact bytes) and its fields in reply order. */
 export interface RichRow {
@@ -456,6 +459,8 @@ export function richKind(argv: readonly string[], reply: Reply): RichKind | unde
   if (reply.t === "err" || reply.t === "truncated" || reply.t === "nil") return undefined;
   const name = (argv[0] ?? "").toUpperCase();
   const sub = (argv[1] ?? "").toUpperCase();
+  if (name === "GRAPH.QUERY" || name === "GRAPH.RO_QUERY") return graphView(reply) ? "graph" : undefined;
+  if (name === "GRAPH.EXPLAIN" || name === "GRAPH.PROFILE") return graphPlan(reply) ? "graphPlan" : undefined;
   if (name === "FT.SEARCH") return searchTable(reply) ? "search" : undefined;
   if (name === "FT.AGGREGATE" || (name === "FT.CURSOR" && sub === "READ")) return aggregateTable(reply) ? "aggregate" : undefined;
   if (name === "TS.RANGE" || name === "TS.REVRANGE") return seriesOf(reply) ? "series" : undefined;
@@ -474,4 +479,6 @@ export const RICH_LABEL: Record<RichKind, string> = {
   explain: "Plan",
   profile: "Profile",
   geo: "Map",
+  graph: "Graph",
+  graphPlan: "Plan",
 };

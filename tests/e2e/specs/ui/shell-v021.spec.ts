@@ -160,7 +160,8 @@ test.describe('as admin', () => {
     await expect(page.locator('tr', { has: page.getByText('e2e-prod-sim', { exact: true }) }).getByTestId('landing-db-index')).toHaveText('db 1');
     await expect(e2eRow.getByTestId('db-capability').filter({ hasText: 'Profiler' })).toHaveCount(1);
     // Wait for every row's figures, then sort by keys (largest first), reverse, and restore.
-    await expect(page.getByTestId('landing-keys')).toHaveCount(3);
+    // Includes the dedicated FalkorDB graph sandbox alongside the three existing targets.
+    await expect(page.getByTestId('landing-keys')).toHaveCount(4);
     await expect.poll(async () => (await page.getByTestId('landing-keys').allInnerTexts()).every((t) => /\d/.test(t))).toBe(true);
     const order = () => page.locator('a.db-link').allInnerTexts();
     const original = await order();

@@ -490,3 +490,51 @@ hand if a finer source is ever wanted.
 **Evidence.** `apps/web/src/components/geo.test.tsx`; `tests/e2e/specs/ui/geo-map.spec.ts` (no request leaves the
 console origin).
 
+
+## D21. FalkorDB queries are bounded and cannot run host I/O or user code
+
+**Context.** GRAPH commands have no ACL categories; QUERY and PROFILE can mutate graphs, EXPLAIN is flagged write,
+and CONFIG is flagged readonly even for SET. `graphdata` keys need the Workbench rather than a collection editor.
+FalkorDB's verbose replies carry graph entity IDs, labels, properties, table rows and statistics.
+
+**Decision.** Explicit application rules and graph-specific ACL grants. RO_QUERY, EXPLAIN, LIST, MEMORY and
+`INFO ObjectPool` are reads. QUERY and PROFILE are operator writes and **always** require confirmation, including
+queries that appear read-only. GRAPH.DELETE is admin with typed database confirmation. Prod writes additionally
+require the database name and reason. CONFIG GET and SLOWLOG (without RESET) are admin reads; all other CONFIG forms are blocked.
+COPY and CONSTRAINT management are deferred. UDF, BULK, RESTORE and internal DEBUG/EFFECT/RECORD commands are blocked.
+Unknown GRAPH commands fail closed even if a later module reports permissive flags.
+
+A conservative lexical guard, applied server-side to exact argv for every query/plan command, refuses LOAD, all CALLs
+except no-argument `db.labels()`, `db.relationshipTypes()` and `db.propertyKeys()`, and all namespaced/quoted function
+calls. This also prevents invoking already-loaded JavaScript UDFs through RO_QUERY. Backtick identifiers use doubled backticks for escaping; backslashes are literal (verified against the engine).
+Strings and comments are inert;
+unbalanced delimiters and non-ASCII unquoted identifiers/line comments fail closed (use quoted labels and string literals for Unicode). Queries are limited to 64 KiB. This is a feature guard, **not a Cypher parser**:
+reserved words used as unquoted properties can be refused, legitimate namespaced/quoted built-ins are unavailable,
+and server-side RO_QUERY is the second enforcement layer against mutations. New procedures need review and tests.
+`INFO` running/waiting sections are refused because they disclose other users' query text. SLOWLOG RESET is refused. MEMORY supports only USAGE, with SAMPLES capped to 100 (zero/all becomes 100).
+SLOWLOG includes query text and remains admin-only.
+
+QUERY/RO_QUERY/EXPLAIN/PROFILE accept only the reviewed TIMEOUT and `--compact` options. A positive timeout is always
+sent; zero and values above 1000 ms become 1000 ms. Malformed/duplicate options are rejected. The sandbox uses
+TIMEOUT_DEFAULT/MAX 1000, RESULTSET_SIZE 10000 and MAX_QUEUED_QUERIES 25. The legacy TIMEOUT parameter alone leaves
+writes unbounded and cannot coexist with DEFAULT/MAX. Other deployments must set equivalent module bounds.
+Timeouts do not promise rollback: graph writes can partially execute, and ambiguous failures are never auto-retried.
+
+The rich renderer accepts default verbose replies; compact/unrecognized shapes retain the generic raw view. It draws
+at most 200 unique nodes and 400 edges with deterministic concentric rings; edge endpoints absent from the result
+are dashed placeholders. Remaining received entities are counted. Incomplete server replies are labelled; entities
+outside the received reply cannot be counted. The table is bounded to 1000 rows and 40 columns; plan trees to 1000
+lines and 40 levels. Property text, labels and statistics are escaped text. Focusable SVG nodes expose details by
+Enter/Space. No graph data becomes HTML, styles or network requests. Large diagrams show labels on selection to
+avoid a wall of overlapping text. Raw replies remain subject to server transport/display caps.
+
+**Alternatives.** Keyword-based destructive-query detection is incomplete and can miss new syntax. Confirming every
+write command makes the consequence clear without claiming to classify Cypher. General-purpose graph/physics
+libraries add dependencies and unbounded layout work; an offline deterministic SVG meets the inspection need.
+
+**Evidence.** `graphPolicy.test.ts`, server `graph-policy.test.ts` and integration `graph.test.ts`, web `graph.test.tsx`,
+`tests/e2e/specs/ui/graph.spec.ts` and [graph live QA](qa/v04-graph.md). FalkorDB 6.0.3 sandbox probes: TYPE is graphdata;
+a sandbox canary CSV was read successfully with a temporary import folder (restored afterward), HTTPS loopback was refused by FalkorDB's own address guard,
+plain HTTP was refused; application policy refuses every LOAD before dispatch. The pinned upstream
+[CSV documentation](https://falkordb.github.io/docs-staging/cypher/load-csv/) describes server file imports, and
+[UDF tests](https://github.com/FalkorDB/FalkorDB/blob/v6.0.3/tests/flow/test_udf.py) demonstrate namespaced code execution.

@@ -250,3 +250,14 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
 - Create form: `key-create-type` has `array`; `key-edit-value` takes the initial values one per line. Creating an
   existing key shows "This key already exists" and writes nothing.
 - Landing `db-capability` shows "Arrays" for servers reporting Redis 8.8 or later.
+
+## v0.4 graph results
+
+- `result-rich[data-kind="graph"]`: verbose FalkorDB result table, SVG diagram and statistics.
+- `graph-view`, `graph-count`: bounded diagram and received/omitted entity counts.
+- `graph-node`: focusable SVG node button (`aria-pressed`); Enter/Space selects its details.
+- `graph-edge`: directed SVG edge (text title includes ID, relationship type and endpoints).
+- `graph-selection`: selected node labels, ID and text properties (or endpoint-placeholder explanation).
+- `graph-statistics`: execution statistics as inert text.
+- `result-rich[data-kind="graphPlan"]` with existing `plan-tree`: GRAPH.EXPLAIN/PROFILE indentation plan.
+- Existing `rich-table` contains the table labelled `Graph result table`; terminal/raw toggles use existing IDs.

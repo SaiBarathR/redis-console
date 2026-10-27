@@ -8,6 +8,8 @@
  */
 import {
   CLASS_MIN_ROLE,
+  GRAPH_QUERY_COMMANDS,
+  GRAPH_TIMEOUT_MS,
   COMMAND_RULES,
   SUBCOMMAND_PARENTS,
   SUBCOMMAND_RULES,
@@ -46,7 +48,7 @@ export interface Classified {
 }
 
 /** Admin-class commands that do not change server state (allowed on readOnly databases for admins). */
-const ADMIN_READS = new Set(['CONFIG GET', 'CLIENT LIST', 'MEMORY MALLOC-STATS']);
+const ADMIN_READS = new Set(['CONFIG GET', 'CLIENT LIST', 'MEMORY MALLOC-STATS', 'GRAPH.CONFIG', 'GRAPH.SLOWLOG']);
 
 /** Blocking commands whose timeout we know how to cap. Value: how to find the timeout argument. */
 const BLOCKING: Record<string, 'last' | 'second' | 'block-option'> = {
@@ -233,6 +235,30 @@ export function confirmationFor(
 export function applyCaps(argv: readonly (string | Buffer)[]): (string | Buffer)[] {
   const out = [...argv];
   const cmd = str(out[0]).toUpperCase();
+  // v0.4 graph: accept only the reviewed option grammar and always send a positive execution bound.
+  if (GRAPH_QUERY_COMMANDS.has(cmd)) {
+    if (out.length < 3) throw new HttpError('validation', `${cmd}: graph and query are required`);
+    let timeout = GRAPH_TIMEOUT_MS;
+    let seenTimeout = false;
+    let compact = false;
+    for (let i = 3; i < out.length; i++) {
+      const opt = str(out[i]).toUpperCase();
+      if (opt === '--COMPACT' && !compact) { compact = true; continue; }
+      if (opt !== 'TIMEOUT' || seenTimeout) throw new HttpError('validation', `${cmd}: only TIMEOUT and --compact options are allowed`);
+      seenTimeout = true;
+      const value = str(out[++i]);
+      if (!/^[0-9]+$/.test(value) || !Number.isSafeInteger(Number(value))) throw new HttpError('validation', `${cmd}: TIMEOUT must be an integer in milliseconds`);
+      const n = Number(value);
+      timeout = n === 0 ? GRAPH_TIMEOUT_MS : Math.min(n, GRAPH_TIMEOUT_MS);
+    }
+    return [...out.slice(0, 3), ...(compact ? ['--compact'] : []), 'TIMEOUT', String(timeout)];
+  }
+  if (cmd === 'GRAPH.MEMORY') {
+    const raw = str(out[4] ?? '100');
+    if (!/^[0-9]+$/.test(raw) || !Number.isSafeInteger(Number(raw))) throw new HttpError('validation', 'GRAPH.MEMORY: SAMPLES must be a non-negative integer');
+    const n = Number(raw);
+    return [...out.slice(0, 3), 'SAMPLES', String(n === 0 ? 100 : Math.min(n, 100))];
+  }
   const mode = BLOCKING[cmd];
   const capSeconds = (i: number) => {
     const n = Number(str(out[i]));

@@ -185,6 +185,37 @@ Optional grants (verified on Redis 8):
 For a production database, configure only the tiers you need and cap the role with `maxRole`. A tier without
 credentials cannot use that database at all (503); a role never falls back to another tier's user.
 
+### Optional FalkorDB graph sandbox and ACLs
+
+The development compose includes `redis-graph` on loopback port 6413, pinned to `falkordb/falkordb:6.0.3`.
+`scripts/dev-setup.sh` generates its separate ACL/config files and starts it in CI. On a shared installation,
+generate only those files with `bash scripts/graph-sandbox-config.sh`, then start only `redis-graph` with compose.
+Never run the full setup merely to add this service to an existing shared sandbox: setup recreates all services.
+The graph container uses a read-only root filesystem and ephemeral `/data` and `/tmp`; it bypasses the image's
+launcher (which ignores the supplied command) and starts `redis-server` directly as uid 999 with our config.
+
+Graph commands have **no ACL categories**. On FalkorDB, add these explicit grants to the respective tier's base
+ACL (omit unrelated module grants, such as `+ft._list`, when that command is absent):
+
+| Tier | Graph grants |
+|---|---|
+| viewer | `+graph.ro_query +graph.explain +graph.list +graph.info\|objectpool +graph.memory\|usage` |
+| operator | The viewer grants plus `+graph.query +graph.profile` |
+| admin | The operator grants plus `+graph.delete +graph.slowlog`; for CONFIG use `-graph.config +graph.config\|get` |
+
+The graph sandbox admin starts with the usual restricted `+@all`, then explicitly removes `graph.udf`, `graph.bulk`,
+`graph.restore`, `graph.debug`, `graph.effect`, `graph.record`, `graph.copy`, `graph.constraint` and `graph.config`,
+adding back only `graph.config|get`. INFO and MEMORY grants are similarly restricted to ObjectPool and USAGE. Redis 8.10.2 accepts this first-argument ACL restriction but warns that it is
+deprecated. Revalidate on upgrades; if it is removed, deny CONFIG entirely at the ACL and keep configuration
+inspection outside the console. Never grant the whole command just to restore GET access.
+
+The sandbox sets `TIMEOUT_DEFAULT 1000 TIMEOUT_MAX 1000 RESULTSET_SIZE 10000 MAX_QUEUED_QUERIES 25` on module load.
+The legacy `TIMEOUT` setting cannot coexist with DEFAULT/MAX and does not bound write queries; use DEFAULT/MAX.
+Configure equivalent engine bounds on deployed graph servers: closing a console socket alone does not cancel Redis
+work. The application adds a positive timeout of at most 1000 ms to QUERY/RO_QUERY/EXPLAIN/PROFILE. The sandbox's
+module cap also covers other clients. No graph importer, UDF, CSV loader or runtime network access is exposed by
+the console. See [D21](DECISIONS.md#d21-falkordb-queries-are-bounded-and-cannot-run-host-io-or-user-code).
+
 ## 6. Write the configuration
 
 One JSON file, validated strictly at startup: unknown fields, inline secrets, credentials in URLs and unsafe

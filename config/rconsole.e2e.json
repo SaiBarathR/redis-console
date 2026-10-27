@@ -75,6 +75,33 @@
       "credentials": {
         "default": { "username": "default", "password": { "env": "RC_E2E_REMOTE_PASSWORD" } }
       }
+    },
+    {
+      "id": "sandbox-graph",
+      "name": "Graph sandbox",
+      "description": "Disposable FalkorDB graph sandbox.",
+      "environment": "test",
+      "url": "redis://127.0.0.1:6413",
+      "credentials": {
+        "viewer": {
+          "username": "rc-viewer",
+          "password": {
+            "env": "SANDBOX_REDIS_VIEWER_PASSWORD"
+          }
+        },
+        "operator": {
+          "username": "rc-operator",
+          "password": {
+            "env": "SANDBOX_REDIS_OPERATOR_PASSWORD"
+          }
+        },
+        "admin": {
+          "username": "rc-admin",
+          "password": {
+            "env": "SANDBOX_REDIS_ADMIN_PASSWORD"
+          }
+        }
+      }
     }
   ]
 }
