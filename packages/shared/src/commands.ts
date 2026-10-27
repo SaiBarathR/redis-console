@@ -1,5 +1,5 @@
 import { GRAPH_QUERY_COMMANDS, graphQueryRefusal } from './graphPolicy.ts';
-export { GRAPH_TIMEOUT_MS, GRAPH_QUERY_COMMANDS } from './graphPolicy.ts';
+export { GRAPH_TIMEOUT_MS, GRAPH_QUERY_COMMANDS, graphQueryRefusal } from './graphPolicy.ts';
 import type { Role } from './roles.ts';
 
 /**

@@ -4,6 +4,7 @@ import { createClient } from 'redis';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { portOpen, startApp, testConfig, userSession, utf8, type Client, type TestApp } from '../helpers.ts';
 import { confirmed } from './data-helpers.ts';
+import { graphQueryRefusal } from '@rconsole/shared';
 
 const up = await portOpen(6413);
 if (process.env.CI && !up) throw new Error("CI requires the FalkorDB sandbox on port 6413.");
@@ -174,6 +175,27 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
       }
     } finally { await fixture.sendCommand(['GRAPH.UDF', 'DELETE', lib]); }
   });
+  it('the guard refuses whatever FalkorDB reads as LOAD CSV, a procedure call or a namespaced call (differential, review v0.4 r2 graph H1)', async () => {
+    // Tokenisation probes around three payloads; FalkorDB plans each with EXPLAIN (nothing runs). Where the engine sees
+    // the payload as code (a Load CSV or ProcedureCall operation, or a function it looks up), the guard must refuse.
+    const fragments = ['', ' ', '//x\r', '//x\n', '//x\r\n', '/*x*/', '/*\r*/', '`', "'", '"', '\\', '\r', '\n', '\r\n', '//`\n', '//x\r`\n', '\n//`', '`a`', "'a'", '``', '/*`*/', '//\r\r\n'];
+    const payloads = ["LOAD CSV FROM 'file:///nonexistent.csv' AS row RETURN row", 'CALL db.idx.fulltext.queryNodes(\'x\', \'y\') YIELD node RETURN node', 'RETURN rcprobe.fn(1) AS b'];
+    let engineSawCode = 0;
+    let checked = 0;
+    for (const payload of payloads) for (const pre of fragments) for (const post of fragments) {
+      const query = `${pre}${payload}${post}`;
+      let text: string;
+      try { text = JSON.stringify(await fixture.sendCommand(['GRAPH.EXPLAIN', k, query])); } catch (e) { text = String((e as Error).message); }
+      const code = /Load CSV|ProcedureCall|rcprobe\.fn|queryNodes/i.test(text) && !/syntax|Invalid input|errMsg/i.test(text);
+      checked++;
+      if (!code) continue;
+      engineSawCode++;
+      expect(graphQueryRefusal(query), `engine read ${JSON.stringify(query)} as code: ${text.slice(0, 120)}`).toBeDefined();
+    }
+    expect(checked).toBe(payloads.length * fragments.length ** 2);
+    expect(engineSawCode).toBeGreaterThan(100);
+  }, 120_000);
+
   it('caps result production to 10k rows and the measured wire independently of UI display bounds', async () => {
     const rows = await fixture.sendCommand(['GRAPH.RO_QUERY', k, 'UNWIND range(0,10004) AS i RETURN i']) as any;
     expect(rows[1].length).toBe(10000);

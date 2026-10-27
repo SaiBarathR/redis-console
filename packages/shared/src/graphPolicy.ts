@@ -3,18 +3,27 @@ export const GRAPH_TIMEOUT_MS = 1000;
 export const GRAPH_QUERY_COMMANDS = new Set(['GRAPH.QUERY', 'GRAPH.RO_QUERY', 'GRAPH.EXPLAIN', 'GRAPH.PROFILE']);
 const READ_PROCEDURES = new Set(['DB.LABELS', 'DB.RELATIONSHIPTYPES', 'DB.PROPERTYKEYS']);
 
-/** Strip literals/comments and retain token boundaries, including quoted identifiers. Fail closed on bad quoting. */
+/**
+ * Strip literals/comments and retain token boundaries, including quoted identifiers. Fail closed on bad quoting.
+ *
+ * Comments end where FalkorDB 6.0.3 ends them: a `//` comment at LF only (CR LF is fine; a lone CR is refused, since
+ * FalkorDB keeps it inside the comment and a guard that ended the comment there could be shown code the engine treats
+ * as comment, and the reverse; review v0.4 r2 graph H1). Outside strings, comments and quoted identifiers only ASCII
+ * space, tab, CR and LF are whitespace and every other control or non-ASCII character is refused, so the browser (a JS
+ * string) and the server (the argument's bytes as latin1) read a query the same way (graph L2).
+ */
 function tokens(query: string): string[] | undefined {
   const out: string[] = [];
   for (let i = 0; i < query.length;) {
     const c = query[i]!;
-    if (/\s/.test(c)) { i++; continue; }
+    if (c === ' ' || c === '\t' || c === '\n' || c === '\r') { i++; continue; }
     if (query.startsWith('//', i)) {
       i += 2;
-      while (i < query.length && query[i] !== '\n' && query[i] !== '\r') {
-        // Treat unfamiliar line separators conservatively rather than hiding later code in a comment.
-        const c = query.charCodeAt(i);
-        if (c > 126 || (c < 32 && c !== 9)) return undefined;
+      while (i < query.length && query[i] !== '\n') {
+        const code = query.charCodeAt(i);
+        if (code === 13 && query[i + 1] === '\n') { i++; continue; }
+        // A lone CR, other control characters and unfamiliar line separators: refuse rather than guess the end.
+        if (code > 126 || (code < 32 && code !== 9)) return undefined;
         i++;
       }
       continue;
@@ -36,7 +45,7 @@ function tokens(query: string): string[] | undefined {
       out.push(quote === '`' ? '#identifier' : '#literal');
       continue;
     }
-    if (c.charCodeAt(0) > 126) return undefined;
+    if (c.charCodeAt(0) > 126 || c.charCodeAt(0) < 32) return undefined;
     const word = /^[a-zA-Z_][a-zA-Z_0-9]*/.exec(query.slice(i))?.[0];
     if (word) { out.push(word.toUpperCase()); i += word.length; }
     else { out.push(c); i++; }
@@ -59,8 +68,10 @@ export function graphQueryRefusal(query: string): string | undefined {
     }
     allowedCalls.add(i + 4);
   }
+  // A dot is a namespace separator only after a name: `[0..size(x)]` is a range, `lib.fn(` and `` `lib`.fn( `` are calls.
+  const name = (t: string | undefined) => t === '#identifier' || (t !== undefined && /^[A-Z_][A-Z_0-9]*$/.test(t));
   for (let i = 0; i < ts.length; i++) {
-    if (ts[i] === '(' && !allowedCalls.has(i) && (ts[i - 2] === '.' || ts[i - 1] === '#identifier')) {
+    if (ts[i] === '(' && !allowedCalls.has(i) && ((ts[i - 2] === '.' && name(ts[i - 3])) || ts[i - 1] === '#identifier')) {
       return 'Namespaced and quoted function calls are disabled (user-defined code).';
     }
   }
