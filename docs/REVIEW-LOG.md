@@ -1255,3 +1255,21 @@ queries show no change in the refused set. **No finding at Medium or above**: th
 ### Validation
 - Each regression test failed before its fix and passes after it (L7 pins existing behaviour and was checked to fail
   when the signal is removed).
+
+## v0.4 Round 4 – data fix verification (GPT-6.1 Sol reviewer)
+
+Report: `docs/research/32-v04-review-r4-data.md` (snapshot `release/v0.4` @ `acbffbe`; the run stopped at a usage
+limit and resumed). Fixer branch: `fix/v04-review-r5` (Claude Opus 5.5). Round-3 verdicts: M1 (first element alone)
+and M2 (cut slow-log entries) fixed; H1 (matching allowance) partial, with this round's M1.
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| M1 | fixed | Reproduced (453 ms from an independent health client): the allowance bounded total work but the search yielded only between values, and one native substring scan of an 8 MiB value is synchronous; eight NOCASE MATCH `ab` scans held the event loop about 0.4 s. Values over 256 KiB are now folded and scanned in overlapping pieces with a pause between them; the worst health wait is 18 ms. | `cd3d46d` | server `integration/array.test.ts` › "long native scans yield to other requests…" (an out-of-process health client; failed before); `unit/array.test.ts` › "large values are matched in pieces with the same results" |
+| L1 | already fixed | The browser re-encoded `\xHH` escapes; fixed in `55959e3` (after this snapshot), which builds the rules' input with the shared byte tokenizer. | `55959e3` | web `lib/policy.test.ts` › "a \xHH escape is one byte…" |
+| L2 | already fixed | The VSIM FILTER limit counted non-ASCII twice; fixed in `55959e3`. | `55959e3` | web `lib/policy.test.ts` › "the VSIM FILTER limit counts UTF-8 bytes once" |
+
+### Validation
+- The M1 regression test failed before the fix (453 ms) and passes after it (18 ms worst wait); the equivalence test
+  covers matches across piece boundaries, NOCASE, EXACT, AND/OR and GLOB.
+- A second run of this round, started after the limit, was stopped once the first completed (its probes, data and keys
+  removed); the fixes made after `acbffbe` get their verification in the next round.
