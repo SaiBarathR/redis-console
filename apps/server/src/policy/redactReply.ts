@@ -92,15 +92,20 @@ function maskSlowlogClients(reply: Reply, args?: (argv: string[]) => string[]): 
   if (reply.t !== 'arr') return reply;
   return {
     ...reply,
+    // Every entry, however much of it survived the display caps: an entry cut before its client fields still carries
+    // its arguments (review v0.4 r3 M2).
     v: reply.v.map((e) => {
-      if (e.t !== 'arr' || e.v.length <= 4) return e;
+      if (e.t !== 'arr') return e;
       return {
         ...e,
         v: e.v.map((x, i) => {
           if (i === 4) return hiddenStr();
-          if (i !== 3 || !args || x.t !== 'arr') return x;
-          const shown = args(x.v.map((a) => strOf(a) ?? ''));
-          return { ...x, v: shown.map((data): Reply => ({ t: 'str', v: { enc: 'utf8', data } })) };
+          if (i !== 3 || !args) return x;
+          if (x.t !== 'arr') return hiddenStr();
+          const logged = x.v.map((a) => strOf(a));
+          const shown = args(logged.map((a) => a ?? ''));
+          // Names and keys stay as they were; every other argument, or a piece the display cut, is a placeholder.
+          return { ...x, v: x.v.map((a, j): Reply => (logged[j] !== undefined && shown[j] === logged[j] ? a : { t: 'str', v: { enc: 'utf8', data: logged[j] !== undefined ? shown[j]! : HIDDEN } })) };
         }),
       };
     }),

@@ -196,3 +196,19 @@ describe('console reply redaction', () => {
     expect(JSON.stringify(redactReply('ROLE', undefined, role))).toContain('172.16.0.9');
   });
 });
+
+describe('slow-log redaction survives display truncation (review v0.4 r3 M2)', () => {
+  it('a cut entry, with no client fields left, still has its value arguments redacted', async () => {
+    const { toReply } = await import('../../src/redis/reply.ts');
+    const { redactReply, slowlogArgv } = await import('../../src/policy/redactReply.ts');
+    const argv = ['SADD', 'rv3:key', 'R3_CUT_CANARY', ...Array.from({ length: 28 }, () => 'z'.repeat(128))];
+    const raw = [[1, 1_700_000_000, 20_000, argv.map((a) => Buffer.from(a)), Buffer.from('127.0.0.1:5555'), Buffer.from('')]];
+    const cut = toReply(raw, { maxBytes: 1024, maxElements: 10_000 });
+    const shown = redactReply('SLOWLOG', 'GET', cut, { hideAddresses: true, slowlogArgs: (a) => slowlogArgv(a, { keep: 1, keyIndexes: [1] }) });
+    const text = JSON.stringify(shown);
+    expect(text).not.toContain('R3_CUT_CANARY');
+    expect(text).not.toContain('zzzz');
+    expect(text).toContain('rv3:key');
+    expect(text).toContain('SADD');
+  });
+});
