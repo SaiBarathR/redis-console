@@ -499,7 +499,9 @@ FalkorDB's verbose replies carry graph entity IDs, labels, properties, table row
 
 **Decision.** Explicit application rules and graph-specific ACL grants. RO_QUERY, EXPLAIN, LIST, MEMORY and
 `INFO ObjectPool` are reads. QUERY and PROFILE are operator writes and **always** require confirmation, including
-queries that appear read-only. GRAPH.DELETE is admin with typed database confirmation. Prod writes additionally
+queries that appear read-only. GRAPH.DELETE is admin with typed database confirmation; it is the admin tier for that
+one command, not a barrier to removing graph data, which operators can do with `DEL`, `RENAME` or a Cypher
+`DETACH DELETE` like any other key (review v0.4 r2 graph L3). Prod writes additionally
 require the database name and reason. CONFIG GET and SLOWLOG (without RESET) are admin reads; all other CONFIG forms are blocked.
 COPY and CONSTRAINT management are deferred. UDF, BULK, RESTORE and internal DEBUG/EFFECT/RECORD commands are blocked.
 Unknown GRAPH commands fail closed even if a later module reports permissive flags.

@@ -132,7 +132,8 @@ The end-to-end suite (`tests/e2e`, Playwright) runs against the real server with
 ### v0.4 FalkorDB graph boundary
 
 - GRAPH commands are explicitly classified; future commands fail closed. QUERY/PROFILE require an operator and
-  confirmation on every call; DELETE requires admin and typed confirmation. Read-only/maxRole/prod restrictions,
+  confirmation on every call; GRAPH.DELETE requires admin and typed confirmation (operators can still remove graph data
+  with DEL, RENAME or Cypher, confirmed like other deletes). Read-only/maxRole/prod restrictions,
   exact-request confirmation binding, measured transport and late actor checks apply normally.
 - Cypher LOAD (server file/URL loaders), unreviewed CALL procedures and namespaced/quoted function calls (including
   preloaded JS UDFs) are refused server-side for QUERY, RO_QUERY, EXPLAIN and PROFILE. UDF, binary BULK/RESTORE,

@@ -322,4 +322,8 @@ with the typed database name; prod writes also need a reason. Timeouts do not gu
 before retrying a write that failed. The console sends a timeout of at most one second and refuses LOAD CSV,
 user-defined code, unreviewed procedures, internal graph commands and configuration changes. Only the metadata
 procedures `CALL db.labels()`, `db.relationshipTypes()` and `db.propertyKeys()` are enabled. A conservative query
-guard can also refuse namespaced or quoted function calls and reserved words used as properties (D21).
+guard can also refuse valid queries: namespaced or quoted function calls (so vector and full-text search, such as
+`vec.euclideanDistance(…)` or `CALL db.idx.fulltext.queryNodes(…)`, are not available), `CALL { … }` subqueries,
+names such as `n.load`, `:Load` or `$load`, and characters outside ASCII between tokens (use quoted labels and strings
+for Unicode). FalkorDB checks the time limit between steps, so a single heavy expression can run longer; your next
+graph query waits until it has finished (D21).
