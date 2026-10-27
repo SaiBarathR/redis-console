@@ -262,7 +262,8 @@ describe.skipIf(!sandboxUp)('review v0.2 R2-M4: slow log and channel listings ar
     expect(added[0]!.detail).toMatch(/^entries=\d+ len=\d+$/);
     // No argument of any slow log entry reaches the audit log.
     const text = JSON.stringify(added) + t.auditLines.join('');
-    for (const e of res.json.entries) for (const a of e.argv as string[]) if (a.length > 3) expect(text).not.toContain(a);
+    // (Non-admins see other arguments as `<n bytes>`, the audit's own placeholder, since review v0.4 r2 graph M2.)
+    for (const e of res.json.entries) for (const [i, a] of (e.argv as string[]).entries()) if (i > 0 && a.length > 3 && !/^<\d+ bytes>$/.test(a)) expect(text).not.toContain(a);
   });
 
   it('POST /pubsub/channels records one pubsub.channels event with the pattern as a size only', async () => {
