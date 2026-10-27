@@ -416,6 +416,18 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       expect(res.json.error.message).toMatch(/at index 5 and ARINSERT would overwrite 1 existing element there/);
     });
 
+    it('array.insert past the last index is a 400 before anything is written (review v0.4 r2 L2)', async () => {
+      await ar('ARSET', k('edge'), '0', 'keep');
+      await ar('ARSEEK', k('edge'), ARRAY_MAX_INDEX);
+      const res = await operator.req('POST', OPS, { op: 'array.insert', key: utf8(k('edge')), values: [utf8('x'), utf8('y')], expect: { type: 'array' } });
+      expect(res.status, res.body).toBe(400);
+      expect(res.json.error.message).toMatch(/would pass the last index 18446744073709551614/);
+      expect(await ar('ARCOUNT', k('edge'))).toBe(1);
+      // One value still fits at the last index.
+      expect((await operator.req('POST', OPS, { op: 'array.insert', key: utf8(k('edge')), values: [utf8('z')], expect: { type: 'array' } })).status).toBe(200);
+      expect(String(await ar('ARGET', k('edge'), ARRAY_MAX_INDEX))).toBe('z');
+    });
+
     it('array.insert with expect none creates the key and never overwrites an existing one', async () => {
       let res = await operator.req('POST', OPS, { op: 'array.insert', key: utf8(k('new')), values: [utf8('first'), utf8('second')], expect: { type: 'none' } });
       expect(res.status, JSON.stringify(res.json)).toBe(200);

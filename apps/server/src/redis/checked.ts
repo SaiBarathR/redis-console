@@ -178,8 +178,11 @@ async function readElement(send: ExclusiveSend, plan: CheckedPlan, limit: number
       return done(await bounded(['ARGET', key, (probe as Extract<Probe, { kind: 'array' }>).index]));
     case 'arrayInsert': {
       const next = String(await send(['ARNEXT', key], { typeMapping: TM_INT_STR }));
-      const last = BigInt(next) + BigInt((probe as Extract<Probe, { kind: 'arrayInsert' }>).count) - 1n;
-      const used = Number(await send(['AROP', key, next, String(last > ARRAY_LAST ? ARRAY_LAST : last), 'USED'], { typeMapping: TM_INT_STR }));
+      const count = (probe as Extract<Probe, { kind: 'arrayInsert' }>).count;
+      const last = BigInt(next) + BigInt(count) - 1n;
+      // Redis refuses the whole ARINSERT ("insert index overflow"): a request error, not an upstream one (review v0.4 r2 L2).
+      if (last > ARRAY_LAST) throw new HttpError('validation', `The insert cursor is at index ${next}; ${count} values would pass the last index ${ARRAY_LAST}. Insert fewer values, or set them at chosen indices.`);
+      const used = Number(await send(['AROP', key, next, String(last), 'USED'], { typeMapping: TM_INT_STR }));
       return used > 0 ? { type, occupied: { next, used } } : { type };
     }
     default: {
