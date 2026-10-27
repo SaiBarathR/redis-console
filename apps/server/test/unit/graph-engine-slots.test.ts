@@ -92,5 +92,24 @@ describe('graph queries hold their slots until FalkorDB answers (review v0.4 r2 
     await sent(1);
     pending[0]!.answer([[], [], []]);
   });
+
+  it('a command whose signal is already aborted is not sent, graph queries included (review v0.4 r4 graph, Import retry)', async () => {
+    const slots = new Slots();
+    const { conn, pending } = engine();
+    const stop = new AbortController();
+    stop.abort();
+    for (const p of [query, prepared(['GET', 'k'])]) {
+      const err = await execute(ctx(slots), scope('u1', conn), p, stop.signal).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(HttpError);
+      expect((err as HttpError).message).toMatch(/before it was sent/);
+    }
+    await new Promise((r) => setTimeout(r, 5));
+    expect(pending).toHaveLength(0);
+    // No slot was taken.
+    const ok = execute(ctx(slots), scope('u1', conn), query);
+    await new Promise((r) => setTimeout(r, 5));
+    pending[0]!.answer([[], [], []]);
+    expect((await ok).reply).toBeDefined();
+  });
 });
 

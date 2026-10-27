@@ -85,10 +85,14 @@ export const MAX_BLOCKING_PER_USER = 1;
  * pool of one (review v0.4 r3 graph L2): one long query must not take every connection of a tier.
  */
 export const GRAPH_ENGINE_SLOTS_PER_DB = 2;
+export const CANCELLED_NOT_SENT = 'Cancelled before it was sent; it did not run.';
 const GRAPH_POOL_TOO_SMALL = 'Graph queries need a connection pool of at least 2 on this database (poolSize), so that a long-running query cannot hold every connection.';
 export const GRAPH_ENGINE_HOLD_MS = 15 * 60_000;
 
 export async function execute(ctx: AppContext, scope: DbScope, p: Prepared, signal?: AbortSignal): Promise<CliResponse> {
+  // Cancelled before it started (an Import's retry wait, for one): nothing is sent. A graph query does not carry the
+  // signal to its socket, so this is the only check it gets (review v0.4 r4 graph, Import retry).
+  if (signal?.aborted) throw new HttpError('unavailable', CANCELLED_NOT_SENT);
   if (GRAPH_QUERY_COMMANDS.has(p.c.command)) return executeGraph(ctx, scope, p);
   // Blocking commands hold a pooled connection for up to 5 s; without a cap one user could park every
   // connection of a (database, tier) pool and stall everyone else on it.

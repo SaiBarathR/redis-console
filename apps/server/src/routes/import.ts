@@ -40,7 +40,7 @@ import type { CommandTable } from '../policy/commandTable.ts';
 import { classify, confirmationFor, isMutating, type ConfirmSpec } from '../policy/policy.ts';
 import { buildPreview } from '../policy/preview.ts';
 import { toHttpError } from '../redis/exec.ts';
-import { STRONGER, auditBase, commandPreview, execute, prepare, type Prepared } from './cli.ts';
+import { CANCELLED_NOT_SENT, STRONGER, auditBase, commandPreview, execute, prepare, type Prepared } from './cli.ts';
 
 /** Planned imports expire unstarted after this long; finished ones stay readable this long. */
 export const IMPORT_PLAN_TTL_MS = 10 * 60_000;
@@ -401,6 +401,11 @@ export function registerImportRoutes(app: FastifyInstance, ctx: AppContext) {
       } else {
         const started = Date.now();
         for (let attempt = 0; ; attempt++) {
+          // Cancelled while waiting to retry: the line is not sent (a graph line would not see the signal itself).
+          if (signal.aborted) {
+            outcome = { ok: false, he: new HttpError('unavailable', CANCELLED_NOT_SENT), notSent: true };
+            break;
+          }
           try {
             const r = await execute(ctx, jobScope, c.p, signal);
             outcome = r.reply.t === 'err' ? { ok: true, err: r.reply.v } : { ok: true };
