@@ -762,8 +762,10 @@ function Shell() {
                   </div>
                 }
               />
+              {/* Any other path (such as /login after signing in) goes to the picker's own address. */}
+              <Route path="*" element={<Navigate to="/" replace />} />
               <Route
-                path="*"
+                path="/"
                 element={
                   <Landing
                     databases={databases.data}
