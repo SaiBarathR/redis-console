@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ROUTES, VSET_NUMBER, zKeyOp, zVsetAttributesRequest, zVsetMembersRequest } from './api.ts';
-import { lookupRule } from './commands.ts';
+import { ROUTES, VSET_FILTER_EF_MAX, VSET_FILTER_MAX_CHARS, VSET_NUMBER, VSET_SEARCH_EF_MAX, zKeyOp, zVsetAttributesRequest, zVsetMembersRequest } from './api.ts';
+import { argumentRule, lookupRule, VSIM_COUNT_MAX, VSIM_EF_MAX, VSIM_FILTER_EF_MAX, VSIM_FILTER_MAX_BYTES } from './commands.ts';
 
 const utf8 = (data: string) => ({ enc: 'utf8' as const, data });
 
@@ -32,5 +32,32 @@ describe('v0.4 vector sets: policy and contract', () => {
     expect(zKeyOp.safeParse({ op: 'vset.remove', key: utf8('k'), member: utf8('m') }).success).toBe(true);
     expect(zKeyOp.safeParse({ op: 'vset.remove', key: utf8('k'), members: [utf8('m')] }).success).toBe(false);
     expect(zKeyOp.safeParse({ op: 'vset.add', key: utf8('k'), member: utf8('m'), values: ['1'], quantization: 'Q4', expect: { type: 'none' } }).success).toBe(false);
+  });
+
+  it('the console bounds VSIM as the inspector does: no TRUTH or NOTHREAD, bounded COUNT, EF and FILTER-EF (review v0.4 r1 M2)', () => {
+    expect([VSIM_EF_MAX, VSIM_FILTER_EF_MAX, VSIM_FILTER_MAX_BYTES]).toEqual([VSET_SEARCH_EF_MAX, VSET_FILTER_EF_MAX, VSET_FILTER_MAX_CHARS]);
+    const blocked = (argv: string[]) => argumentRule(argv)?.class;
+    // Allowed: the shapes the inspector sends, and the defaults.
+    expect(argumentRule(['VSIM', 'k', 'ELE', 'm', 'COUNT', '10', 'WITHSCORES'])).toBeUndefined();
+    expect(argumentRule(['vsim', 'k', 'values', '3', '1', '0', '0', 'count', String(VSIM_COUNT_MAX), 'ef', String(VSIM_EF_MAX), 'withattribs'])).toBeUndefined();
+    expect(argumentRule(['VSIM', 'k', 'ELE', 'm', 'FILTER', '.year > 2000', 'FILTER-EF', String(VSIM_FILTER_EF_MAX), 'EPSILON', '0.2'])).toBeUndefined();
+    expect(argumentRule(['VSIM', 'k', 'ELE', 'm'])).toBeUndefined();
+    // TRUTH is a brute-force scan of every vector and NOTHREAD runs it on the main thread: refused in any case.
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'COUNT', '2', 'TRUTH', 'NOTHREAD'])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'truth'])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'VALUES', '2', '1', '0', 'NoThread'])).toBe('blocked');
+    // Bounds on the numbers; FILTER-EF 0 means "no limit" to Redis.
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'COUNT', String(VSIM_COUNT_MAX + 1)])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'EF', String(VSIM_EF_MAX + 1)])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'FILTER', '.a', 'FILTER-EF', '0'])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'FILTER', '.a', 'FILTER-EF', String(VSIM_FILTER_EF_MAX + 1)])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'FILTER', 'x'.repeat(VSIM_FILTER_MAX_BYTES + 1)])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'COUNT', '1e9'])).toBe('blocked');
+    // Names and values are operands, not options: a member called TRUTH, a filter text "NOTHREAD".
+    expect(argumentRule(['VSIM', 'TRUTH', 'ELE', 'NOTHREAD', 'FILTER', 'NOTHREAD'])).toBeUndefined();
+    // An argv Redis would not parse is refused rather than guessed at (an option could hide in it).
+    expect(blocked(['VSIM', 'k', 'VALUES', 'x', 'NOTHREAD'])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'VALUES', '3', '1', '0'])).toBe('blocked');
+    expect(blocked(['VSIM', 'k', 'ELE', 'm', 'BOGUS'])).toBe('blocked');
   });
 });

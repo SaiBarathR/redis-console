@@ -15,6 +15,10 @@ Changes to `packages/shared` made after the initial scaffold. Newest first. All 
 - `argumentRule` blocks `ARGREP` when a predicate value is over `ARGREP_VALUE_MAX_BYTES` (1 KiB) or a `MATCH` value
   is over `ARGREP_NOCASE_MATCH_MAX_BYTES` (64) with `NOCASE` anywhere among the options (additive; new
   `argrepParts`). Audit: the refused command as `blocked`, as for `RE`.
+- `argumentRule` blocks `VSIM` with `TRUTH` or `NOTHREAD`, `COUNT`/`EF` outside 1–1,000, `FILTER-EF` outside
+  1–100,000, a `FILTER` over 1 KiB, or an argv the vector-set module would not parse (review v0.4 r1 M2). New
+  constants `VSIM_COUNT_MAX`, `VSIM_EF_MAX`, `VSIM_FILTER_EF_MAX`, `VSIM_FILTER_MAX_BYTES` and helper `vsimRefusal`
+  (additive; **breaking** for console users who ran those forms). Audit: `denied`, command `VSIM`.
 
 ## 2026-10-26 — v0.4 S2 vector sets (feat/v04-vectorset)
 

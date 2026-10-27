@@ -259,6 +259,51 @@ export function argumentRule(argv: readonly string[]): CommandRule | undefined {
     if (parts.predicates.some((p) => utf8Length(p.value) > ARGREP_VALUE_MAX_BYTES)) return B(ARGREP_VALUE_HINT);
     if (parts.nocase && parts.predicates.some((p) => p.kind === 'MATCH' && utf8Length(p.value) > ARGREP_NOCASE_MATCH_MAX_BYTES)) return B(ARGREP_NOCASE_HINT);
   }
+  // v0.4 vector sets (review v0.4 r1 M2)
+  if (name === 'VSIM') {
+    const refused = vsimRefusal(argv);
+    if (refused) return B(`${refused} Use the vector-set inspector's similarity search, which applies the same bounds.`);
+  }
+  return undefined;
+}
+
+/**
+ * v0.4 vector sets (review v0.4 r1 M2): console VSIM bounds, the same as the inspector's (`VSET_SEARCH_EF_MAX`,
+ * `VSET_FILTER_EF_MAX`, `VSET_FILTER_MAX_CHARS`). The HNSW search explores at least COUNT and EF candidates; FILTER-EF 0
+ * removes the filter's candidate limit; TRUTH scans every vector (members × dimensions) and NOTHREAD runs the search on
+ * Redis's main thread.
+ */
+export const VSIM_COUNT_MAX = 1000;
+export const VSIM_EF_MAX = 1000;
+export const VSIM_FILTER_EF_MAX = 100_000;
+export const VSIM_FILTER_MAX_BYTES = 1024;
+
+const VSIM_LIMITS: Record<string, [min: number, max: number]> = { COUNT: [1, VSIM_COUNT_MAX], EF: [1, VSIM_EF_MAX], 'FILTER-EF': [1, VSIM_FILTER_EF_MAX] };
+
+/**
+ * Why a `VSIM key (ELE member | FP32 blob | VALUES n v…) [option]…` argv is refused, or undefined. Read the way the
+ * vector-set module reads it: the key and the query operands are skipped, COUNT, EF, FILTER-EF, EPSILON and FILTER take
+ * the next argument. An argv that does not parse is refused rather than guessed at, since Redis would reject it anyway.
+ */
+export function vsimRefusal(argv: readonly string[]): string | undefined {
+  const unparsable = 'This VSIM could not be read: the query is ELE <member>, FP32 <blob> or VALUES <n> followed by n numbers, then options.';
+  const mode = (argv[2] ?? '').toUpperCase();
+  let i: number;
+  if (mode === 'ELE' || mode === 'FP32') i = 4;
+  else if (mode === 'VALUES' && /^\d{1,5}$/.test(argv[3] ?? '')) i = 4 + Number(argv[3]);
+  else return unparsable;
+  if (i > argv.length) return unparsable;
+  for (; i < argv.length; i++) {
+    const option = argv[i]!.toUpperCase();
+    if (option === 'WITHSCORES' || option === 'WITHATTRIBS') continue;
+    if (option === 'TRUTH' || option === 'NOTHREAD') return `VSIM ${option} is not available here: TRUTH scans every vector of the set and NOTHREAD runs the search on Redis's main thread.`;
+    const value = argv[i + 1];
+    if (value === undefined || !['COUNT', 'EF', 'FILTER-EF', 'EPSILON', 'FILTER'].includes(option)) return unparsable;
+    i++;
+    const limit = VSIM_LIMITS[option];
+    if (limit && !(/^\d{1,7}$/.test(value) && Number(value) >= limit[0] && Number(value) <= limit[1])) return `VSIM ${option} must be a whole number from ${limit[0]} to ${limit[1]} here.`;
+    if (option === 'FILTER' && utf8Length(value) > VSIM_FILTER_MAX_BYTES) return `VSIM FILTER expressions are limited to ${VSIM_FILTER_MAX_BYTES} bytes here.`;
+  }
   return undefined;
 }
 

@@ -316,6 +316,25 @@ describe.skipIf(!aclReady)('vector-set inspector (v0.4 F23)', () => {
     expect(res.json.reply).toEqual({ t: 'bool', v: true });
   });
 
+  it('console: VSIM runs within the inspector bounds; TRUTH, NOTHREAD and unbounded COUNT/EF/FILTER-EF are blocked for every role (review v0.4 r1 M2)', async () => {
+    const ok = await cli(viewer, 'e2e', `VSIM ${k('v3')} ELE m001 COUNT 5 WITHSCORES FILTER .i FILTER-EF 1000`);
+    expect(ok.status, ok.body).toBe(200);
+    for (const line of [
+      `VSIM ${k('v3')} ELE m001 COUNT 2 TRUTH NOTHREAD`,
+      `vsim ${k('v3')} ELE m001 truth`,
+      `VSIM ${k('v3')} VALUES 2 1 0 NOTHREAD`,
+      `VSIM ${k('v3')} ELE m001 COUNT 30000`,
+      `VSIM ${k('v3')} ELE m001 FILTER .i FILTER-EF 0`,
+    ]) {
+      for (const c of [viewer, admin]) {
+        const res = await cli(c, 'e2e', line);
+        expect(res.status, line).toBe(403);
+        expect(res.json.error.code).toBe('command_blocked');
+        expect(res.json.error.hint).toContain('similarity search');
+      }
+    }
+  });
+
   it('a binary member round-trips through element, setattr and remove', async () => {
     const m = Buffer.from([0xff, 0x00, 0x41]);
     let res = await post(viewer, 'vectorset/element', { key: utf8(k('v3')), member: bk(m) });
