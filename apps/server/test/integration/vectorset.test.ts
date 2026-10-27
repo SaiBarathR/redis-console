@@ -332,6 +332,10 @@ describe.skipIf(!aclReady)('vector-set inspector (v0.4 F23)', () => {
   it('console: VSIM runs within the inspector bounds; TRUTH, NOTHREAD and unbounded COUNT/EF/FILTER-EF are blocked for every role (review v0.4 r1 M2)', async () => {
     const ok = await cli(viewer, 'e2e', `VSIM ${k('v3')} ELE m001 COUNT 5 WITHSCORES FILTER .i FILTER-EF 1000`);
     expect(ok.status, ok.body).toBe(200);
+    // The command catalog classifies the bare name: VSIM stays available there (found in the r1 live QA).
+    const catalog = await viewer.req('GET', '/api/v1/databases/e2e/commands');
+    const vsim = (catalog.json.commands ?? catalog.json).find((d: { name: string }) => d.name === 'VSIM');
+    expect(vsim, catalog.body.slice(0, 200)).toMatchObject({ class: 'read', allowed: true });
     for (const line of [
       `VSIM ${k('v3')} ELE m001 COUNT 2 TRUTH NOTHREAD`,
       `vsim ${k('v3')} ELE m001 truth`,

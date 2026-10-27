@@ -59,6 +59,9 @@ describe('v0.4 vector sets: policy and contract', () => {
     expect(blocked(['VSIM', 'k', 'ELE', 'm', 'COUNT', '1e9'])).toBe('blocked');
     // Names and values are operands, not options: a member called TRUTH, a filter text "NOTHREAD".
     expect(argumentRule(['VSIM', 'TRUTH', 'ELE', 'NOTHREAD', 'FILTER', 'NOTHREAD'])).toBeUndefined();
+    // Fewer arguments than VSIM's arity (4) never run, so they are left to Redis; the bare name is not blocked.
+    expect(argumentRule(['VSIM'])).toBeUndefined();
+    expect(argumentRule(['VSIM', 'k', 'ELE'])).toBeUndefined();
     // An argv Redis would not parse is refused rather than guessed at (an option could hide in it).
     expect(blocked(['VSIM', 'k', 'VALUES', 'x', 'NOTHREAD'])).toBe('blocked');
     expect(blocked(['VSIM', 'k', 'VALUES', '3', '1', '0'])).toBe('blocked');

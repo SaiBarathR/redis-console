@@ -286,6 +286,9 @@ const VSIM_LIMITS: Record<string, [min: number, max: number]> = { COUNT: [1, VSI
  * the next argument. An argv that does not parse is refused rather than guessed at, since Redis would reject it anyway.
  */
 export function vsimRefusal(argv: readonly string[]): string | undefined {
+  // Below VSIM's arity (key and a query of at least two words) Redis refuses the command before running it; the
+  // console's command catalog classifies the bare name, which must not read as blocked.
+  if (argv.length < 4) return undefined;
   const unparsable = 'This VSIM could not be read: the query is ELE <member>, FP32 <blob> or VALUES <n> followed by n numbers, then options.';
   const mode = (argv[2] ?? '').toUpperCase();
   let i: number;
