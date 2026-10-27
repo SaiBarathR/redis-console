@@ -528,7 +528,9 @@ outside strings is ASCII only (browser and server read the same), and an integra
 tokenisation probes through EXPLAIN and requires a refusal wherever the engine reads code. `IMPORT_FOLDER` points at a
 missing directory. The timeout is cooperative (checked between steps): one `reduce` over a long `range` ran 13–16 s and
 kept running after the socket closed. The console cannot cancel it, so it holds a graph query's slots (one per user,
-two per database) until the engine answers, at most 15 minutes. A single query's CPU and memory remain the
+two per database entry, at most `poolSize - 1`) until the engine answers, at most 15 minutes, for the console, the
+Workbench and Import alike; it does not count other entries for the same engine, other console instances or other
+clients (r3 graph L1, L2, M1). A single query's CPU and memory remain the
 deployment's to bound (a container memory limit; `QUERY_MEM_CAPACITY` does not count list building in 6.0.3), and
 viewer RO_QUERY can be withheld per tier where viewers are not trusted with engine time.
 

@@ -326,5 +326,6 @@ procedures `CALL db.labels()`, `db.relationshipTypes()` and `db.propertyKeys()` 
 guard can also refuse valid queries: namespaced or quoted function calls (so vector and full-text search, such as
 `vec.euclideanDistance(…)` or `CALL db.idx.fulltext.queryNodes(…)`, are not available), `CALL { … }` subqueries,
 names such as `n.load`, `:Load` or `$load`, and characters outside ASCII between tokens (use quoted labels and strings
-for Unicode). FalkorDB checks the time limit between steps, so a single heavy expression can run longer; your next
-graph query waits until it has finished (D21).
+for Unicode). FalkorDB checks the time limit between steps, so a single heavy expression can run longer; until it
+has finished, your next graph query on that database is refused ("still running in FalkorDB"), and at most two console
+graph queries run there at a time (D21).

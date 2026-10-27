@@ -143,8 +143,8 @@ The end-to-end suite (`tests/e2e`, Playwright) runs against the real server with
 - The app adds TIMEOUT <=1000 ms and the sandbox sets TIMEOUT_DEFAULT/MAX 1000, RESULTSET_SIZE 10000 and
   MAX_QUEUED_QUERIES 25, but FalkorDB checks the timeout **between steps**: one expression (a `reduce` over a long
   `range`) ran 13–16 s, and closing the socket does not stop it (review v0.4 r2 graph H2). The console therefore holds a
-  graph query's slots until the engine answers (one per user, two per database, at most 15 minutes), so it never has
-  more than two runaway queries in one engine. One query's CPU and memory are bounded only by the deployment:
+  graph query's slots until the engine answers: the console starts at most one graph query per user and two per database entry at a time (fewer on a small connection pool), counted until the engine answers or for at most 15 minutes; it does not count other database entries for the same engine, other console instances or other clients (review v0.4 r3 graph L1). One query's CPU and memory
+  are bounded only by the deployment:
   `QUERY_MEM_CAPACITY` does not count list building in 6.0.3 (a 40,000,000-element `range` passed a 256 MiB cap), so
   give the graph server a container memory limit, and where viewers are not trusted with engine time, withhold
   `+graph.ro_query` from the viewer ACL or cap the database with `maxRole`. A timeout is not a rollback guarantee. Raw

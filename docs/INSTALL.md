@@ -219,7 +219,9 @@ DEFAULT/MAX. On deployed graph servers:
 - FalkorDB checks the timeout between steps, so one expression can run far longer, and `QUERY_MEM_CAPACITY` does not
   count every allocation (list building passed it in 6.0.3). Run the server with a memory limit of its own (container or
   cgroup) so a runaway query cannot take other services down. The console holds a graph query's slots until the engine
-  answers (two per database), so it never piles up more than that.
+  answers: the console starts at most one graph query per user and two per database entry at a time (fewer on a small connection pool), counted until the engine answers or for at most 15 minutes; it does not count other database entries for the same engine, other console instances or other clients. A held query keeps one pooled connection and one server-wide command slot
+  (`maxInflightCommands`), so give graph databases `poolSize` 3 or more; with `poolSize` 1 the console refuses graph
+  queries.
 - If viewers should not spend engine time, leave `+graph.ro_query` out of the viewer grants (they keep EXPLAIN, LIST,
   INFO ObjectPool and MEMORY USAGE) or cap the database with `maxRole`.
 
