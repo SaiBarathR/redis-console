@@ -116,6 +116,26 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       }
     });
 
+    it('values at the read cap boundary are reached and decided: the search never returns its own start (review v0.4 r3 M1)', async () => {
+      const half = ARRAY_SEARCH_MAX_BYTES / 2;
+      for (const size of [half - 1, half - 64, half + 1]) {
+        const key = k(`edge-${size}`);
+        await ar('ARSET', key, '0', Buffer.alloc(size, 0x61), 'b');
+        let start: string | undefined = '0';
+        const seen: string[] = [];
+        for (let i = 0; i < 4 && start !== undefined; i++) {
+          const res = await viewer.req('POST', `${DB}/array/search`, { key: utf8(key), start, end: '1', predicates: [{ kind: 'match', value: utf8('b') }], values: false });
+          expect(res.status, `${size}: ${res.body.slice(0, 200)}`).toBe(200);
+          expect(res.json.next, `size ${size}: the cursor moves`).not.toBe(start);
+          seen.push(...res.json.items.map((x: { index: string }) => x.index));
+          start = res.json.next;
+        }
+        expect(seen, `size ${size}`).toEqual(['1']);
+        expect(start).toBeUndefined();
+        await ar('DEL', key);
+      }
+    });
+
     it('an element over half the budget is skipped by index; the search continues after it', async () => {
       await ar('ARSET', k('huge'), '0', 'small-a');
       await ar('ARSET', k('huge'), '5', Buffer.alloc(ARRAY_SEARCH_MAX_BYTES / 2 + 1024, 0x61));

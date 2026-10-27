@@ -222,11 +222,12 @@ const tooLarge = (e: unknown) => e instanceof HttpError && e.code === 'too_large
  * that many bytes and visit at most `maxElements` elements, whatever the predicates, the element sizes or how they are
  * spread; ARGREP is not used, since nothing bounds its work in Redis.
  *
- * Each read is capped at `readCap` (at most half the budget), so a batch whose reply is too large costs at most half.
- * Batches start small and follow the sizes seen; after one overflows, the elements it held are read one at a time. An
- * element larger than `readCap` is located by AROP USED bisection (no value read) and reported in `skipped`; the next
- * request continues after it. When the budget runs out the next request continues where this one stopped, and reaches
- * a large element with a whole read cap (its first batch costs at most half the budget), so every request progresses.
+ * Each read is capped at `readCap` (at most half the budget). Every request reads its first element alone, with a
+ * whole read cap and a fresh budget, so it always tests or skips at least one element: a value whose reply is larger
+ * than `readCap` (the value and a few bytes of framing) is located by AROP USED bisection (no value read) and reported
+ * in `skipped` (review v0.4 r3 M1). Then batches follow the sizes seen; after one overflows, the elements it held are
+ * read one at a time, and when what is left of the budget no longer holds a whole read cap, the request stops and the
+ * next one continues there.
  */
 export async function searchArray(
   scope: DbScope,
@@ -255,7 +256,8 @@ export async function searchArray(
   let cursor = q.start;
   let examined = 0;
   let wire = 0;
-  let batch = 16;
+  // The first element alone (see above); later batches follow the sizes seen.
+  let batch = 1;
   // After a batch overflowed, the next elements it held are read one at a time, so the large one is reached alone.
   let careful = 0;
   for (;;) {
@@ -272,8 +274,9 @@ export async function searchArray(
     } catch (e) {
       if (!tooLarge(e)) throw e;
       if (n > 1) { careful = n; continue; }
-      // One element did not fit in what is left of the budget: the next request, with a whole budget, reads it.
-      if (cap < readCap) return out(stepIndex(cursor, !down) ?? cursor, examined, cursor);
+      // One element did not fit in what is left of the budget: the next request reads it first, with a whole budget.
+      // (Only after other elements: the first read of a request has a whole read cap.)
+      if (cap < readCap && examined > 0) return out(stepIndex(cursor, !down) ?? cursor, examined, cursor);
       // It is larger than one read may be: skip it.
       const at = await firstElement(scope, conn, key, cursor, q.end, timeout);
       const next = at === q.end ? undefined : stepIndex(at, down);

@@ -19,13 +19,17 @@ function fakeArray(content: bigint[] | Map<bigint, Buffer>) {
     const [lo, hi] = BigInt(a) <= BigInt(b) ? [BigInt(a), BigInt(b)] : [BigInt(b), BigInt(a)];
     return sorted.filter((i) => i >= lo && i <= hi);
   };
-  /** The measured transport: a reply over min(cap, budget) fails; a per-read overflow keeps the budget it charged. */
+  /**
+   * The measured transport: a reply over min(cap, budget) fails. As on a real socket, the bytes charged on overflow run
+   * past the limit (up to the chunk that crossed it); a per-read overflow keeps the rest of the budget (review v0.4 r3 M1).
+   */
   const measured = <T>(size: number, o: SendOpts, reply: T): T => {
     const b = o.replyBudget;
     const cap = o.maxBytes ?? Infinity;
     const limit = Math.min(cap, b?.remaining ?? Infinity);
     if (size > limit) {
-      if (b) b.remaining = limit === cap && b.remaining > cap ? b.remaining - limit : 0;
+      const charged = Math.min(size, limit + 65_536);
+      if (b) b.remaining = limit === cap && b.remaining > cap ? b.remaining - charged : 0;
       throw new HttpError('too_large', 'Redis reply exceeded the read limit.');
     }
     if (b) b.remaining -= size;
@@ -81,7 +85,8 @@ describe('array search window (ARRAY_SCAN_MAX_ELEMENTS)', () => {
     expect(r.items.map((i) => i.index)).toEqual(['0', '1', '2', '3']);
     expect(r).toMatchObject({ start: '0', searchedTo: '3', elements: 4, next: '4' });
     expect(sent.some((c) => c[0] === 'ARGREP')).toBe(false);
-    expect(sent.find((c) => c[0] === 'ARSCAN')).toEqual(['ARSCAN', 'arr', '0', ARRAY_MAX_INDEX, 'LIMIT', '4']);
+    // The first element is read alone (review v0.4 r3 M1), then batches.
+    expect(sent.filter((c) => c[0] === 'ARSCAN').slice(0, 2)).toEqual([['ARSCAN', 'arr', '0', ARRAY_MAX_INDEX, 'LIMIT', '1'], ['ARSCAN', 'arr', '1', ARRAY_MAX_INDEX, 'LIMIT', '3']]);
     r = await searchArray(scope, conn, key, search({ start: r.next, limit: 100 }), preview, 1000, { maxElements: 4 });
     expect(r.items.map((i) => i.index)).toEqual(['10', '1000', String(2n ** 53n + 1n), String(2n ** 63n)]);
     // LIMIT reached: continue after the last match.
@@ -171,6 +176,31 @@ describe('array search byte bound (review v0.4 r2 H2)', () => {
     r = await searchArray(scope, conn, key, search({ start: '7', end: '7' }), preview, 1000, { maxBytes: MiB });
     expect(r).toMatchObject({ elements: 0, searchedTo: '7', skipped: ['7'] });
     expect(r.next).toBeUndefined();
+  });
+
+  it('a value just under the read cap is reached and decided, and the search always moves on (review v0.4 r3 M1)', async () => {
+    const readCap = MiB / 2;
+    for (const size of [readCap - 1, readCap - 40, readCap, readCap + 1, 1]) {
+      const values = new Map<bigint, Buffer>([[0n, Buffer.alloc(size, 0x61)], [1n, Buffer.from('b')]]);
+      const { conn, scope } = fakeArray(values);
+      let start: string | undefined = '0';
+      const seen: string[] = [];
+      const skipped: string[] = [];
+      const cursors: string[] = [];
+      for (let i = 0; i < 4 && start !== undefined; i++) {
+        const r = await searchArray(scope, conn, key, search({ start, end: '1', predicates: [{ kind: 'match', value: binFromString('b') }] }), preview, 1000, { maxBytes: MiB });
+        expect(cursors, `size ${size}: no request may return its own start`).not.toContain(r.next);
+        cursors.push(start);
+        seen.push(...r.items.map((x) => x.index));
+        skipped.push(...(r.skipped ?? []));
+        start = r.next;
+      }
+      expect(seen, `size ${size}`).toEqual(['1']);
+      expect(start, `size ${size}`).toBeUndefined();
+      // A value whose reply fits one read is tested, a larger one skipped by index.
+      if (size <= readCap - 40) expect(skipped, `size ${size}`).toEqual([]);
+      if (size > readCap) expect(skipped, `size ${size}`).toEqual(['0']);
+    }
   });
 
   it('when the budget runs out, an element that fits a whole budget is read by the next request, not skipped', async () => {
