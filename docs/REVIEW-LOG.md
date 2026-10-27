@@ -1273,3 +1273,7 @@ and M2 (cut slow-log entries) fixed; H1 (matching allowance) partial, with this 
   covers matches across piece boundaries, NOCASE, EXACT, AND/OR and GLOB.
 - A second run of this round, started after the limit, was stopped once the first completed (its probes, data and keys
   removed); the fixes made after `acbffbe` get their verification in the next round.
+- Flake recorded: one full server run on this branch failed `integration/trust-proxy.test.ts` › "the count must match
+  the chain…" with a 502 from the test's own in-process proxy (its upstream connection failed before reaching the app).
+  It did not recur in six runs alone or alongside the array suite, and the code it tests did not change. The proxy now
+  reports the connection error in the 502 body and the assertion prints it (`9ecef3b`).
