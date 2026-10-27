@@ -345,10 +345,35 @@ const coord = (r: Reply | undefined): { lon: number; lat: number } | undefined =
   const lat = geoNumber(r.v[1]);
   return lon !== undefined && lat !== undefined && Math.abs(lon) <= 180 && Math.abs(lat) <= 90 ? { lon, lat } : undefined;
 };
-const word = (argv: readonly string[], token: string) => argv.findIndex((a, i) => i > 1 && a.toUpperCase() === token);
+/** Where each option's operands start after the positional arguments (key, centre, radius, unit). */
+const GEO_FIRST_OPTION: Record<string, number> = { GEOSEARCH: 2, GEORADIUS: 6, GEORADIUS_RO: 6, GEORADIUSBYMEMBER: 5, GEORADIUSBYMEMBER_RO: 5 };
+/** How many operands each option takes. */
+const GEO_OPTION_ARITY: Record<string, number> = {
+  FROMMEMBER: 1, FROMLONLAT: 2, BYRADIUS: 2, BYBOX: 3, COUNT: 1, STORE: 1, STOREDIST: 1,
+  ANY: 0, ASC: 0, DESC: 0, WITHCOORD: 0, WITHDIST: 0, WITHHASH: 0,
+};
+
+/**
+ * The options of a GEOSEARCH / GEORADIUS* argv and where each was written, read the way Redis reads them: after the
+ * positional arguments, each option takes its operands, so a key, member or value that reads like a flag is an
+ * operand (review v0.4 r1 L2). Undefined when the argv does not parse (Redis would refuse it).
+ */
+function geoOptions(name: string, argv: readonly string[]): Map<string, number> | undefined {
+  const first = GEO_FIRST_OPTION[name];
+  if (first === undefined || argv.length < first) return undefined;
+  const at = new Map<string, number>();
+  for (let i = first; i < argv.length; i++) {
+    const option = argv[i]!.toUpperCase();
+    const arity = GEO_OPTION_ARITY[option];
+    if (arity === undefined || i + arity >= argv.length) return undefined;
+    at.set(option, i);
+    i += arity;
+  }
+  return at;
+}
 
 /** The search area a GEOSEARCH / GEORADIUS command names, in metres (undefined parts when it does not say). */
-function geoArea(name: string, argv: readonly string[]): Pick<GeoView, "center" | "radiusM" | "boxM" | "unit"> {
+function geoArea(name: string, argv: readonly string[], options: Map<string, number>): Pick<GeoView, "center" | "radiusM" | "boxM" | "unit"> {
   const out: Pick<GeoView, "center" | "radiusM" | "boxM" | "unit"> = {};
   const lonlat = (i: number) => {
     const lon = Number(argv[i]);
@@ -356,14 +381,14 @@ function geoArea(name: string, argv: readonly string[]): Pick<GeoView, "center" 
     if (Number.isFinite(lon) && Number.isFinite(lat) && Math.abs(lon) <= 180 && Math.abs(lat) <= 90) out.center = { lon, lat };
   };
   if (name === "GEOSEARCH") {
-    const from = word(argv, "FROMLONLAT");
-    if (from > 0) lonlat(from + 1);
-    const radius = word(argv, "BYRADIUS");
-    const box = word(argv, "BYBOX");
-    if (radius > 0) {
+    const from = options.get("FROMLONLAT");
+    if (from !== undefined) lonlat(from + 1);
+    const radius = options.get("BYRADIUS");
+    const box = options.get("BYBOX");
+    if (radius !== undefined) {
       const unit = (argv[radius + 2] ?? "").toUpperCase();
       if (UNIT_M[unit]) (out.radiusM = Number(argv[radius + 1]) * UNIT_M[unit]!), (out.unit = unit.toLowerCase());
-    } else if (box > 0) {
+    } else if (box !== undefined) {
       const unit = (argv[box + 3] ?? "").toUpperCase();
       if (UNIT_M[unit]) {
         out.boxM = { width: Number(argv[box + 1]) * UNIT_M[unit]!, height: Number(argv[box + 2]) * UNIT_M[unit]! };
@@ -400,10 +425,11 @@ export function geoView(argv: readonly string[], reply: Reply): GeoView | undefi
     return points.length ? { points, omitted, missing } : undefined;
   }
   if (!GEO_SEARCH.has(name)) return undefined;
+  const options = geoOptions(name, argv);
   // STORE / STOREDIST write the result to a key and reply with a count.
-  if (word(argv, "STORE") > 0 || word(argv, "STOREDIST") > 0 || word(argv, "WITHCOORD") < 0) return undefined;
-  const withDist = word(argv, "WITHDIST") > 0;
-  const withHash = word(argv, "WITHHASH") > 0;
+  if (!options || options.has("STORE") || options.has("STOREDIST") || !options.has("WITHCOORD")) return undefined;
+  const withDist = options.has("WITHDIST");
+  const withHash = options.has("WITHHASH");
   // Each item is [member, dist?, hash?, [lon, lat]] in this order whatever order the flags were typed in.
   const points: GeoPoint[] = [];
   for (const item of reply.v) {
@@ -422,7 +448,7 @@ export function geoView(argv: readonly string[], reply: Reply): GeoView | undefi
     });
   }
   if (!points.length) return undefined;
-  return { points, omitted: reply.v.length - points.length + (reply.more ?? 0), missing: [], ...geoArea(name, argv) };
+  return { points, omitted: reply.v.length - points.length + (reply.more ?? 0), missing: [], ...geoArea(name, argv, options) };
 }
 
 /** Which rich view a reply of this command has (undefined: the generic view only). */

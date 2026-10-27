@@ -52,6 +52,21 @@ describe("geo results (v0.4 F11)", () => {
     expect(richKind(["GEOSEARCH", "k", "FROMMEMBER", "a", "BYRADIUS", "1", "km", "WITHCOORD"], arr(arr(s("a"), pos("x", "1"))))).toBeUndefined();
   });
 
+  it("reads flags by position, so keys, members and values named like flags are operands (review v0.4 r1 L2)", () => {
+    // A member named WITHDIST, without the WITHDIST flag: items are [member, [lon, lat]].
+    const named = geoView(["GEOSEARCH", "k", "FROMMEMBER", "WITHDIST", "BYRADIUS", "20000", "km", "WITHCOORD"], arr(arr(s("WITHDIST"), pos("2.35", "48.85"))))!;
+    expect(named.points.map((p) => [p.lon, p.lat, p.dist])).toEqual([[2.35, 48.85, undefined]]);
+    expect(named.radiusM).toBe(20_000_000);
+    // A key named STORE and a member named WITHHASH are not options either.
+    expect(richKind(["GEORADIUSBYMEMBER", "STORE", "WITHHASH", "5", "km", "WITHCOORD"], arr(arr(s("WITHHASH"), pos("1", "2"))))).toBe("geo");
+    expect(geoView(["GEORADIUS", "WITHCOORD", "1", "2", "5", "km"], arr(arr(s("a"), pos("1", "2"))))).toBeUndefined();
+    // Flags with a member that reads like one: the flag counts once, at its position.
+    const both = geoView(["GEOSEARCH", "k", "FROMMEMBER", "WITHHASH", "BYBOX", "1", "1", "km", "WITHDIST", "WITHCOORD", "COUNT", "5", "ANY", "ASC"], arr(arr(s("WITHHASH"), s("0.0"), pos("3", "4"))))!;
+    expect(both.points.map((p) => [p.lon, p.lat, p.dist, p.hash])).toEqual([[3, 4, "0.0", undefined]]);
+    // An argv Redis would not accept gets no map rather than a guess.
+    expect(richKind(["GEOSEARCH", "k", "FROMMEMBER", "a", "BYRADIUS", "1", "km", "WITHCOORD", "BOGUS"], arr(arr(s("a"), pos("1", "2"))))).toBeUndefined();
+  });
+
   it("fits the points with padding, keeps a landscape frame and stays inside the world", () => {
     const one = fitBox({ points: [{ label: "p", lon: 10, lat: 50 }] });
     expect(one.w).toBeGreaterThanOrEqual(20);
