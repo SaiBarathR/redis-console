@@ -4,7 +4,9 @@ import { Pencil, Trash2 } from "lucide-react";
 import {
   ARRAY_AGGREGATES,
   ARRAY_MAX_INDEX,
+  ARRAY_NOCASE_MATCH_MAX_BYTES,
   ARRAY_PAGE_MAX,
+  ARRAY_PREDICATE_MAX_BYTES,
   ARRAY_PREDICATES_MAX,
   ARRAY_SCAN_MAX_ELEMENTS,
   ARRAY_SEARCH_KINDS,
@@ -368,8 +370,10 @@ function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastI
           <label>Up to <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} aria-label="Search result limit">{PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}</select> matches</label>
         </div>
         <p className="muted">
-          A search visits at most {count(ARRAY_SCAN_MAX_ELEMENTS)} elements per request and then offers to continue. Regular expressions (RE) are not
-          available: Redis runs them without a time limit, and one pattern can block the server.
+          A search visits at most {count(ARRAY_SCAN_MAX_ELEMENTS)} elements per request, fewer for large values or with Ignore case, and then
+          offers to continue. Values are at most {count(ARRAY_PREDICATE_MAX_BYTES)} bytes; with Ignore case, "contains" values at most{" "}
+          {ARRAY_NOCASE_MATCH_MAX_BYTES} bytes. Regular expressions (RE) are not available: Redis runs them without a time limit, and one pattern
+          can block the server.
         </p>
       </ActionForm>
       {found && (
