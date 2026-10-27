@@ -131,7 +131,7 @@ describe("Console before the command catalog has loaded (v0.3 follow-up 7)", () 
     mount("SET k v", database({ effectiveRole: "viewer" }));
     await userEvent.click(screen.getByTestId("console-run"));
     await server.release();
-    await waitFor(() => expect(screen.getByTestId("console-announcement")).toHaveTextContent("Not run. This command is unavailable for your role or database."));
+    await waitFor(() => expect(screen.getByTestId("console-announcement")).toHaveTextContent("Not run. SET requires the operator role on this database (you have viewer)."));
     expect(server.cli).toEqual([]);
   });
 });

@@ -127,3 +127,13 @@ describe("a shared rule for the typed command decides, not the catalog's verdict
     expect(commandPolicy("MODULE.CMD x", other, admin)).toMatchObject({ allowed: false, hint: "Refused by the server for this database." });
   });
 });
+
+describe("refusals by the shared rule say why, as the server does", () => {
+  it("names the role a command needs and the role you have (e2e regression after the catalog verdict fix)", () => {
+    const viewer: DatabaseSummary = { ...database, effectiveRole: "viewer" };
+    const graph = [{ name: "graph.QUERY", summary: "", arguments: [], class: "write" as const, allowed: false, hint: "x", group: "module" }];
+    expect(commandPolicy('GRAPH.QUERY g "RETURN 1"', graph, viewer).hint).toBe("GRAPH.QUERY requires the operator role on this database (you have viewer).");
+    expect(commandPolicy("SET k v", docs, viewer).hint).toBe("SET requires the operator role on this database (you have viewer).");
+    expect(commandPolicy("FLUSHDB", docs, { ...database, environment: "prod", effectiveRole: "admin" }).hint).toMatch(/not allowed on production databases/);
+  });
+});

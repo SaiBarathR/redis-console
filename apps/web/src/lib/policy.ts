@@ -83,7 +83,12 @@ export function commandPolicy(
     (database.readOnly && commandClass !== "read"
       ? "This database is read-only."
       : !allowed
-        ? "This command is unavailable for your role or database."
+        ? // The server's authorize words, from the shared rule (the catalog's hint applies only without one).
+          required !== undefined && !roleAtLeast(database.effectiveRole, required)
+          ? `${name} requires the ${required} role on this database (you have ${database.effectiveRole}).`
+          : rule?.nonProdOnly && database.environment === "prod"
+            ? `${name} is not allowed on production databases.`
+            : "This command is unavailable for your role or database."
         : commandClass === "read"
           ? "Reads data. Makes no changes."
           : "Changes data. Server policy and confirmation apply.");
