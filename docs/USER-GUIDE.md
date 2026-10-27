@@ -118,7 +118,8 @@ between. The inspector shows:
 - **Search values**: elements in a range that equal a value, contain it, or match a glob pattern (`*`, `?`, `[a-z]`),
   as ARGREP means them, with several conditions combined by any/all and an **Ignore case** option (ASCII letters).
   Values are at most 1 KiB. One search reads up to 1,000,000 elements or 16 MiB of values and then offers to
-  **Continue**; a value larger than 8 MiB is not searched and its index is named. Click an index in the results to open
+  **Continue**; a value larger than 8 MiB, or one a long glob pattern makes too costly to match, is not searched and its
+  index is named. Click an index in the results to open
   its page. Regular expressions are not offered.
 - **Aggregate a range (AROP)**: the sum, minimum or maximum of the numeric values in a range, bitwise AND/OR/XOR, the
   number of existing elements, or how many equal a value. Ranges with more than 1,000,000 elements are refused; narrow

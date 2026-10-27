@@ -2,6 +2,15 @@
 
 Changes to `packages/shared` made after the initial scaffold. Newest first. All are additive unless marked **breaking**.
 
+## 2026-10-27 — v0.4 review round 3 fixes (fix/v04-review-r3)
+
+### `api.ts`
+- `ArraySearchResult.skipped` (additive meaning): also lists a value whose matching alone costs more than a request's
+  matching allowance (server constant `ARRAY_SEARCH_MATCH_STEPS`; review v0.4 r3 H1). Every request now tests or skips
+  at least one element, so `next` always moves past the request's `start` (r3 M1).
+- The console slow log (`SLOWLOG GET` reply) is redacted for non-admins in every entry, also entries the display caps
+  cut short (r3 M2). No schema change.
+
 ## 2026-10-27 — v0.4 review round 2 fixes (fix/v04-review-r2)
 
 ### `api.ts`

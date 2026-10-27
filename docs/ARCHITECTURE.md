@@ -212,7 +212,10 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
   (16 MiB, or `maxReadReplyBytes` when smaller) with each read at most half of it, and matches the values itself with
   ARGREP's meanings (`redis/glob.ts` ports Redis's glob; an integration test compares both on Redis). One request reads
   at most 1,000,000 elements and that many bytes, however the values are sized or spread, then says where to continue;
-  a value over half the budget is located by `AROP … USED` bisection (no value read) and listed in `skipped`. Before
+  a value over half the budget is located by `AROP … USED` bisection (no value read) and listed in `skipped`. Matching
+  runs on the event loop with an allowance of `ARRAY_SEARCH_MATCH_STEPS` (16 million glob steps or 8-byte scan steps,
+  about 40 ms) and yields every 10 ms; a value costlier than a whole allowance is skipped too. The first element of a
+  request is read alone, so each request tests or skips at least one (review v0.4 r3 H1, M1). Before
   (review v0.4 r2 H1/H2), ARGREP ran inside Redis with a work cap estimated from the whole array's average element
   size, which small values elsewhere in the array or one huge value defeated; nothing bounds ARGREP's own work, so the
   console blocks it. At most 8 predicates of 1 KiB each; GLOB patterns have at most 8 `*`. Aggregates (AROP) over ranges holding more than 1,000,000 elements are refused with 400 and the

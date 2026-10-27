@@ -450,7 +450,11 @@ export interface ArraySearchResult {
   elements: number;
   /** Where to continue towards the same `end`. Absent when done. */
   next?: string;
-  /** Elements larger than one read of the search (half of ARRAY_SEARCH_MAX_BYTES): not tested; `next` is after them. */
+  /**
+   * Elements not tested, `next` is after them: a value whose reply is larger than one read of the search (half of
+   * ARRAY_SEARCH_MAX_BYTES), or one whose matching alone costs more than a request's allowance (a long glob against a
+   * large value; review v0.4 r3 H1).
+   */
   skipped?: string[];
 }
 

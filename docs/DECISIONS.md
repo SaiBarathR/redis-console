@@ -571,8 +571,12 @@ folding ASCII letters as Redis's `tolower` does. A value larger than half the bu
 span* (element sizes are unknown, so no span is safe); *allow console ARGREP without NOCASE* (still a whole-range scan
 of arbitrarily large values in Redis's main thread).
 
-**Consequences.** Redis does only plain bounded reads for a search; the server reads up to 16 MiB per request and
-matches it. The results are the same as ARGREP's (verified against Redis for EXACT, MATCH and GLOB with and without
+**Consequences.** Redis does only plain reads for a search: the server decodes and keeps at most 16 MiB per request.
+Redis builds each batch's reply before the server can close the socket, as for every read, so batches are sized from
+the values seen and the first element of a request is read alone. Matching moved onto the server's event loop, so it
+has its own allowance (review v0.4 r3 H1): about 16 million matcher steps (some 40 ms) per request, spent by GLOB steps
+and native scans; a value that alone costs more is skipped by index, and the search yields to other requests between
+values. Every request tests or skips at least one element, so Continue always moves (r3 M1). The results are the same as ARGREP's (verified against Redis for EXACT, MATCH and GLOB with and without
 NOCASE, classes, ranges, escapes, binary and Latin-1 bytes), except a `[a-z]` range against bytes above 0x7f on a Redis
 built where `char` is signed. Searching large values takes more requests (Continue). Console users search arrays in the
 inspector.

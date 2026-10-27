@@ -8,25 +8,38 @@
  * The array inspector's search matches on the server over bounded reads (review v0.4 r2 H2), so its GLOB must mean
  * what ARGREP GLOB means; `integration/array.test.ts` compares the two on Redis.
  */
-export function globMatch(pattern: Uint8Array, value: Uint8Array, nocase: boolean): boolean {
-  return match(pattern, 0, pattern.length, value, 0, value.length, nocase, { longer: false }, 0);
+export function globMatch(pattern: Uint8Array, value: Uint8Array, nocase: boolean, steps: Steps = { left: Infinity }): boolean {
+  return match(pattern, 0, pattern.length, value, 0, value.length, nocase, { longer: false }, 0, steps);
 }
+
+/**
+ * A matching allowance (review v0.4 r3 H1): each step of the matcher spends one, and an exhausted allowance throws
+ * OutOfSteps. Redis's matcher costs up to pattern bytes × value bytes (a `*` retries the rest of the pattern at every
+ * byte), which on the server's event loop would hold every other request; the caller decides what an exhausted
+ * allowance means.
+ */
+export interface Steps { left: number }
+export class OutOfSteps extends Error {
+  constructor() { super('matching allowance spent'); }
+}
+const spend = (steps: Steps) => { if (--steps.left < 0) throw new OutOfSteps(); };
 
 /** ASCII `tolower`. */
 export const lower = (c: number): number => (c >= 65 && c <= 90 ? c + 32 : c);
 
 const STAR = 42, QUESTION = 63, OPEN = 91, CLOSE = 93, CARET = 94, BACKSLASH = 92, DASH = 45;
 
-function match(p: Uint8Array, pi: number, pl: number, s: Uint8Array, si: number, sl: number, nocase: boolean, skip: { longer: boolean }, nesting: number): boolean {
+function match(p: Uint8Array, pi: number, pl: number, s: Uint8Array, si: number, sl: number, nocase: boolean, skip: { longer: boolean }, nesting: number, steps: Steps): boolean {
   if (nesting > 1000) return false;
   const eq = (a: number | undefined, b: number | undefined) => (a !== undefined && b !== undefined && (nocase ? lower(a) === lower(b) : a === b));
   while (pl > 0 && sl > 0) {
+    spend(steps);
     const c = p[pi];
     if (c === STAR) {
       while (pl > 1 && p[pi + 1] === STAR) { pi++; pl--; }
       if (pl === 1) return true;
       while (sl > 0) {
-        if (match(p, pi + 1, pl - 1, s, si, sl, nocase, skip, nesting + 1)) return true;
+        if (match(p, pi + 1, pl - 1, s, si, sl, nocase, skip, nesting + 1, steps)) return true;
         if (skip.longer) return false;
         si++; sl--;
       }
@@ -40,6 +53,7 @@ function match(p: Uint8Array, pi: number, pl: number, s: Uint8Array, si: number,
       if (not) { pi++; pl--; }
       let hit = false;
       for (;;) {
+        spend(steps);
         if (pl >= 2 && p[pi] === BACKSLASH) {
           pi++; pl--;
           if (p[pi] === s[si]) hit = true;

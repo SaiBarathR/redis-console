@@ -124,7 +124,8 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
         let start: string | undefined = '0';
         const seen: string[] = [];
         for (let i = 0; i < 4 && start !== undefined; i++) {
-          const res = await viewer.req('POST', `${DB}/array/search`, { key: utf8(key), start, end: '1', predicates: [{ kind: 'match', value: utf8('b') }], values: false });
+          // Admin: these requests would use up the viewer's search rate for later tests.
+          const res = await admin.req('POST', `${DB}/array/search`, { key: utf8(key), start, end: '1', predicates: [{ kind: 'match', value: utf8('b') }], values: false });
           expect(res.status, `${size}: ${res.body.slice(0, 200)}`).toBe(200);
           expect(res.json.next, `size ${size}: the cursor moves`).not.toBe(start);
           seen.push(...res.json.items.map((x: { index: string }) => x.index));
@@ -134,6 +135,28 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
         expect(start).toBeUndefined();
         await ar('DEL', key);
       }
+    });
+
+    it('matching has a CPU allowance per request: a costly glob does not hold the server, and the value is skipped (review v0.4 r3 H1)', async () => {
+      // The reproduction: one value of 1,000,000 `a`, three globs `*a…ab` of 1,024 bytes that all fail.
+      await ar('ARSET', k('cpu'), '0', 'a'.repeat(1_000_000), 'needle');
+      const pattern = utf8('*' + 'a'.repeat(1022) + 'b');
+      const t0 = performance.now();
+      const search = operator.req('POST', `${DB}/array/search`, { key: utf8(k('cpu')), start: '0', end: '1', predicates: [{ kind: 'glob', value: pattern }, { kind: 'glob', value: pattern }, { kind: 'glob', value: pattern }], values: false });
+      await new Promise((r) => setTimeout(r, 20));
+      const h0 = performance.now();
+      const health = await operator.req('GET', '/healthz');
+      const healthMs = performance.now() - h0;
+      const res = await search;
+      const searchMs = performance.now() - t0;
+      expect(res.status, res.body.slice(0, 200)).toBe(200);
+      expect(res.json).toMatchObject({ elements: 0, searchedTo: '0', next: '1', skipped: ['0'] });
+      expect(health.status).toBe(200);
+      expect(healthMs, 'an unrelated request is answered while the search runs').toBeLessThan(500);
+      expect(searchMs).toBeLessThan(1500);
+      // The rest of the range is searched on the next request.
+      const next = await operator.req('POST', `${DB}/array/search`, { key: utf8(k('cpu')), start: '1', end: '1', predicates: [{ kind: 'glob', value: utf8('need*') }], values: false });
+      expect(next.json.items.map((i: { index: string }) => i.index)).toEqual(['1']);
     });
 
     it('an element over half the budget is skipped by index; the search continues after it', async () => {

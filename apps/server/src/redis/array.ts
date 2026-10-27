@@ -43,7 +43,7 @@ import type { Probe } from './checked.ts';
 import { run } from './exec.ts';
 import { TM_BIN, type Arg, type Conn, type SendOpts } from './manager.ts';
 import { asStr, kv } from './reply.ts';
-import { globMatch, lower } from './glob.ts';
+import { globMatch, lower, OutOfSteps, type Steps } from './glob.ts';
 
 /** Values as Buffers, integers as exact decimal text. */
 export const TM_ARRAY = { ...TM_BIN, [RESP_TYPES.NUMBER]: String } as const;
@@ -188,21 +188,40 @@ function folded(b: Buffer): Buffer {
 }
 
 /**
- * A search's predicates as one test of an element's bytes, with ARGREP's meanings: EXACT equal bytes, MATCH a
- * substring, GLOB Redis's glob (`glob.ts`), NOCASE folding ASCII letters, `or` any and `and` all of them.
+ * The matching work one search request may do (review v0.4 r3 H1), in steps: a step of the glob matcher, or 8 bytes of a
+ * native scan (EXACT, MATCH, the NOCASE fold). About 40 ms of CPU; the reviewer's costly glob (a 1,024-byte `*a…ab`
+ * against 1 MB) needs about 10^9 steps. Matching runs on the server's event loop, so this bounds how long one request
+ * can hold it, together with yielding between elements (searchArray).
  */
-export function searchMatcher(q: SearchRequest): (value: Buffer) => boolean {
+export const ARRAY_SEARCH_MATCH_STEPS = 16_000_000;
+
+/** Spend `n` steps of the allowance before the work they pay for. */
+function charge(steps: Steps, n: number): void {
+  steps.left -= n;
+  if (steps.left < 0) throw new OutOfSteps();
+}
+const scanSteps = (bytes: number) => Math.ceil(bytes / 8) + 1;
+
+/**
+ * A search's predicates as one test of an element's bytes, with ARGREP's meanings: EXACT equal bytes, MATCH a
+ * substring, GLOB Redis's glob (`glob.ts`), NOCASE folding ASCII letters, `or` any and `and` all of them. The work is
+ * paid from `steps` (unbounded when omitted); an exhausted allowance throws OutOfSteps.
+ */
+export function searchMatcher(q: SearchRequest): (value: Buffer, steps?: Steps) => boolean {
   const tests = q.predicates.map((p) => {
     const raw = predicateBytes(p.value, p.kind);
     const needle = q.nocase && p.kind !== 'glob' ? folded(raw) : raw;
-    if (p.kind === 'glob') return (_v: Buffer) => globMatch(raw, _v, q.nocase);
-    if (p.kind === 'exact') return (v: Buffer, f: () => Buffer) => (q.nocase ? f() : v).equals(needle);
-    return (v: Buffer, f: () => Buffer) => (q.nocase ? f() : v).indexOf(needle) !== -1;
+    if (p.kind === 'glob') return (v: Buffer, _f: () => Buffer, steps: Steps) => globMatch(raw, v, q.nocase, steps);
+    if (p.kind === 'exact') return (v: Buffer, f: () => Buffer, steps: Steps) => { charge(steps, scanSteps(v.length)); return (q.nocase ? f() : v).equals(needle); };
+    return (v: Buffer, f: () => Buffer, steps: Steps) => { charge(steps, scanSteps(v.length)); return (q.nocase ? f() : v).indexOf(needle) !== -1; };
   });
-  return (value) => {
+  return (value, steps = { left: Infinity }) => {
     let fold: Buffer | undefined;
-    const f = () => (fold ??= folded(value));
-    return q.combine === 'and' ? tests.every((t) => t(value, f)) : tests.some((t) => t(value, f));
+    const f = () => {
+      if (!fold) { charge(steps, scanSteps(value.length)); fold = folded(value); }
+      return fold;
+    };
+    return q.combine === 'and' ? tests.every((t) => t(value, f, steps)) : tests.some((t) => t(value, f, steps));
   };
 }
 
@@ -236,9 +255,10 @@ export async function searchArray(
   q: SearchRequest,
   preview: Preview,
   timeout: number,
-  o: { maxElements?: number; maxBytes?: number; readCap?: number } = {},
+  o: { maxElements?: number; maxBytes?: number; readCap?: number; matchSteps?: number } = {},
 ): Promise<ArraySearchResult> {
   const maxElements = o.maxElements ?? ARRAY_SCAN_MAX_ELEMENTS;
+  const steps: Steps = { left: o.matchSteps ?? ARRAY_SEARCH_MATCH_STEPS };
   const maxBytes = o.maxBytes ?? ARRAY_SEARCH_MAX_BYTES;
   const readCap = Math.max(1, Math.min(o.readCap ?? maxBytes, Math.floor(maxBytes / 2)));
   const matches = searchMatcher(q);
@@ -255,6 +275,8 @@ export async function searchArray(
   });
   let cursor = q.start;
   let examined = 0;
+  let lastTested = q.start;
+  let yielded = performance.now();
   let wire = 0;
   // The first element alone (see above); later batches follow the sizes seen.
   let batch = 1;
@@ -286,13 +308,29 @@ export async function searchArray(
     const got = pairs(raw);
     if (careful > 0) careful -= got.length;
     for (const [index, value] of got) {
+      let hit: boolean;
+      try {
+        hit = matches(value, steps);
+      } catch (e) {
+        if (!(e instanceof OutOfSteps)) throw e;
+        // The matching allowance is spent (review v0.4 r3 H1). On the request's first element, that value alone costs
+        // more than a request may spend: skip it. Otherwise the next request starts at it with a whole allowance.
+        if (examined === 0) return out(index, 0, index === q.end ? undefined : stepIndex(index, down), index);
+        return out(lastTested, examined, index);
+      }
       examined++;
-      if (matches(value)) {
+      lastTested = index;
+      if (hit) {
         items.push(q.values ? element(index, value, preview) : { index });
         if (items.length === q.limit) {
           const next = index === q.end ? undefined : stepIndex(index, down);
           return out(index, examined, next);
         }
+      }
+      // Matching is synchronous: let other requests run every few milliseconds.
+      if (performance.now() - yielded > 10) {
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        yielded = performance.now();
       }
     }
     const last = got.at(-1)?.[0];

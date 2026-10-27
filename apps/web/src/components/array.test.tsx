@@ -160,7 +160,7 @@ describe("array inspector: search and aggregates", () => {
     expect(screen.getByTestId("array-search")).toHaveTextContent("ARGREP is not run");
     await userEvent.type(screen.getByTestId("array-search-value"), "apple");
     await userEvent.click(screen.getByTestId("array-search-submit"));
-    expect(await screen.findByTestId("array-search-skipped")).toHaveTextContent("Not searched (each value is larger than one search reads, 8.0 MiB): index 7.");
+    expect(await screen.findByTestId("array-search-skipped")).toHaveTextContent("Not searched (larger than one search reads, 8.0 MiB, or too costly to match within one request): index 7.");
     expect(screen.getByTestId("array-search-summary")).toHaveTextContent("More of the range is left from index 8.");
   });
 

@@ -249,3 +249,37 @@ describe('search predicates (ARGREP meanings, matched on the server)', () => {
     expect(m(p, { combine: 'and' })(B('az'))).toBe(true);
   });
 });
+
+describe('array search matching allowance (review v0.4 r3 H1)', () => {
+  const glob = (pattern: string) => search({ predicates: [{ kind: 'glob', value: binFromString(pattern) }] });
+  it('a value costlier than a whole request is skipped by index; a spent allowance stops before the next value', async () => {
+    const costly = '*' + 'a'.repeat(200) + 'b';
+    // 0: costs far more than 10,000 steps alone; 1 and 2: about 6,000 steps each against `*a…ab`.
+    const values = new Map<bigint, Buffer>([[0n, Buffer.alloc(5000, 0x61)], [1n, Buffer.alloc(30, 0x61)], [2n, Buffer.alloc(30, 0x61)]]);
+    const { conn, scope } = fakeArray(values);
+    let r = await searchArray(scope, conn, key, glob(costly), preview, 1000, { matchSteps: 10_000 });
+    expect(r).toMatchObject({ elements: 0, searchedTo: '0', next: '1', skipped: ['0'] });
+    r = await searchArray(scope, conn, key, glob(costly), preview, 1000, { matchSteps: 10_000, maxBytes: 1 << 20 });
+    expect(r.skipped).toEqual(['0']);
+    // From 1: the allowance covers one value, so the request stops before 2 and the next one reads it.
+    const values2 = new Map<bigint, Buffer>([[1n, Buffer.alloc(2000, 0x61)], [2n, Buffer.alloc(2000, 0x61)]]);
+    const f2 = fakeArray(values2);
+    const cost = (() => { const st = { left: 1e12 }; searchMatcher(glob(costly))(Buffer.alloc(2000, 0x61), st); return 1e12 - st.left; })();
+    expect(cost).toBeGreaterThan(100_000);
+    r = await searchArray(f2.scope, f2.conn, key, glob(costly), preview, 1000, { matchSteps: Math.floor(cost * 1.5) });
+    expect(r).toMatchObject({ elements: 1, searchedTo: '1', next: '2' });
+    expect(r.skipped).toBeUndefined();
+    r = await searchArray(f2.scope, f2.conn, key, search({ start: r.next, predicates: [{ kind: 'glob', value: binFromString(costly) }] }), preview, 1000, { matchSteps: Math.floor(cost * 1.5) });
+    expect(r).toMatchObject({ elements: 1, searchedTo: ARRAY_MAX_INDEX });
+    expect(r.next).toBeUndefined();
+  });
+  it('native scans cost a step per 8 bytes; results do not depend on the allowance when it suffices', () => {
+    const m = searchMatcher(search({ predicates: [{ kind: 'match', value: binFromString('zz') }], nocase: true }));
+    const st = { left: 1_000_000 };
+    expect(m(Buffer.alloc(8000, 0x41), st)).toBe(false);
+    // The fold and one scan: about 1,000 steps each.
+    expect(1_000_000 - st.left).toBeGreaterThan(1900);
+    expect(1_000_000 - st.left).toBeLessThan(2100);
+  });
+});
+

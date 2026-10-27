@@ -373,7 +373,7 @@ function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastI
         <p className="muted">
           Conditions mean what they mean for ARGREP; values are at most {count(ARRAY_PREDICATE_MAX_BYTES)} bytes. A search reads at most{" "}
           {count(ARRAY_SCAN_MAX_ELEMENTS)} elements or {bytesLabel(ARRAY_SEARCH_MAX_BYTES)} of values per request and then offers to continue; a value
-          larger than {bytesLabel(ARRAY_SEARCH_MAX_BYTES / 2)} is skipped and named. Regular expressions (RE) are not available, and ARGREP is not
+          larger than {bytesLabel(ARRAY_SEARCH_MAX_BYTES / 2)}, or one a pattern makes too costly to match, is skipped and named. Regular expressions (RE) are not available, and ARGREP is not
           run: Redis would search the whole range without a time limit.
         </p>
       </ActionForm>
@@ -385,7 +385,7 @@ function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastI
           </p>
           {!!found.result.skipped?.length && (
             <p className="muted" data-testid="array-search-skipped">
-              Not searched (each value is larger than one search reads, {bytesLabel(ARRAY_SEARCH_MAX_BYTES / 2)}): index {found.result.skipped.join(", ")}. Open it from the element table.
+              Not searched (larger than one search reads, {bytesLabel(ARRAY_SEARCH_MAX_BYTES / 2)}, or too costly to match within one request): index {found.result.skipped.join(", ")}. Open it from the element table.
             </p>
           )}
           {!!found.result.items.length && (
