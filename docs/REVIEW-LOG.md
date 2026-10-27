@@ -1193,3 +1193,22 @@ stream was written by GPT-6.1 Sol.
   old guard; the slot test and the preview, slow-log and policy tests failed before their fixes).
 - Live, on the FalkorDB sandbox: the slot hold (above); IMPORT_FOLDER and QUERY_MEM_CAPACITY checked in a throwaway
   FalkorDB 6.0.3 container (LOAD CSV fails on the missing folder; a 40,000,000-element range passed the 256 MiB cap).
+
+## v0.4 Round 3 – data fixes and graph UI (GPT-6.1 Sol reviewer)
+
+Report: `docs/research/30-v04-review-r3-data.md` (snapshot `release/v0.4` @ `2fdffbe`). Fixer branch:
+`fix/v04-review-r3` (Claude Opus 5.5). The reviewer verified the round-2 fixes: H1 (console ARGREP), M1, M2, L1, L2
+and the role wording fixed; H2 (bounded search) partial, with this round's H1 and M1; the slow-log redaction and the
+graph UI changes (L4, L5) reviewed, with M2 below. Its own ARGREP comparison (3,522 cases, 1,500 generated globs) agreed.
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| H1 | fixed | Reproduced by the reviewer: three failing 1,024-byte globs `*a…ab` against one 1 MB value held the server 7.8 s; a concurrent health check waited 7.7 s. Moving matching out of Redis (D22) put Redis's pattern × value cost on the event loop. Matching now spends from an allowance of 16 million steps per request (glob steps, 8-byte scan steps); a value costlier than a whole allowance is skipped by index, a spent allowance stops before the next value, and the search yields every 10 ms. The reviewer's case: 73 ms, skipped; the health check answered in 1 ms. | `22db3c1` | server `integration/array.test.ts` › "matching has a CPU allowance per request…" (failed before); `unit/array.test.ts` › "array search matching allowance" (2 tests) |
+| M1 | fixed | Reproduced by the reviewer: a value of 8 MiB − 1 byte made every request return its own start (the real transport charges an overflow past the limit, so the single-element retry had less than a whole read cap). Each request now reads its first element alone, with a whole read cap and a fresh budget, so it tests or skips at least one element. The unit fake now charges overflows as the transport does. | `b639ffa` | server `integration/array.test.ts` › "values at the read cap boundary are reached and decided…" (failed before at 8,388,607 bytes); `unit/array.test.ts` › "a value just under the read cap is reached and decided…" |
+| M2 | fixed | Reproduced with the reviewer's deterministic case: a console slow-log entry cut by the display caps before its client fields was returned unredacted. Every entry's arguments are redacted now; cut pieces become a placeholder. | `73c64c7` | server `unit/redaction.test.ts` › "a cut entry, with no client fields left, still has its value arguments redacted" (failed before) |
+| Note | docs | D22 claimed Redis copies at most the budget; Redis builds each batch's reply before the socket can close, as for every read. D22 now says what the server bounds and why batches start with one element. | `22db3c1` | |
+
+### Validation
+- Each regression test failed before its fix and passes after it.
+- The reviewer's H1 case after the fix: 73 ms with the value skipped (8 such globs: 53 ms), health check 1 ms. Eight
+  NOCASE MATCH predicates over 5,000 values of 4 KiB: 2 requests, the worst 153 ms (unchanged).
