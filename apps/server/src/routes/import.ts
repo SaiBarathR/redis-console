@@ -38,9 +38,9 @@ import { HttpError } from '../http/errors.ts';
 import { confirmOrThrow, type AuditBase } from '../policy/enforce.ts';
 import type { CommandTable } from '../policy/commandTable.ts';
 import { classify, confirmationFor, isMutating, type ConfirmSpec } from '../policy/policy.ts';
-import { buildPreview, previewCommand } from '../policy/preview.ts';
+import { buildPreview } from '../policy/preview.ts';
 import { toHttpError } from '../redis/exec.ts';
-import { STRONGER, auditBase, execute, prepare, type Prepared } from './cli.ts';
+import { STRONGER, auditBase, commandPreview, execute, prepare, type Prepared } from './cli.ts';
 
 /** Planned imports expire unstarted after this long; finished ones stay readable this long. */
 export const IMPORT_PLAN_TTL_MS = 10 * 60_000;
@@ -212,7 +212,7 @@ export function registerImportRoutes(app: FastifyInstance, ctx: AppContext) {
         if (!isMutating(p.c)) continue;
         changing++;
         const list = p.confirmSpec && p.c.confirm !== 'none' ? previews.destructive : previews.other;
-        if (list.length < MAX_PREVIEWED) list.push(previewCommand(p.argv, p.c.keep, p.c.keyIndexes));
+        if (list.length < MAX_PREVIEWED) list.push(commandPreview(p.argv, p.c));
         lineSpec = STRONGER(lineSpec, p.confirmSpec);
       }
     } finally {
@@ -340,12 +340,14 @@ export function registerImportRoutes(app: FastifyInstance, ctx: AppContext) {
     const st = job.status;
     const signal = job.abort.signal;
     const deadline = Date.now() + IMPORT_MAX_MS;
-    // The job outlives the start request: its commands follow the job's signal (cancel aborts the one in flight).
+    // The job outlives the start request: its commands follow the job's signal (cancel aborts the one in flight),
+    // except a command that set its own: a graph query keeps its socket until FalkorDB answers, so its slots stay held
+    // after a cancel (review v0.4 r3 graph M1).
     const jobScope: DbScope = {
       ...scope,
       conn: async () => {
         const c = await scope.conn();
-        return { ...c, send: (args, o = {}) => c.send(args, { ...o, signal }) };
+        return { ...c, send: (args, o = {}) => c.send(args, 'signal' in o ? o : { ...o, signal }) };
       },
     };
     const groups = new Map<string, ImportFailureGroup>();

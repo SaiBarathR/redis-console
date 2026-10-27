@@ -58,10 +58,17 @@ export function prepare(argv: Buffer[], table: CommandTable | undefined, scope: 
   authorize(c, scope);
   const capped = applyCaps(argv).map((a) => (typeof a === 'string' ? Buffer.from(a) : a));
   // The preview is built from the capped argv: exactly what will be sent to Redis.
-  // A graph query's Cypher (argv[2]) is shown whole up to PREVIEW_QUERY_MAX_BYTES (review v0.4 r2 graph M1).
-  const preview = buildPreview([previewCommand(capped, c.keep, c.keyIndexes, [], GRAPH_QUERY_COMMANDS.has(c.command) ? [2] : [])]);
+  const preview = buildPreview([commandPreview(capped, c)]);
   const confirmSpec = confirmationFor(c.confirm, isMutating(c), scope.db, ctx.config.policy.prodRequiresReason, `${c.name} on ${scope.db.name}`, preview);
   return { argv: capped, c, confirmSpec };
+}
+
+/**
+ * A console, Workbench or Import command's confirmation preview: names, keys and a short prefix of other arguments,
+ * and a graph query's Cypher (argv[2]) whole up to PREVIEW_QUERY_MAX_BYTES (review v0.4 r2 graph M1, r3 M2).
+ */
+export function commandPreview(argv: readonly Buffer[], c: Classified) {
+  return previewCommand(argv, c.keep, c.keyIndexes, [], GRAPH_QUERY_COMMANDS.has(c.command) ? [2] : []);
 }
 
 /** Concurrent console commands per user, and concurrent blocking commands per user. */

@@ -189,6 +189,36 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
       }
     } finally { await fixture.sendCommand(['GRAPH.UDF', 'DELETE', lib]); }
   });
+  it('Import: the confirmation shows the whole Cypher, and a cancelled graph query keeps its slots until FalkorDB answers (review v0.4 r3 graph M1, M2)', async () => {
+    const IMP = '/api/v1/databases/graph/import';
+    const op = clients.operator;
+    // M2: the start confirmation lists the query in full.
+    const cypher = 'MATCH (n:Person) WHERE n.id = 299 AND n.name = "sandbox" DETACH DELETE n';
+    let plan = await op.req('POST', IMP, { script: `GRAPH.QUERY ${k} '${cypher}'` });
+    expect(plan.status, plan.body).toBe(200);
+    const ch = await op.req('POST', `${IMP}/${plan.json.id}/start`, {});
+    expect(ch.status).toBe(428);
+    const shown = ch.json.error.confirmation.preview.commands[0].argv[2];
+    expect(shown.v.data).toBe(cypher);
+    expect(shown.bytes).toBeUndefined();
+    await op.req('POST', `${IMP}/${plan.json.id}/cancel`, {});
+    // M1: a slow read started by an import and cancelled at once still holds the operator's graph slot.
+    plan = await op.req('POST', IMP, { script: `GRAPH.RO_QUERY ${k} "RETURN size(reduce(s = '', i IN range(1,900000) | s + 'x'))"` });
+    const started = await op.req('POST', `${IMP}/${plan.json.id}/start`, {});
+    expect(started.status, started.body).toBe(200);
+    await new Promise((r) => setTimeout(r, 300));
+    expect((await op.req('POST', `${IMP}/${plan.json.id}/cancel`, {})).status).toBe(200);
+    const next = await op.req('POST', endpoint(), { argv: ['GRAPH.RO_QUERY', k, 'RETURN 1'] });
+    expect(next.status, next.body).toBe(429);
+    // Released once the engine has answered.
+    let after = next;
+    for (let i = 0; i < 60 && after.status !== 200; i++) {
+      await new Promise((r) => setTimeout(r, 500));
+      after = await op.req('POST', endpoint(), { argv: ['GRAPH.RO_QUERY', k, 'RETURN 1'] });
+    }
+    expect(after.status).toBe(200);
+  }, 60_000);
+
   it('the guard refuses whatever FalkorDB reads as LOAD CSV, a procedure call or a namespaced call (differential, review v0.4 r2 graph H1)', async () => {
     // Tokenisation probes around three payloads; FalkorDB plans each with EXPLAIN (nothing runs). Where the engine sees
     // the payload as code (a Load CSV or ProcedureCall operation, or a function it looks up), the guard must refuse.
