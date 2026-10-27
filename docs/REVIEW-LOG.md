@@ -1250,6 +1250,7 @@ queries show no change in the refused set. **No finding at Medium or above**: th
 | L5 | fixed | The shared VSIM FILTER limit re-encoded the server's latin1 argument as UTF-8 (300 × é refused). Arguments reach the rules as bytes in latin1, so the limit counts their length; `argumentRule` documents the representation. | `55959e3` | web `lib/policy.test.ts` › "the VSIM FILTER limit counts UTF-8 bytes once" (failed before) |
 | L6 | fixed (docs) | OPERATIONS now says a FalkorDB database needs `poolSize` 2 or more. | `8843618` | |
 | L7 | fixed (test) | A test now pins that Import's cancel aborts a non-graph command in flight; it fails when the job's signal is dropped. | `1468c8c` | server `integration/insight.test.ts` › "cancel aborts a non-graph command in flight at once" |
+| Extra | fixed | Raised by the same reviewer afterwards, from code reading (unreproduced live): Import's retry wait ends early on a cancel and went straight back into `execute`; a graph line, which does not carry the signal to its socket, could then be sent after the cancel if its slot freed in that window. Import checks for a cancel before each attempt (the line counts as not sent), and `execute` refuses a command whose signal is already aborted. | `4bd3cd4` | server `unit/graph-engine-slots.test.ts` › "a command whose signal is already aborted is not sent…" (failed before: the graph query was sent) |
 
 ### Validation
 - Each regression test failed before its fix and passes after it (L7 pins existing behaviour and was checked to fail
