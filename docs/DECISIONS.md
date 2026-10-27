@@ -506,7 +506,8 @@ Unknown GRAPH commands fail closed even if a later module reports permissive fla
 
 A conservative lexical guard, applied server-side to exact argv for every query/plan command, refuses LOAD, all CALLs
 except no-argument `db.labels()`, `db.relationshipTypes()` and `db.propertyKeys()`, and all namespaced/quoted function
-calls. This also prevents invoking already-loaded JavaScript UDFs through RO_QUERY. Strings and comments are inert;
+calls. This also prevents invoking already-loaded JavaScript UDFs through RO_QUERY. Backtick identifiers use doubled backticks for escaping; backslashes are literal (verified against the engine).
+Strings and comments are inert;
 unbalanced delimiters and non-ASCII unquoted identifiers/line comments fail closed (use quoted labels and string literals for Unicode). Queries are limited to 64 KiB. This is a feature guard, **not a Cypher parser**:
 reserved words used as unquoted properties can be refused, legitimate namespaced/quoted built-ins are unavailable,
 and server-side RO_QUERY is the second enforcement layer against mutations. New procedures need review and tests.

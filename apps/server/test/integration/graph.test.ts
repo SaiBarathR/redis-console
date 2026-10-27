@@ -160,6 +160,20 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
     }
     expect((await clients.viewer.req('POST', endpoint(), { argv: ['PING'] })).json.reply.v.data).toBe('PONG');
   });
+  it('blocks preloaded UDF calls with backtick/backslash/comment quoting (live lexer regression)', async () => {
+    const lib = `${P}udf${String.fromCharCode(92)}`;
+    const query = 'RETURN `' + lib + '`.f() //`';
+    await fixture.sendCommand(['GRAPH.UDF', 'LOAD', lib, 'function rcProbe(){return 7;} falkor.register("f",rcProbe);']);
+    try {
+      const direct = await fixture.sendCommand(['GRAPH.RO_QUERY', k, query]) as any;
+      expect(direct[1][0][0]).toBe(7); // Proves valid Cypher and real preloaded-code execution, not just a syntax error.
+      for (const c of Object.values(clients)) for (const command of ['GRAPH.RO_QUERY', 'GRAPH.QUERY', 'GRAPH.EXPLAIN', 'GRAPH.PROFILE']) {
+        const res = await c.req('POST', endpoint(), { argv: [command, k, query] });
+        expect(res.status, JSON.stringify(res.json)).toBe(403);
+        expect(res.json.error.code).toBe('command_blocked');
+      }
+    } finally { await fixture.sendCommand(['GRAPH.UDF', 'DELETE', lib]); }
+  });
   it('caps result production to 10k rows and the measured wire independently of UI display bounds', async () => {
     const rows = await fixture.sendCommand(['GRAPH.RO_QUERY', k, 'UNWIND range(0,10004) AS i RETURN i']) as any;
     expect(rows[1].length).toBe(10000);

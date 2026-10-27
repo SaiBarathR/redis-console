@@ -25,7 +25,8 @@ function tokens(query: string): string[] | undefined {
       i++;
       let closed = false;
       while (i < query.length) {
-        if (query[i] === '\\') { i += 2; continue; }
+        // Cypher escapes identifier backticks by doubling them. Backslashes are literal there.
+        if (query[i] === '\\' && quote !== '`') { i += 2; continue; }
         if (query[i++] === quote) {
           if (query[i] === quote) { i++; continue; }
           closed = true; break;

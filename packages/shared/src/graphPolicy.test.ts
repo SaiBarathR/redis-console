@@ -21,5 +21,9 @@ describe('v0.4 graph policy', () => {
     for (const cmd of ['QUERY', 'RO_QUERY', 'EXPLAIN', 'PROFILE']) expect(rule([`GRAPH.${cmd}`, 'g', query])?.class).toBe('blocked');
   });
   it.each(["RETURN 'LOAD CSV CALL lib.fn()'", 'RETURN "CALL evil()"', '// LOAD CSV\nRETURN 1', '/* CALL evil() */ RETURN 1', 'MATCH (n:`odd label`) RETURN n', 'CALL db.labels() YIELD label RETURN label', 'CALL db.relationshipTypes()', 'CALL db.propertyKeys()', "RETURN 'escaped\\\' LOAD CSV'", 'CREATE (:P {x:"text"})'])('allows inert text and reviewed procedures: %s', (q) => expect(graphQueryRefusal(q)).toBeUndefined());
+  it('does not treat a backslash as escaping a backtick identifier delimiter', () => {
+    const query = 'RETURN `graph:20261027:quote-probe' + String.fromCharCode(92) + '`.f() //`';
+    expect(graphQueryRefusal(query)).toBeDefined();
+  });
   it('bounds guard work', () => expect(graphQueryRefusal('x'.repeat(65_537))).toMatch(/64 KiB/));
 });
