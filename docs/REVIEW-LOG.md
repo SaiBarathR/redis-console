@@ -1164,6 +1164,11 @@ layer order and the console catalog fixes were confirmed; round-1 H1 was found p
 - The reviewer's worst case on the new search (Redis 8.10.2, 5,000 values of 4 KiB `a…`, through the route): a 64-byte
   NOCASE MATCH covered the 20 MiB range in 2 requests, the worst 162 ms; eight such predicates 168 ms; GLOB
   `a*a*a*a*a*a*a*b` 105 ms. Redis only copies bounded batches (ARGREP held its main thread 589–1,054 ms on this range).
+- Full e2e on the merged round-2 tree (`ec8d2e6`): 700 passed, 1 failed, 2 skipped. The failure was ours again:
+  `ui/vectorset.spec.ts` expected Redis's filter wording, which M1 deliberately stopped repeating; updated in `7e9d3c8`
+  and re-run with the array spec (10 passed). Server with the cluster, Sentinel and mutual-TLS topology up: 1,094
+  passed, 8 skipped, and one older test (`review-v02-r2.test.ts`, the slow-log audit check) adjusted to the new
+  `<n bytes>` placeholders in `ec8d2e6` (15 passed). Live QA: [qa/v04-review-r2-fixes.md](qa/v04-review-r2-fixes.md).
 
 ## v0.4 Round 2 – FalkorDB graph support (Claude Sonnet 5.5 reviewer)
 
