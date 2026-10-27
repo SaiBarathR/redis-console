@@ -209,10 +209,21 @@ adding back only `graph.config|get`. INFO and MEMORY grants are similarly restri
 deprecated. Revalidate on upgrades; if it is removed, deny CONFIG entirely at the ACL and keep configuration
 inspection outside the console. Never grant the whole command just to restore GET access.
 
-The sandbox sets `TIMEOUT_DEFAULT 1000 TIMEOUT_MAX 1000 RESULTSET_SIZE 10000 MAX_QUEUED_QUERIES 25` on module load.
-The legacy `TIMEOUT` setting cannot coexist with DEFAULT/MAX and does not bound write queries; use DEFAULT/MAX.
-Configure equivalent engine bounds on deployed graph servers: closing a console socket alone does not cancel Redis
-work. The application adds a positive timeout of at most 1000 ms to QUERY/RO_QUERY/EXPLAIN/PROFILE. The sandbox's
+The sandbox sets `TIMEOUT_DEFAULT 1000 TIMEOUT_MAX 1000 RESULTSET_SIZE 10000 MAX_QUEUED_QUERIES 25
+QUERY_MEM_CAPACITY 268435456 IMPORT_FOLDER /var/empty/falkordb-import/` on module load, and its container has a 1 GiB
+memory limit. The legacy `TIMEOUT` setting cannot coexist with DEFAULT/MAX and does not bound write queries; use
+DEFAULT/MAX. On deployed graph servers:
+
+- Set the same bounds, and point `IMPORT_FOLDER` at a directory that does not exist (or is empty and not writable), so
+  LOAD CSV reads nothing; deny the graph host outbound network access.
+- FalkorDB checks the timeout between steps, so one expression can run far longer, and `QUERY_MEM_CAPACITY` does not
+  count every allocation (list building passed it in 6.0.3). Run the server with a memory limit of its own (container or
+  cgroup) so a runaway query cannot take other services down. The console holds a graph query's slots until the engine
+  answers (two per database), so it never piles up more than that.
+- If viewers should not spend engine time, leave `+graph.ro_query` out of the viewer grants (they keep EXPLAIN, LIST,
+  INFO ObjectPool and MEMORY USAGE) or cap the database with `maxRole`.
+
+Closing a console socket alone does not cancel Redis work. The application adds a positive timeout of at most 1000 ms to QUERY/RO_QUERY/EXPLAIN/PROFILE. The sandbox's
 module cap also covers other clients. No graph importer, UDF, CSV loader or runtime network access is exposed by
 the console. See [D21](DECISIONS.md#d21-falkordb-queries-are-bounded-and-cannot-run-host-io-or-user-code).
 

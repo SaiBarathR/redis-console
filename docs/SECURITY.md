@@ -137,9 +137,18 @@ The end-to-end suite (`tests/e2e`, Playwright) runs against the real server with
 - Cypher LOAD (server file/URL loaders), unreviewed CALL procedures and namespaced/quoted function calls (including
   preloaded JS UDFs) are refused server-side for QUERY, RO_QUERY, EXPLAIN and PROFILE. UDF, binary BULK/RESTORE,
   internal commands and CONFIG SET are disabled. INFO exposes only ObjectPool; query logs/config reads require admin.
-- The app adds TIMEOUT <=1000 ms; the sandbox module bounds read **and write** execution with TIMEOUT_DEFAULT/MAX,
-  plus RESULTSET_SIZE 10000 and MAX_QUEUED_QUERIES 25. Deployed graph servers need equivalent module limits. A timeout
-  is not a rollback guarantee. Raw replies still have measured byte, element and depth limits.
+- The app adds TIMEOUT <=1000 ms and the sandbox sets TIMEOUT_DEFAULT/MAX 1000, RESULTSET_SIZE 10000 and
+  MAX_QUEUED_QUERIES 25, but FalkorDB checks the timeout **between steps**: one expression (a `reduce` over a long
+  `range`) ran 13–16 s, and closing the socket does not stop it (review v0.4 r2 graph H2). The console therefore holds a
+  graph query's slots until the engine answers (one per user, two per database, at most 15 minutes), so it never has
+  more than two runaway queries in one engine. One query's CPU and memory are bounded only by the deployment:
+  `QUERY_MEM_CAPACITY` does not count list building in 6.0.3 (a 40,000,000-element `range` passed a 256 MiB cap), so
+  give the graph server a container memory limit, and where viewers are not trusted with engine time, withhold
+  `+graph.ro_query` from the viewer ACL or cap the database with `maxRole`. A timeout is not a rollback guarantee. Raw
+  replies still have measured byte, element and depth limits.
+- `IMPORT_FOLDER` points at a directory that does not exist, so LOAD CSV reads nothing even if a query got past the
+  guard; the guard ends comments where FalkorDB does (a lone CR in a `//` comment hid code from it before review v0.4 r2
+  graph H1) and a differential test compares its verdicts with what the engine plans.
 - The SVG diagram and result/plan tables render data as text, with fixed node/edge/row/depth bounds, keyboard
   selection and no network access. Unknown/compact reply shapes fall back to the generic view.
 

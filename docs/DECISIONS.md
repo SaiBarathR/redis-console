@@ -520,6 +520,16 @@ TIMEOUT_DEFAULT/MAX 1000, RESULTSET_SIZE 10000 and MAX_QUEUED_QUERIES 25. The le
 writes unbounded and cannot coexist with DEFAULT/MAX. Other deployments must set equivalent module bounds.
 Timeouts do not promise rollback: graph writes can partially execute, and ambiguous failures are never auto-retried.
 
+**Review v0.4 r2 (graph H1, H2).** The guard ended a `//` comment at CR as well as LF, FalkorDB at LF only, so a lone CR
+hid LOAD CSV, UDF calls and procedures from it; comments now end at LF (CR LF allowed, a lone CR refused), whitespace
+outside strings is ASCII only (browser and server read the same), and an integration test runs hundreds of
+tokenisation probes through EXPLAIN and requires a refusal wherever the engine reads code. `IMPORT_FOLDER` points at a
+missing directory. The timeout is cooperative (checked between steps): one `reduce` over a long `range` ran 13–16 s and
+kept running after the socket closed. The console cannot cancel it, so it holds a graph query's slots (one per user,
+two per database) until the engine answers, at most 15 minutes. A single query's CPU and memory remain the
+deployment's to bound (a container memory limit; `QUERY_MEM_CAPACITY` does not count list building in 6.0.3), and
+viewer RO_QUERY can be withheld per tier where viewers are not trusted with engine time.
+
 The rich renderer accepts default verbose replies; compact/unrecognized shapes retain the generic raw view. It draws
 at most 200 unique nodes and 400 edges with deterministic concentric rings; edge endpoints absent from the result
 are dashed placeholders. Remaining received entities are counted. Incomplete server replies are labelled; entities
