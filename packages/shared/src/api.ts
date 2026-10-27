@@ -217,7 +217,10 @@ export interface DatabaseSummary {
   /** Display-only labels from the server configuration (`databases[].tags`), e.g. team or service names. */
   tags?: string[];
   server?: {
+    /** The Redis version the server reports (`redis_version`); feature checks compare against it. */
     version: string;
+    /** Set when the server is not Redis itself (Valkey reports a compatibility `redis_version`): its name and version. */
+    engine?: { name: string; version: string };
     mode: 'standalone' | 'cluster' | 'sentinel';
     modules: { name: string; version: string }[];
   };

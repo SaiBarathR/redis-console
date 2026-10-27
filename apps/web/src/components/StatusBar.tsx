@@ -4,6 +4,7 @@ import { shellMetrics, useDatabaseStats, useLiveSample } from "../lib/dbstats.ts
 import { bytesLabel } from "../lib/format.ts";
 import { ageLabel, formatDateTime } from "../lib/preferences.ts";
 import { countdown, useNow } from "./anatomy.tsx";
+import { serverProduct } from "../lib/engine.ts";
 
 const POLL_MS = 30000;
 
@@ -70,8 +71,9 @@ export function StatusBar({
                 ? "Connecting"
                 : "Unreachable"}
           </span>
-          <span className="wide-xl">
-            Redis <strong>{db.server?.version ?? s?.version ?? "—"}</strong>
+          <span className="wide-xl" title={serverProduct(db.server).title}>
+            {serverProduct(db.server).name}{" "}
+            <strong>{serverProduct(db.server, s?.version).version ?? "—"}</strong>
             <span className="wide">{db.server?.mode ?? ""}</span>
           </span>
           <span>

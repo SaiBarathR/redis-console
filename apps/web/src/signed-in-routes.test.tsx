@@ -30,3 +30,4 @@ it.each(['/login', '/login?error=oidc_state', '/no-such-view'])('a signed-in vis
   await screen.findByTestId('database-landing');
   await waitFor(() => expect(window.location.pathname + window.location.search).toBe('/'));
 });
+

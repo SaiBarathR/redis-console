@@ -4,6 +4,7 @@ import { audit, dbScope, profilerAllowed, requireSession, type AppContext } from
 import { HttpError } from '../http/errors.ts';
 import { openSse } from '../http/sse.ts';
 import { METADATA_REPLY_BYTES, sanitizeRedisError, TM_STR, withTimeout, type Conn } from '../redis/manager.ts';
+import { serverEngine } from '../redis/engine.ts';
 import { asStr, parseInfo } from '../redis/reply.ts';
 import { HIDDEN_INFO_FIELDS } from './infoFields.ts';
 import { maskListener } from '../policy/redactReply.ts';
@@ -90,6 +91,8 @@ export function registerDatabaseRoutes(app: FastifyInstance, ctx: AppContext) {
                 modules: parseModules(info),
               },
             };
+            const engine = serverEngine(info);
+            if (engine) cached.server.engine = engine;
             serverInfo.set(db.id, cached);
           } else {
             await withTimeout(conn.send(['PING'], { timeout: 2000 }), 2500, 'PING timeout');

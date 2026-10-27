@@ -2,6 +2,14 @@
 
 Changes to `packages/shared` made after the initial scaffold. Newest first. All are additive unless marked **breaking**.
 
+## 2026-10-27 — deployment trial fixes (fix/deploy-trial-learnings)
+
+### `api.ts`
+- `DatabaseSummary.server.engine` (additive, optional): `{ name, version }` when the server is not Redis itself, from
+  `INFO server` `server_name` and `<name>_version` (Valkey reports `redis_version:7.2.4` for compatibility). Both strings
+  are capped at 32 characters. `server.version` keeps the reported `redis_version`, and feature checks keep using it.
+  No new route, no audit action.
+
 ## 2026-10-27 — v0.4 review round 3 fixes (fix/v04-review-r3)
 
 ### `api.ts`

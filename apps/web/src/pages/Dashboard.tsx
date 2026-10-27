@@ -16,6 +16,7 @@ import {
   Readout,
 } from "../components/ui.tsx";
 import { Chart } from "../components/Chart.tsx";
+import { serverProduct } from "../lib/engine.ts";
 
 function splitBytes(bytes: number) {
   const [value, unit] = bytesLabel(bytes).split(" ");
@@ -300,8 +301,10 @@ function OverviewBody({
           </header>
           <dl className="facts server-facts">
             <dt>Version</dt>
-            <dd>
-              {db.server?.version ?? info.server?.redis_version ?? "—"}{" "}
+            <dd title={serverProduct(db.server).title}>
+              {db.server?.engine
+                ? `${db.server.engine.name} ${db.server.engine.version}`
+                : (db.server?.version ?? info.server?.redis_version ?? "—")}{" "}
               <span className="muted">{db.server?.mode ?? "standalone"}</span>
             </dd>
             {role && (

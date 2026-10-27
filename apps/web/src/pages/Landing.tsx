@@ -6,6 +6,7 @@ import { useAllDatabaseStats, useDatabaseStats, type DatabaseStats } from "../li
 import { setPreferences, usePreferences, type Preferences } from "../lib/preferences.ts";
 import { bytesLabel, uptimeLabel, visibleText } from "../lib/format.ts";
 import { useMemorySlot } from "../lib/memory.tsx";
+import { serverProduct } from "../lib/engine.ts";
 import { EnvBadge, PageTitle } from "../components/ui.tsx";
 import { KeyName } from "../components/anatomy.tsx";
 
@@ -223,8 +224,10 @@ function DatabaseRow({
       <td>
         <StatusCell db={db} />
       </td>
-      <td className="mono">
-        {db.server?.version ?? s?.version ?? missing}
+      <td className="mono" title={serverProduct(db.server).title}>
+        {db.server?.engine
+          ? `${db.server.engine.name} ${db.server.engine.version}`
+          : (db.server?.version ?? s?.version ?? missing)}
         {db.server?.mode && db.server.mode !== "standalone" && (
           <small> {db.server.mode}</small>
         )}
