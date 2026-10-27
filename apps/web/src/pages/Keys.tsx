@@ -28,7 +28,7 @@ import {
 import { dbPath, post, request } from "../lib/api.ts";
 import { jobSummary, useBulkJob, type BulkJobInfo } from "../lib/bulkjob.ts";
 import { canWrite, useDatabase } from "../lib/context.tsx";
-import { bytesLabel, cliBin, displayBin, visibleText } from "../lib/format.ts";
+import { bytesLabel, cliBin, displayBin, sizeMeasured, visibleText } from "../lib/format.ts";
 import { useKeyMeta, type MetaEntry } from "../lib/keymeta.ts";
 import {
   buildKeyIndex,
@@ -822,7 +822,10 @@ export function Keys() {
             </span>
           ))}
         {columns.size && (
-          <span className={`key-size ${m?.size === undefined ? "placeholder" : ""}`}>
+          <span
+            className={`key-size ${m?.size === undefined ? "placeholder" : ""}`}
+            title={m && !sizeMeasured(m.type) ? "Not measured: MEMORY USAGE does not cover graph data" : undefined}
+          >
             {m?.size !== undefined ? bytesLabel(m.size) : m?.asked.size ? "—" : ""}
           </span>
         )}

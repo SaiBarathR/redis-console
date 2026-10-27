@@ -24,7 +24,7 @@ import {
 import { dbPath, request, RequestError } from "../lib/api.ts";
 import { canWrite, useDatabase } from "../lib/context.tsx";
 import {
-  bytesLabel,
+  memoryLabel,
   cliBin,
   namespaceRecipe,
   ttlLabel,
@@ -347,7 +347,7 @@ export function KeyInspector({
                 readAt={detail.dataUpdatedAt}
                 size="full"
               />
-              <span title="MEMORY USAGE">{bytesLabel(data.size)}</span>
+              <span title="MEMORY USAGE">{memoryLabel(data.type, data.size)}</span>
               {data.encoding && (
                 <span title="OBJECT ENCODING">{data.encoding}</span>
               )}
@@ -487,7 +487,7 @@ export function KeyInspector({
                 <dt>Encoding</dt>
                 <dd>{data.encoding ?? "Unavailable"}</dd>
                 <dt>Memory</dt>
-                <dd>{bytesLabel(data.size)}</dd>
+                <dd>{memoryLabel(data.type, data.size)}</dd>
                 <dt>Length</dt>
                 <dd>{sizeFacts(data) ?? "—"}</dd>
                 <dt>Expiry</dt>

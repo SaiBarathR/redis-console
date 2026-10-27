@@ -36,6 +36,9 @@ const elementId = (bin: Bin, ref?: ElementRef) =>
   ref?.kind === "scan" || ref?.kind === "rank" ? `identity:${ref.identity}` : `${bin.enc}:${bin.data}`;
 
 /** The element an edit panel is bound to, as the current page shows it (a score as its text). */
+/** Types whose unsupported-value message already names the command to use (see the server's hintFor). */
+const hasTypeHint = (type: string) => type === "graphdata" || type.startsWith("MBbloom");
+
 function elementOf(value: KeyValue, id: string): { value: Bin; truncated?: boolean } | undefined {
   if (value.type === "hash" && id.startsWith("field:")) {
     const entry = value.entries.find((e) => `field:${elementId(e.field, e.ref)}` === id);
@@ -545,10 +548,12 @@ export function KeyContent({
     case "unsupported":
       result = (
         <Empty title={value.message}>
-          <span>
-            The key browser does not read this type yet. Use the console for the
-            commands your role allows (for example BF.INFO or CF.INFO).
-          </span>
+          {!hasTypeHint(details.type) && (
+            <span>
+              The key browser does not read this type yet. Use the console for the
+              commands your role allows (for example BF.INFO or CF.INFO).
+            </span>
+          )}
         </Empty>
       );
       break;
