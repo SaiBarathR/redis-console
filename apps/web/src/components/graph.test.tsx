@@ -46,7 +46,11 @@ describe('FalkorDB rich results', () => {
     const cut = fixture();
     if (cut.t === 'arr' && cut.v[1]?.t === 'arr') cut.v[1].more = 7;
     expect(graphView(cut)!.incomplete).toBe(true);
-    expect(graphView(cut)!.table.omittedRows).toBe(7);
+    expect(graphView(cut)!.table.omittedRows).toBe(0);
+    expect(graphView(cut)!.table.warnings).toEqual(['7 additional rows omitted by server reply limits']);
+    render(<RichReply kind="graph" reply={cut} />);
+    expect(screen.getByTestId('result-rich')).toHaveTextContent('7 additional rows omitted by server reply limits');
+    expect(screen.queryByTestId('rich-limit')).toBeNull();
     const partial: Reply = { t: 'arr', v: [arr(s('n')), arr(arr(node(0)))], more: 1 };
     expect(graphView(partial)!.incomplete).toBe(true);
     expect(graphView(partial)!.statistics[0]).toContain('Statistics omitted');

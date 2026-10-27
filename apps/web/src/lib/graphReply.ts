@@ -102,9 +102,9 @@ export function graphView(reply: Reply): GraphViewData | undefined {
     table: {
       columns: columns.slice(0, MAX_COLUMNS),
       rows: rows.slice(0, MAX_ROWS).map((row) => ({ fields: columns.slice(0, MAX_COLUMNS).flatMap((c, i): [string, Reply][] => list(row) && row.v[i] ? [[c, row.v[i]!]] : []) })),
-      omittedRows: Math.max(0, rows.length - MAX_ROWS) + moreRows,
+      omittedRows: Math.max(0, rows.length - MAX_ROWS),
       omittedColumns: Math.max(0, columns.length - MAX_COLUMNS) + moreColumns,
-      warnings: [],
+      warnings: moreRows ? [`${moreRows} additional rows omitted by server reply limits`] : [],
     },
     nodes: drawnNodes, edges: drawnEdges,
     omittedNodes: nodes.size - drawnNodes.length, omittedEdges: edges.size - drawnEdges.length,
