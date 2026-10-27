@@ -404,6 +404,21 @@ describe.skipIf(!sandboxUp)('insight: import jobs', () => {
     expect((await wait(admin, prod.json.id, '/api/v1/databases/e2e-prod')).json).toMatchObject({ state: 'done', succeeded: 2 });
   });
 
+  it('cancel aborts a non-graph command in flight at once (review v0.4 r4 graph L7)', async () => {
+    const op = await userSession(t, 'operator');
+    const plan = await op.req('POST', IMP, { script: `BLPOP ${P}never 5` });
+    await new Promise((res) => setTimeout(res, 1500)); // the start rate limit is for people
+    const { second } = await start(op, plan.json.id);
+    expect(second.status, second.body).toBe(200);
+    await new Promise((res) => setTimeout(res, 400));
+    const t0 = Date.now();
+    await op.req('POST', `${IMP}/${plan.json.id}/cancel`, {});
+    const end = await until(() => op.req('GET', `${IMP}/${plan.json.id}`), (x) => x.json.state !== 'running');
+    expect(end.json.state).toBe('cancelled');
+    // BLPOP would block for 5 s; the job's signal aborted it.
+    expect(Date.now() - t0).toBeLessThan(2500);
+  });
+
   it('stop on error, cancel, limits and a token bound to the options', async () => {
     const op = await userSession(t, 'operator');
     let plan = await op.req('POST', IMP, { script: `SET ${P}s 1\nLPUSH ${P}s x\nSET ${P}after 1` });
