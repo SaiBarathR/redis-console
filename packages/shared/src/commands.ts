@@ -31,6 +31,13 @@ export interface CommandRule {
 
 const B = (hint: string): CommandRule => ({ class: 'blocked', hint });
 
+/**
+ * v0.4 arrays (review v0.4 r2 H1, D22): ARGREP evaluates its predicates over the whole range inside Redis's main thread
+ * with no time limit, and Redis reports no byte size for a range, so no check of its arguments bounds the work (a
+ * case-insensitive MATCH costs value bytes × pattern bytes; RE more). The array inspector searches with bounded reads.
+ */
+export const ARGREP_HINT = "ARGREP is not available here: Redis would search the whole range in its main thread with no time or work limit. Use the array inspector's Search values, which reads a bounded part of the range per request and continues.";
+
 /** Top-level command rules. Keys are upper-case command names. */
 export const COMMAND_RULES: Record<string, CommandRule> = {
   // Key enumeration
@@ -164,8 +171,8 @@ export const COMMAND_RULES: Record<string, CommandRule> = {
   // Flagged readonly + @read, but they change state.
   'CF.COMPACT': { class: 'write' },
   // v0.4 arrays (Redis 8.8+). Reviewed one by one rather than left to COMMAND INFO flags. Reads are bounded by Redis
-  // (ARGETRANGE refuses more than 1,000,000 items) or by the reply cap; ARGREP's RE predicate is refused by
-  // `argumentRule` (no time bound inside Redis). Writes that drop elements confirm: ARDEL, ARDELRANGE, and ARRING,
+  // (ARGETRANGE refuses more than 1,000,000 items) or by the reply cap; ARGREP is blocked (ARGREP_HINT): nothing
+  // bounds its work inside Redis, and the inspector searches with bounded reads instead (D22). Writes that drop elements confirm: ARDEL, ARDELRANGE, and ARRING,
   // which overwrites the oldest elements when it wraps and deletes the ones outside a smaller ring. ARSET, ARMSET and
   // ARINSERT replace elements the way SET and HSET do and need no confirmation (the inspector's own edits are
   // compare-and-set); ARSEEK moves the insert cursor only.
@@ -173,7 +180,7 @@ export const COMMAND_RULES: Record<string, CommandRule> = {
   ARMGET: { class: 'read' },
   ARGETRANGE: { class: 'read' },
   ARSCAN: { class: 'read' },
-  ARGREP: { class: 'read' },
+  ARGREP: B(ARGREP_HINT),
   AROP: { class: 'read' },
   ARLASTITEMS: { class: 'read' },
   ARNEXT: { class: 'read' },
@@ -275,13 +282,6 @@ export function argumentRule(argv: readonly string[]): CommandRule | undefined {
   if (name === 'FT.DROPINDEX' && argv.slice(2).some((a) => a.toUpperCase() === 'DD')) {
     return B('FT.DROPINDEX ... DD also deletes every indexed key and is disabled here. Drop the index without DD to keep the documents.');
   }
-  // v0.4 arrays
-  if (name === 'ARGREP') {
-    const parts = argrepParts(argv);
-    if (parts.predicates.some((p) => p.kind === 'RE')) return B(ARGREP_RE_HINT);
-    if (parts.predicates.some((p) => utf8Length(p.value) > ARGREP_VALUE_MAX_BYTES)) return B(ARGREP_VALUE_HINT);
-    if (parts.nocase && parts.predicates.some((p) => p.kind === 'MATCH' && utf8Length(p.value) > ARGREP_NOCASE_MATCH_MAX_BYTES)) return B(ARGREP_NOCASE_HINT);
-  }
   // v0.4 vector sets (review v0.4 r1 M2)
   if (name === 'VSIM') {
     const refused = vsimRefusal(argv);
@@ -342,54 +342,7 @@ export function vsimRefusal(argv: readonly string[]): string | undefined {
   return undefined;
 }
 
-/**
- * v0.4 arrays (review v0.4 r1 H1): ARGREP search values are at most this many bytes, and with NOCASE a MATCH pattern at
- * most ARGREP_NOCASE_MATCH_MAX_BYTES. Redis compares case-insensitive substrings naively, so the work is the value
- * bytes times the pattern bytes on its main thread: on Redis 8.10, 5,000 elements of 4 KiB took 103 ms with a 9-byte
- * NOCASE pattern, 330 ms with 33 bytes and 2.4 s with 257 bytes (case-sensitive MATCH stayed at 24–66 ms).
- */
-export const ARGREP_VALUE_MAX_BYTES = 1024;
-export const ARGREP_NOCASE_MATCH_MAX_BYTES = 64;
-export const ARGREP_VALUE_HINT = `ARGREP search values are limited to ${ARGREP_VALUE_MAX_BYTES} bytes here. Search for a shorter, distinctive part of the value.`;
-export const ARGREP_NOCASE_HINT = `ARGREP with NOCASE limits MATCH patterns to ${ARGREP_NOCASE_MATCH_MAX_BYTES} bytes: Redis compares case-insensitive substrings byte by byte, so a long pattern can block the server on large values. Shorten the pattern or drop NOCASE.`;
-
 const utf8Length = (s: string) => new TextEncoder().encode(s).length;
-
-/**
- * The predicates of an `ARGREP key start end <predicate>… [option]…` argv with their values (kinds upper-cased) and
- * whether NOCASE is set, read the way Redis reads them: a predicate keyword and LIMIT take the next argument as their
- * value, so a value that reads "NOCASE" or "RE" is not an option or a predicate.
- */
-export function argrepParts(argv: readonly string[]): { predicates: { kind: string; value: string }[]; nocase: boolean } {
-  const predicates: { kind: string; value: string }[] = [];
-  let nocase = false;
-  for (let i = 4; i < argv.length; i++) {
-    const t = (argv[i] ?? '').toUpperCase();
-    if (t === 'EXACT' || t === 'MATCH' || t === 'GLOB' || t === 'RE') {
-      predicates.push({ kind: t, value: argv[i + 1] ?? '' });
-      i++;
-    } else if (t === 'LIMIT') i++;
-    else if (t === 'NOCASE') nocase = true;
-  }
-  return { predicates, nocase };
-}
-
-/**
- * v0.4 arrays: why `ARGREP … RE …` is blocked. Redis runs the regular expression on every element of the range inside
- * its main thread, with no time limit and no way to stop it, and the cost grows with the pattern's states times the
- * value bytes: on Redis 8.10, `((.?){255}){4}b` took about 1 s for one 1 KiB element, and `((a?){50}){5}b` blocked the
- * server for 60 s over 50,000 elements of 28 bytes. Range, LIMIT and pattern-length caps do not bound that.
- */
-export const ARGREP_RE_HINT = 'ARGREP with RE is disabled: Redis runs the regular expression on every element of the range without a time limit, and one pattern can block the server for minutes. Use EXACT, MATCH (substring) or GLOB.';
-
-/**
- * The predicate keywords of an `ARGREP key start end <predicate>… [option]…` argv, upper-cased (EXACT, MATCH, GLOB,
- * RE), read the way Redis reads them: a predicate keyword and LIMIT take the next argument as their value, so a value
- * that happens to be "RE" (`EXACT RE`) is not a predicate.
- */
-export function argrepPredicates(argv: readonly string[]): string[] {
-  return argrepParts(argv).predicates.map((p) => p.kind);
-}
 
 /** Static lookup only (no COMMAND INFO). Returns undefined when the server must classify from flags. */
 export function lookupRule(argv: readonly string[]): CommandRule | undefined {

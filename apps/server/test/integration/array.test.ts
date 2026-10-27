@@ -5,7 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ARRAY_MAX_INDEX, ARRAY_SEARCH_MAX_BYTES, ARGREP_RE_HINT } from '@rconsole/shared';
+import { ARGREP_HINT, ARRAY_MAX_INDEX, ARRAY_SEARCH_MAX_BYTES } from '@rconsole/shared';
 import { checkedWrite, type CheckedPlan } from '../../src/redis/checked.ts';
 import { searchMatcher } from '../../src/redis/array.ts';
 import { zArraySearch } from '@rconsole/shared';
@@ -477,7 +477,7 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
 
     it('reads run for viewers; writes need operator; ARDEL, ARDELRANGE and ARRING confirm', async () => {
       await ar('ARSET', k('cli'), '0', 'a', 'b', 'c');
-      expect((await cli(viewer, `ARGREP ${k('cli')} 0 10 GLOB * WITHVALUES`)).status).toBe(200);
+      expect((await cli(viewer, `ARSCAN ${k('cli')} 0 10 LIMIT 5`)).status).toBe(200);
       expect((await cli(viewer, `ARINFO ${k('cli')}`)).json.commandClass).toBe('read');
       expect((await cli(viewer, `ARSET ${k('cli')} 0 x`)).status).toBe(403);
       expect((await cli(operator, `ARSET ${k('cli')} 0 x`)).status).toBe(200);
@@ -488,18 +488,20 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       expect(await ar('ARCOUNT', k('cli'))).toBe(3);
     });
 
-    it('ARGREP with an RE predicate is blocked for every role, in any case or position, and audited as denied', async () => {
+    it('ARGREP is blocked in the console and the Workbench for every role and audited as denied (review v0.4 r2 H1)', async () => {
       const before = t.auditLines.length;
-      for (const line of [`ARGREP ${k('cli')} 0 10 RE "(a+)+$"`, `argrep ${k('cli')} 0 10 EXACT a OR re x`, `ARGREP ${k('cli')} 0 10 WITHVALUES Re x`]) {
-        const res = await cli(admin, line);
-        expect(res.status, line).toBe(403);
-        expect(res.json.error.code).toBe('command_blocked');
-        expect(res.json.error.hint).toBe(ARGREP_RE_HINT);
+      const lines = [`ARGREP ${k('cli')} 0 10 RE "(a+)+$"`, `argrep ${k('cli')} 0 10 MATCH aab NOCASE LIMIT 1`, `ARGREP ${k('cli')} 0 10 EXACT RE`, `ARGREP ${k('cli')} 0 10 GLOB *`];
+      for (const c of [viewer, operator, admin]) {
+        for (const line of lines) {
+          const res = await cli(c, line);
+          expect(res.status, line).toBe(403);
+          expect(res.json.error).toMatchObject({ code: 'command_blocked', hint: ARGREP_HINT });
+        }
       }
-      // "RE" as an EXACT value is data, not a predicate.
-      expect((await cli(viewer, `ARGREP ${k('cli')} 0 10 EXACT RE`)).status).toBe(200);
-      const lines = t.auditLines.slice(before).map((l) => JSON.parse(l));
-      expect(lines.filter((l) => l.outcome === 'denied' && l.command === 'ARGREP')).toHaveLength(3);
+      const wb = await admin.req('POST', `${DB}/workbench`, { script: `ARGREP ${k('cli')} 0 10 GLOB *` });
+      expect(JSON.stringify(wb.json)).toContain('command_blocked');
+      const audit = t.auditLines.slice(before).map((l) => JSON.parse(l));
+      expect(audit.filter((l) => l.outcome === 'denied' && l.command === 'ARGREP').length).toBeGreaterThanOrEqual(12);
     });
   });
 

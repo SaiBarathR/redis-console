@@ -11,7 +11,7 @@ import {
   zElementRef,
   zKeyOp,
 } from './api.ts';
-import { ARGREP_NOCASE_MATCH_MAX_BYTES, ARGREP_RE_HINT, ARGREP_VALUE_MAX_BYTES, argrepPredicates, argumentRule, lookupRule } from './commands.ts';
+import { ARGREP_HINT, argumentRule, lookupRule } from './commands.ts';
 
 const key = { enc: 'utf8' as const, data: 'arr' };
 const sha = 'a'.repeat(64);
@@ -74,38 +74,22 @@ describe('array element references and typed ops', () => {
 
 describe('array command rules (v0.4 arrays block)', () => {
   it('classifies every AR* command explicitly; destructive ones confirm', () => {
-    for (const c of ['ARGET', 'ARMGET', 'ARGETRANGE', 'ARSCAN', 'ARGREP', 'AROP', 'ARLASTITEMS', 'ARNEXT', 'ARLEN', 'ARCOUNT', 'ARINFO'])
+    for (const c of ['ARGET', 'ARMGET', 'ARGETRANGE', 'ARSCAN', 'AROP', 'ARLASTITEMS', 'ARNEXT', 'ARLEN', 'ARCOUNT', 'ARINFO'])
       expect(lookupRule([c]), c).toEqual({ class: 'read' });
     for (const c of ['ARSET', 'ARMSET', 'ARINSERT', 'ARSEEK']) expect(lookupRule([c]), c).toEqual({ class: 'write' });
     for (const c of ['ARDEL', 'ARDELRANGE', 'ARRING']) expect(lookupRule([c]), c).toEqual({ class: 'write', confirm: 'confirm' });
     expect(lookupRule(['ardelrange'])).toEqual({ class: 'write', confirm: 'confirm' });
   });
-  it('blocks ARGREP with an RE predicate in any position and case, not a value that reads "RE"', () => {
-    const blocked = { class: 'blocked', hint: ARGREP_RE_HINT };
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'RE', '(a+)+$'])).toEqual(blocked);
-    expect(argumentRule(['argrep', 'k', '0', '10', 'EXACT', 'x', 'OR', 're', 'y'])).toEqual(blocked);
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'WITHVALUES', 'Re', 'y', 'LIMIT', '5'])).toEqual(blocked);
-    // "RE" as the value of EXACT, or as LIMIT's argument, is not a predicate.
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'EXACT', 'RE'])).toBeUndefined();
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'GLOB', 'r*', 'LIMIT', '3', 'NOCASE'])).toBeUndefined();
-    // The key, start and end are never predicates.
-    expect(argumentRule(['ARGREP', 'RE', 'RE', 'RE', 'MATCH', 'x'])).toBeUndefined();
-    expect(argrepPredicates(['ARGREP', 'k', '0', '10', 'EXACT', 'LIMIT', 'RE', 'x', 'MATCH', 'RE'])).toEqual(['EXACT', 'RE', 'MATCH']);
-  });
-  it('bounds ARGREP search values: at most 1 KiB, and a NOCASE MATCH at most 64 bytes (review v0.4 r1 H1)', () => {
-    expect(ARRAY_PREDICATE_MAX_BYTES).toBe(ARGREP_VALUE_MAX_BYTES);
-    const long = 'a'.repeat(1025);
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'EXACT', long])?.class).toBe('blocked');
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'x', 'OR', 'GLOB', long])?.class).toBe('blocked');
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'a'.repeat(1024)])).toBeUndefined();
-    // NOCASE makes MATCH cost the pattern length times a plain scan, wherever NOCASE is written.
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'a'.repeat(65), 'NOCASE'])?.class).toBe('blocked');
-    expect(argumentRule(['argrep', 'k', '0', '10', 'nocase', 'match', 'a'.repeat(65)])?.class).toBe('blocked');
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'a'.repeat(64), 'NOCASE'])).toBeUndefined();
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'EXACT', 'a'.repeat(65), 'NOCASE'])).toBeUndefined();
-    // Multi-byte characters count as bytes.
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'é'.repeat(33), 'NOCASE'])?.class).toBe('blocked');
-    // A value that reads "NOCASE" is not the option.
-    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'NOCASE', 'EXACT', 'a'.repeat(65)])).toBeUndefined();
+  it('blocks ARGREP in every form: nothing bounds its work inside Redis (review v0.4 r2 H1)', () => {
+    const blocked = { class: 'blocked', hint: ARGREP_HINT };
+    for (const argv of [
+      ['ARGREP', 'k', '0', '10', 'GLOB', '*'],
+      ['argrep', 'k', '0', '10', 'MATCH', 'a'.repeat(63) + 'b', 'NOCASE', 'LIMIT', '1'],
+      ['ARGREP', 'k', '0', '10', 'RE', '(a+)+$'],
+      ['ARGREP', 'k', '0', '10', 'EXACT', 'x'],
+      ['ARGREP'],
+    ])
+      expect(argumentRule(argv) ?? lookupRule(argv), argv.join(' ')).toEqual(blocked);
+    expect(ARGREP_HINT).toMatch(/inspector/);
   });
 });

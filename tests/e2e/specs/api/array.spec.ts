@@ -5,7 +5,7 @@
  */
 import { createHash } from 'node:crypto';
 import { test, expect } from '@playwright/test';
-import { ARGREP_RE_HINT } from '@rconsole/shared';
+import { ARGREP_HINT } from '@rconsole/shared';
 import { Api, dbPath, utf8 } from '../../lib/api.ts';
 import { DB } from '../../lib/env.ts';
 import { K, redisExec } from '../../lib/fixtures-data.ts';
@@ -50,13 +50,13 @@ test.describe('arrays (v0.4)', () => {
     expect((await viewer.post(E('ops'), { op: 'array.set', key: utf8(key), index: '1', value: utf8('X'), expect: { type: 'array', sha256: sha('B') } })).status).toBe(403);
   });
 
-  test('ARGREP with RE is refused: not a predicate of the search route, blocked in the console for admins', async () => {
+  test('ARGREP is refused: RE is not a predicate of the search route, and the console blocks ARGREP for everyone', async () => {
     const route = await admin.post(E('array/search'), { key: utf8(key), predicates: [{ kind: 're', value: utf8('(a+)+$') }] });
     expect(route.status).toBe(400);
     const cli = await admin.post(E('cli'), { line: `ARGREP ${key} 0 10 RE "(a+)+$"` });
     expect(cli.status).toBe(403);
-    expect(cli.json.error).toMatchObject({ code: 'command_blocked', hint: ARGREP_RE_HINT });
-    expect((await viewer.post(E('cli'), { line: `ARGREP ${key} 0 10 GLOB *` })).status).toBe(200);
+    expect(cli.json.error).toMatchObject({ code: 'command_blocked', hint: ARGREP_HINT });
+    expect((await viewer.post(E('cli'), { line: `ARGREP ${key} 0 10 GLOB *` })).status).toBe(403);
   });
 
   test('prod: every array write needs the typed database name and a reason', async () => {

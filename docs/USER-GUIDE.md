@@ -254,9 +254,8 @@ Some commands are blocked for **everyone** because they are dangerous in a share
 | `MODULE`, `DEBUG`, `SHUTDOWN`, `REPLICAOF`, `MIGRATE`, `SAVE`, `BGSAVE` | Server operations. | Ask the platform team. |
 | `MULTI`/`EXEC`/`WATCH` | Commands run one at a time here. | Individual commands. |
 | `SELECT`, `MOVE`, `SWAPDB`, `COPY … DB` | The logical database is fixed per entry. | The database switcher. |
-| `ARGREP … RE …` | Redis runs the regular expression on every element of the range with no time limit; one pattern can stall the server for minutes. | `ARGREP` with `EXACT`, `MATCH` (substring) or `GLOB`, or the array inspector's search. |
+| `ARGREP` | Redis searches the whole range in its main thread with no time or work limit; a regular expression or a long case-insensitive pattern can stall the server, and no limit on the arguments bounds it. | The array inspector's **Search values** (the same conditions, read in bounded steps). |
 | `VSIM … TRUTH`, `VSIM … NOTHREAD`; `COUNT` or `EF` over 1,000, `FILTER-EF` 0 or over 100,000, a `FILTER` over 1 KiB | `TRUTH` compares the query with every vector of the set and `NOTHREAD` runs the search on Redis's main thread; the others remove the search's bounds. | `VSIM` within those bounds, or the vector-set inspector's similarity search. |
-| `ARGREP` with a value over 1 KiB, or a `MATCH` over 64 bytes with `NOCASE` | Case-insensitive substring search costs the pattern length times a plain scan of the range. | Shorter values, a case-sensitive `MATCH`, or the array inspector's search (it continues in steps). |
 | `FT.DROPINDEX … DD` | It deletes every indexed key as well. | Admins: drop the index without `DD` (the keys stay), from Diagnostics → Search → Indexes or the console. |
 | `AUTH`, `HELLO`, `CLIENT SETNAME`, `ACL SETUSER` | The server manages connections and users. | — |
 | `SUBSCRIBE`, `MONITOR` | Need a live stream. | Diagnostics → Pub/Sub or Profiler. |

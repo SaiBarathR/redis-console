@@ -14,6 +14,12 @@ Changes to `packages/shared` made after the initial scaffold. Newest first. All 
   or `end`), and `elements` counts the elements read and tested. Audit: action `array.search`, command `ARSCAN`
   (was `ARGREP`), argv with predicate kinds and value sizes only.
 
+### `commands.ts`
+- **`ARGREP` is blocked** in the console and the Workbench for every role (`ARGREP_HINT`; review v0.4 r2 H1, D22).
+  **Breaking (unreleased):** the per-argument ARGREP rules and their exports (`ARGREP_RE_HINT`, `ARGREP_VALUE_MAX_BYTES`,
+  `ARGREP_NOCASE_MATCH_MAX_BYTES`, the value and NOCASE hints, `argrepParts`, `argrepPredicates`) are removed. Audit:
+  `denied`, command `ARGREP`.
+
 ## 2026-10-27 — v0.4 review round 1 fixes (fix/v04-review-r1)
 
 ### `api.ts`

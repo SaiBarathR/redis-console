@@ -95,7 +95,7 @@ Source: `packages/shared/src/commands.ts` (rules) and `apps/server/src/policy/` 
    SETNAME and similar; classify reviewed module commands (`FT._LIST`, `FT.INFO` as reads, `FT.DROPINDEX` as admin +
    typed); and attach confirmations (DEL, UNLINK, RENAME, LTRIM, XTRIM, ZREMRANGE*, ARDEL, ARDELRANGE, ARRING →
    `confirm`; FLUSHDB → admin, `typed`, never on prod). Every array command (v0.4) has an explicit rule, and
-   `ARGREP … RE …` is blocked by `argumentRule` (section 7, Arrays).
+   `ARGREP` is blocked (section 7, Arrays; D22).
 3. Otherwise the database's own `COMMAND INFO` decides (`policy/commandTable.ts`): `admin` flag or `@admin`/`@dangerous`
    → blocked; `pubsub` → blocked (use the page); `write` → write; `readonly` **and** `@read` without `@write` → read.
    A command with unknown subcommands, an unknown command, or anything unclassifiable → **blocked** (fail closed).
@@ -217,10 +217,9 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
   size, which small values elsewhere in the array or one huge value defeated; nothing bounds ARGREP's own work, so the
   console blocks it. At most 8 predicates of 1 KiB each; GLOB patterns have at most 8 `*`. Aggregates (AROP) over ranges holding more than 1,000,000 elements are refused with 400 and the
   count. Measured on Redis 8.10 with 6,000,000 elements: USED 10 ms, SUM 40 ms, MATCH over all of them 80 ms. Regular
-  expressions (`RE`) are not offered and `ARGREP … RE …` is blocked in the console: Redis evaluates them in its main
-  thread with no time limit and no way to stop them, at a cost of pattern states × value bytes, so no range, LIMIT or
-  pattern-length cap bounds them (`((.?){255}){4}b` took about 1 s for one 1 KiB element; `((a?){50}){5}b` blocked a
-  server for 60 s over 50,000 elements of 28 bytes). Per user: pages 20/s (burst 40), searches and aggregates 5/s
+  expressions (`RE`) are not offered (ARGREP's RE costs pattern states × value bytes in Redis's main thread:
+  `((.?){255}){4}b` took about 1 s for one 1 KiB element; `((a?){50}){5}b` blocked a server for 60 s over 50,000
+  elements of 28 bytes), and `ARGREP` itself is blocked in the console and the Workbench. Per user: pages 20/s (burst 40), searches and aggregates 5/s
   (burst 10), all inside the four data reads at once.
 - **Commands:** `commandTimeoutMs` 5 s (blocking: block time + 2 s); workbench script budget 30 s; SCAN time budget
   per key-browser page (`scanBudgetMs`, 300 ms) and a slot threshold per names request (`keyScanThresholdMax`); memory
