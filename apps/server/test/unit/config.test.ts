@@ -358,6 +358,17 @@ describe('resolveConfig', () => {
       w = configWarnings(resolve(raw, prodEnv)).join('\n');
       expect(w).toMatch(/database main: acceptRisks lists "plaintext", but the database uses TLS; remove it/);
       expect(w).toMatch(/database main: acceptRisks lists "default-credentials", but every reachable tier has its own ACL user; remove it/);
+      // An exception on a database that is not prod has no effect (review L5).
+      const dev = prodOk();
+      dev.databases[0].acceptRisks = ['plaintext'];
+      expect(configWarnings(resolve(dev, prodEnv)).join('\n')).toMatch(/database main: acceptRisks has no effect outside environment=prod; remove it/);
+    });
+    it('says why a tier that connects as Redis\'s "default" user loses its limits (review M1)', () => {
+      const raw = prodOk();
+      raw.databases[0].environment = 'prod';
+      raw.databases[0].url = 'rediss://h:6380';
+      raw.databases[0].credentials = { viewer: { username: 'v', password: { env: 'PW_V' } }, operator: { username: 'o', password: { env: 'PW_O' } }, admin: { username: 'default', password: { env: 'PW_A' } } };
+      fails(raw, /admin connects as Redis's "default" user, which usually has every permission/, prodEnv);
     });
     it('refuses disabled TLS verification on any database', () => {
       const raw = prodOk();

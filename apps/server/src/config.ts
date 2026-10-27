@@ -677,7 +677,7 @@ export function tierUserProblems(d: { maxRole: Role; credentials: TierCredential
   const asDefault = reachable.filter((t) => d.credentials[t]?.username === 'default');
   if (asDefault.length) {
     const one = asDefault.length === 1;
-    out.push(`${asDefault.join(' and ')} ${one ? 'connects' : 'connect'} as Redis's "default" user, so Redis cannot enforce ${one ? 'that role' : 'those roles'}; give each tier its own ACL user`);
+    out.push(`${asDefault.join(' and ')} ${one ? 'connects' : 'connect'} as Redis's "default" user, which usually has every permission, so Redis cannot enforce ${one ? 'that role\'s' : 'those roles\''} limits; give each tier its own ACL user`);
   }
   const byUser = new Map<string, string[]>();
   for (const t of reachable) {
@@ -702,7 +702,10 @@ export function configWarnings(c: AppConfig): string[] {
     if (!hasPerTierCredentials(d)) {
       w.push(`database ${d.id}: only "default" credentials configured, or tiers that connect as Redis's "default" user; the app enforces policy alone (configure per-tier ACL users)`);
     }
-    if (d.environment !== 'prod') continue;
+    if (d.environment !== 'prod') {
+      if (d.acceptRisks?.length) w.push(`database ${d.id}: acceptRisks has no effect outside environment=prod; remove it`);
+      continue;
+    }
     // Each accepted risk is named at every start, and an exception that is no longer needed is called out.
     const accepted = d.acceptRisks ?? [];
     const plaintext = accepted.includes('plaintext');
