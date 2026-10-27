@@ -42,7 +42,8 @@ describe('v0.4 graph policy', () => {
     expect(graphQueryRefusal('MATCH (n)\tRETURN n')).toBeUndefined();
     // Unicode and other control whitespace fails closed outside strings, whatever the representation.
     for (const ws of ['\u00a0', '\u000b', '\u000c', '\u2028', '\u0000']) expect(graphQueryRefusal(`RETURN${ws}1`), JSON.stringify(ws)).toBeDefined();
-    expect(graphQueryRefusal(Buffer.from('RETURN\u00a01', 'utf8').toString('latin1'))).toBeDefined();
+    // The server's view of U+00A0: its UTF-8 bytes c2 a0 read as latin1.
+    expect(graphQueryRefusal('RETURN\u00c2\u00a01')).toBeDefined();
     // Non-ASCII stays fine inside strings and quoted identifiers.
     expect(graphQueryRefusal("MATCH (n:`Persön`) WHERE n.name = 'Zoë\u00a0' RETURN n")).toBeUndefined();
   });
