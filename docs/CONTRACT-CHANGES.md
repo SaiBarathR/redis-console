@@ -1,3 +1,19 @@
+## 2026-10-27 — S4 graph (feat/v04-workbench-geo-graph)
+
+### commands.ts
+- Additive: explicit GRAPH command policy, with conservative Cypher feature guards in `graphPolicy.ts`. RO_QUERY,
+  EXPLAIN, LIST, INFO ObjectPool and MEMORY are reads; QUERY/PROFILE are operator writes with confirmation on every
+  call; DELETE is admin + typed; SLOWLOG/CONFIG GET are admin reads (SLOWLOG RESET is refused). Unsafe and future commands fail closed.
+- Additive server behavior: only reviewed TIMEOUT/--compact options, positive timeout <=1000 ms in exact-command
+  previews; readOnly/maxRole/prod and late actor enforcement remain in force. Audit uses existing cli/workbench
+  actions with redacted argv, hashed graph keys and denied outcomes for refusals. No values or Cypher are audited.
+
+### Rich replies and sandbox
+- Additive UI kinds `graph` and `graphPlan` over the existing binary-safe Reply contract; no new endpoint/schema.
+  Graphdata key reads return an unsupported-value hint naming the Workbench and GRAPH.RO_QUERY.
+- Additive dev/e2e database `sandbox-graph`, a pinned ephemeral FalkorDB service on loopback 6413, separate generated
+  ACL/config files, and CI readiness checks. New test IDs are listed in `apps/web/TESTIDS.md`.
+
 # Contract changes
 
 Changes to `packages/shared` made after the initial scaffold. Newest first. All are additive unless marked **breaking**.

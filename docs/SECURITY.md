@@ -140,3 +140,22 @@ The end-to-end suite (`tests/e2e`, Playwright) runs against the real server with
 - The console blocks MULTI/EXEC and Lua by design. Workflows that need atomic scripts belong in application code, not in an admin UI. The server itself uses WATCH/MULTI/EXEC (never Lua) only for its own compare-and-set edits, with a fixed command it builds, on the caller's tier (which therefore needs `+@transaction`).
 - Compare-and-set compares bytes. A list element is identified by its index and bytes, so an LPUSH/LPOP pair that leaves equal bytes at that index is not detected; renames and deletes of collections compare the type only. Ops without compare-and-set (TTL, element removals, adds) refuse an `expect` field with 400 rather than ignoring it.
 - Review findings and their verdicts are in [REVIEW-LOG.md](REVIEW-LOG.md); e2e findings in [E2E-FINDINGS.md](E2E-FINDINGS.md).
+
+### v0.4 FalkorDB graph boundary
+
+- GRAPH commands are explicitly classified; future commands fail closed. QUERY/PROFILE require an operator and
+  confirmation on every call; DELETE requires admin and typed confirmation. Read-only/maxRole/prod restrictions,
+  exact-request confirmation binding, measured transport and late actor checks apply normally.
+- Cypher LOAD (server file/URL loaders), unreviewed CALL procedures and namespaced/quoted function calls (including
+  preloaded JS UDFs) are refused server-side for QUERY, RO_QUERY, EXPLAIN and PROFILE. UDF, binary BULK/RESTORE,
+  internal commands and CONFIG SET are disabled. INFO exposes only ObjectPool; query logs/config reads require admin.
+- The app adds TIMEOUT <=1000 ms; the sandbox module bounds read **and write** execution with TIMEOUT_DEFAULT/MAX,
+  plus RESULTSET_SIZE 10000 and MAX_QUEUED_QUERIES 25. Deployed graph servers need equivalent module limits. A timeout
+  is not a rollback guarantee. Raw replies still have measured byte, element and depth limits.
+- The SVG diagram and result/plan tables render data as text, with fixed node/edge/row/depth bounds, keyboard
+  selection and no network access. Unknown/compact reply shapes fall back to the generic view.
+
+Tests: shared `graphPolicy.test.ts`, server unit `graph-policy.test.ts`, server integration `graph.test.ts`, web
+`graph.test.tsx`, e2e `ui/graph.spec.ts`, and `qa/graph-live.browser.spec.ts` (local and Keycloak roles). Evidence and
+cleanup: [v04-graph.md](qa/v04-graph.md). The lexical guard's deliberate conservative restrictions are in D21;
+it does not attempt to parse arbitrary Cypher or infer whether a query writes.

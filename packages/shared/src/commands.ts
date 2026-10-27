@@ -1,3 +1,5 @@
+import { GRAPH_QUERY_COMMANDS, graphQueryRefusal } from './graphPolicy.ts';
+export { GRAPH_TIMEOUT_MS, GRAPH_QUERY_COMMANDS } from './graphPolicy.ts';
 import type { Role } from './roles.ts';
 
 /**
@@ -131,6 +133,27 @@ export const COMMAND_RULES: Record<string, CommandRule> = {
   VRANDMEMBER: { class: 'read' },
   VRANGE: { class: 'read' },
   VSIM: { class: 'read' },
+  // v0.4 graph: module flags/categories do not express Cypher safety.
+  'GRAPH.RO_QUERY': { class: 'read' },
+  'GRAPH.EXPLAIN': { class: 'read' },
+  'GRAPH.LIST': { class: 'read' },
+  'GRAPH.INFO': { class: 'read' },
+  'GRAPH.MEMORY': { class: 'read' },
+  // Confirm every potentially mutating query, including PROFILE, without guessing at Cypher semantics.
+  'GRAPH.QUERY': { class: 'write', confirm: 'confirm' },
+  'GRAPH.PROFILE': { class: 'write', confirm: 'confirm' },
+  'GRAPH.DELETE': { class: 'admin', confirm: 'typed' },
+  'GRAPH.SLOWLOG': { class: 'admin' },
+  'GRAPH.CONFIG': B('Only GRAPH.CONFIG GET is allowed.'),
+  'GRAPH.COPY': B('Graph copying is disabled; use a reviewed application workflow.'),
+  'GRAPH.CONSTRAINT': B('Graph constraint management is disabled.'),
+  'GRAPH.UDF': B('Graph user-defined code is disabled, like Lua scripting.'),
+  'GRAPH.BULK': B('Graph binary bulk payloads are disabled.'),
+  'GRAPH.RESTORE': B('Graph binary restore payloads are disabled.'),
+  'GRAPH.DEBUG': B('Internal graph command.'),
+  'GRAPH.EFFECT': B('Internal graph command.'),
+  'GRAPH.RECORD': B('Internal graph command.'),
+  // end v0.4 graph
   // Flagged readonly + @read, but they change state.
   'CF.COMPACT': { class: 'write' },
 };
@@ -221,6 +244,15 @@ export function argumentRule(argv: readonly string[]): CommandRule | undefined {
   if (name === 'FT.DROPINDEX' && argv.slice(2).some((a) => a.toUpperCase() === 'DD')) {
     return B('FT.DROPINDEX ... DD also deletes every indexed key and is disabled here. Drop the index without DD to keep the documents.');
   }
+  // v0.4 graph: runs server-side on exact argv bytes too, before static lookup.
+  if (GRAPH_QUERY_COMMANDS.has(name)) {
+    const hint = graphQueryRefusal(argv[2] ?? '');
+    if (hint) return B(hint);
+  }
+  if (name === 'GRAPH.SLOWLOG' && argv.length !== 2) return B('Only GRAPH.SLOWLOG graph is allowed; RESET is disabled.');
+  if (name === 'GRAPH.MEMORY' && (argv[1]?.toUpperCase() !== 'USAGE' || ![3, 5].includes(argv.length) || (argv.length === 5 && argv[3]?.toUpperCase() !== 'SAMPLES'))) return B('Use GRAPH.MEMORY USAGE graph [SAMPLES count].');
+  if (name === 'GRAPH.INFO' && (argv.length !== 2 || argv[1]?.toUpperCase() !== 'OBJECTPOOL')) return B('Use GRAPH.INFO ObjectPool; running/waiting queries can disclose other users’ query text.');
+  if (name === 'GRAPH.CONFIG' && argv[1]?.toUpperCase() === 'GET' && argv.length === 3) return { class: 'admin' };
   return undefined;
 }
 
@@ -237,6 +269,7 @@ export function lookupRule(argv: readonly string[]): CommandRule | undefined {
   }
   const rule = COMMAND_RULES[name];
   if (rule) return rule;
+  if (name.startsWith('GRAPH.')) return B('Unreviewed graph command.');
   if (INTERNAL_COMMAND.test(name)) return B(`${name} is an internal module command and is not allowed.`);
   return undefined;
 }
