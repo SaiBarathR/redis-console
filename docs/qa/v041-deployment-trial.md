@@ -59,6 +59,7 @@ it after `docker.service`.
 | G3 | Suspected: the "without TLS" warning ignored `rediss://`. | Not a bug: warnings run on the resolved config, where `rediss://` sets `tls`. No change. |
 | G4 | Valkey 8.1 was listed as `7.2.4` (its compatibility `redis_version`). | `server.engine` in the database summary; the picker, status bar and overview show "Valkey 8.1.4" (CONTRACT-CHANGES). |
 | G5 | After signing in on `/login`, the address bar kept `/login` (any unknown path did the same). | Unknown paths redirect to `/`. |
+| G6 | With one local admin, a lost password cannot be recovered: the admin CLI resets authenticators, not passwords, and `bootstrapAdmin` only acts on an empty user table. | INSTALL 11: keep two admins, one a sealed break-glass account. A CLI password reset is a candidate for a later release. |
 
 F8 (the Compose example lists six secrets that must all exist) needed no change: the guide already says to remove
 the entries you don't use.

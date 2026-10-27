@@ -754,7 +754,10 @@ Companions that keep this operable:
 3. Check **Databases**: every configured database should say *connected*. `status: error` usually means Redis refused
    the ACL user or TLS failed (section 14).
 4. Create named accounts (or rely on OIDC), then remove `bootstrapAdmin` from the config and delete the
-   `bootstrap_admin_password` secret.
+   `bootstrap_admin_password` secret. Keep **at least two local admins**, one of them a break-glass account whose
+   password, authenticator secret and recovery codes are sealed in your password manager: the admin CLI can reset an
+   authenticator but not a password, and `bootstrapAdmin` only acts while no local user exists, so a single admin who
+   loses their password locks everyone out of user management.
 5. Run `PING` in the Console, open the key browser, and check **Admin → Audit log** shows your actions with redacted
    arguments.
 
