@@ -19,6 +19,7 @@ function config() {
     { ...base, id: 'graph-ro', name: 'Graph read-only', readOnly: true },
     { ...base, id: 'graph-prod', name: 'Graph prod', environment: 'prod' },
     { ...base, id: 'graph-max', name: 'Graph max viewer', maxRole: 'viewer' },
+    { ...base, id: 'graph-p1', name: 'Graph pool of one', poolSize: 1 },
   ];
   return cfg;
 }
@@ -189,6 +190,14 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
       }
     } finally { await fixture.sendCommand(['GRAPH.UDF', 'DELETE', lib]); }
   });
+  it('a pool of one refuses graph queries at the policy step: no confirmation, and Import lists them as blocked (review v0.4 r4 graph L3)', async () => {
+    const q = await clients.operator.req('POST', endpoint('graph-p1'), { argv: ['GRAPH.QUERY', k, 'RETURN 1'] });
+    expect(q.status, q.body).toBe(400);
+    expect(q.json.error.message).toMatch(/poolSize/);
+    const plan = await clients.operator.req('POST', '/api/v1/databases/graph-p1/import', { script: `GRAPH.RO_QUERY ${k} "RETURN 1"\nGRAPH.LIST` });
+    expect(plan.json.blocked.map((b: { line: number }) => b.line)).toEqual([1]);
+  });
+
   it('Import cancel with graph lines: ends cancelled, and a line refused before sending is not reported as possibly run (review v0.4 r4 graph L1, L2)', async () => {
     const IMP = '/api/v1/databases/graph/import';
     const op = clients.operator;

@@ -56,6 +56,8 @@ export function prepare(argv: Buffer[], table: CommandTable | undefined, scope: 
   if (!argv.length) throw new HttpError('validation', 'Empty command.');
   const c = classify(argv, table);
   authorize(c, scope);
+  // Before any confirmation, and in an import's plan (review v0.4 r4 graph L3); executeGraph checks again.
+  if (GRAPH_QUERY_COMMANDS.has(c.command) && scope.db.poolSize < 2) throw new HttpError('validation', GRAPH_POOL_TOO_SMALL);
   const capped = applyCaps(argv).map((a) => (typeof a === 'string' ? Buffer.from(a) : a));
   // The preview is built from the capped argv: exactly what will be sent to Redis.
   const preview = buildPreview([commandPreview(capped, c)]);
@@ -83,6 +85,7 @@ export const MAX_BLOCKING_PER_USER = 1;
  * pool of one (review v0.4 r3 graph L2): one long query must not take every connection of a tier.
  */
 export const GRAPH_ENGINE_SLOTS_PER_DB = 2;
+const GRAPH_POOL_TOO_SMALL = 'Graph queries need a connection pool of at least 2 on this database (poolSize), so that a long-running query cannot hold every connection.';
 export const GRAPH_ENGINE_HOLD_MS = 15 * 60_000;
 
 export async function execute(ctx: AppContext, scope: DbScope, p: Prepared, signal?: AbortSignal): Promise<CliResponse> {
@@ -113,7 +116,7 @@ async function executeGraph(ctx: AppContext, scope: DbScope, p: Prepared): Promi
   const perDb = Math.min(GRAPH_ENGINE_SLOTS_PER_DB, scope.db.poolSize - 1);
   if (perDb < 1) {
     mine();
-    throw new HttpError('validation', 'Graph queries need a connection pool of at least 2 on this database (poolSize), so that a long-running query cannot hold every connection.');
+    throw new HttpError('validation', GRAPH_POOL_TOO_SMALL);
   }
   const db = ctx.slots.acquire(`graph-engine:${scope.db.id}`, perDb);
   if (!db) {
