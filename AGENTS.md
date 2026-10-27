@@ -203,7 +203,12 @@ changes minimal; validate.
 2. Bump `version` in the package manifests; write `docs/RELEASE-NOTES-vX.Y.md` (what changed, upgrade notes such as
    new ACL grants and config keys, how it was checked).
 3. Tag `vX.Y` (annotated) and fast-forward `main` (`git merge --ff-only release/vX.Y`). Push only when the owner asks.
-4. Release tags are never moved or deleted. Pushing a `vX.Y` tag publishes the image (`.github/workflows/release.yml`).
+4. Release tags are never moved or deleted. Pushing a `vX.Y` tag publishes the image and then the GitHub release page
+   (`.github/workflows/release.yml`). The page is built from the release notes by `scripts/release-page.ts`: links are
+   pinned to the tag and an Install section names the image, its digest and how to verify it. Check the page after the
+   run. To correct it, fix the notes and run
+   `node scripts/release-page.ts <tag> <owner/repo> <digest> | gh release edit <tag> --notes-file -` (rerunning the
+   job would read the notes as tagged).
 
 ## 12. Commits
 

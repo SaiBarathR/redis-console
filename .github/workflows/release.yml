@@ -3,6 +3,7 @@ name: release
 # The tag must match the version in the package manifests. Every image is smoke-tested before it is pushed, is built
 # for linux/amd64 and linux/arm64, and carries an SBOM and a signed build provenance attestation
 # (verify with `gh attestation verify oci://ghcr.io/<owner>/redis-console:<version> --repo <owner>/redis-console`).
+# Once the image is out, the release page is created from docs/RELEASE-NOTES-<tag>.md (scripts/release-page.ts).
 on:
   push:
     tags: ["v*"]
@@ -19,6 +20,8 @@ jobs:
     name: publish container image
     runs-on: ubuntu-26.04
     timeout-minutes: 60
+    outputs:
+      digest: ${{ steps.push.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -106,3 +109,30 @@ jobs:
           subject-name: ${{ steps.version.outputs.image }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
+
+  page:
+    name: release page
+    needs: image
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: { persist-credentials: false }
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with: { node-version: "24.11" }
+      - name: Create or update the release page from the release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIGEST: ${{ needs.image.outputs.digest }}
+        run: |
+          set -eu
+          notes="$RUNNER_TEMP/release-page.md"
+          node scripts/release-page.ts "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" "$DIGEST" > "$notes"
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file "$notes"
+          else
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "Redis Console $GITHUB_REF_NAME" --notes-file "$notes"
+          fi
