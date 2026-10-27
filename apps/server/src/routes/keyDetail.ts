@@ -8,6 +8,7 @@ import { authorize, checkGlob, fixedCommand } from '../policy/policy.ts';
 import { run } from '../redis/exec.ts';
 import { TM_BIN, type Arg, type Conn, type SendOpts } from '../redis/manager.ts';
 import { asStr } from '../redis/reply.ts';
+import { readArrayElement } from '../redis/array.ts';
 
 export const identityDigest = (v: Buffer) => createHash('sha256').update(v).digest('hex');
 export const rawBytes = (v: unknown): Buffer => Buffer.isBuffer(v) ? v : Buffer.from(asStr(v));
@@ -35,6 +36,7 @@ export function scorePairs(raw: unknown[]): [unknown, unknown][] {
   return pairs;
 }
 export async function readFullElement(scope: DbScope, key: Buffer, ref: ElementRef, limit: number, timeout: number, wireCap: number): Promise<KeyElementResponse> {
+  if (ref.kind === 'array') return readArrayElement(scope, key, ref, limit, timeout, wireCap); // v0.4 arrays
   const conn = await scope.conn();
   const replyBudget = { remaining: wireCap };
   const o = { key, timeout, typeMapping: scoreMapping, replyBudget };

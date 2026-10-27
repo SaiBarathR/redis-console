@@ -104,6 +104,27 @@ Working with values:
 - Binary key names are shown safely: invisible and control characters are escaped.
 - **Explain key** shows the encoding, memory and the `redis-cli` commands that read this key. Copy them if you want to learn.
 
+### Arrays (Redis 8.8 and later)
+
+An array is a list addressed by index that may have gaps: elements can sit at index 0, 1000 and 2^53, with nothing in
+between. The inspector shows:
+
+- **Elements** (how many exist), **Length** (the highest index plus one, so a sparse array is much longer than it has
+  elements), **Next insert index** (where an append writes) and how much of the length is used.
+- The elements one page at a time, in index order. A striped row such as "⋯ 997 empty positions: 3–999" marks a gap.
+  **Next** continues after the last index shown, **Previous** goes back, **Last** starts from the highest index,
+  **Jump to index** opens the page at any index (indices go up to 18446744073709551614, so they are shown in full),
+  and **Page size** picks 25 to 1,000 elements.
+- **Search values (ARGREP)**: elements in a range that equal a value, contain it, or match a glob pattern (`*`, `?`,
+  `[a-z]`), with several conditions combined by any/all and an **Ignore case** option. A search looks at up to
+  1,000,000 elements at a time and then offers to **Continue**; click an index in the results to open its page.
+  Regular expressions are not offered: Redis runs them without a time limit, and one pattern can stall the server.
+- **Aggregate a range (AROP)**: the sum, minimum or maximum of the numeric values in a range, bitwise AND/OR/XOR, the
+  number of existing elements, or how many equal a value. Ranges with more than 1,000,000 elements are refused; narrow
+  the range.
+
+Long values are cut to a preview; open one and choose **Load full element**, as for other collections.
+
 ## Changing data
 
 You need the **operator** role (or higher), and the database must not be read-only.
@@ -116,6 +137,14 @@ You need the **operator** role (or higher), and the database must not be read-on
 - **Delete by pattern**: first shows **how many keys** match and a sample, so you can check before confirming.
 - The 🗑 next to a field or member removes just that element.
 - **Vector sets**: the inspector shows how many members the set has, their dimensions and quantisation, then the members in byte order, 100 a page, with a **Members starting with** filter and each member's attributes (read for the rows on screen). Open a member to see its attributes, its embedding (the first 4,096 values; quantised sets show approximations) and its neighbours in the search graph. **Similarity search** finds the members closest to a member or to a vector you type, optionally narrowed by a filter expression on the attributes (for example `.year > 2000 and .genre == "drama"`; booleans are plain values: `.active`), and shows the exact `VSIM` it runs. Operators can edit a member's attributes (checked against what you opened) and remove members (after confirming); add members to an existing set with `VADD` in the console (**Add key** creates a new vector set).
+- **Arrays**: edit an element with its row's pencil, or delete it with the bin (the server asks you to confirm and shows
+  the exact command). **Set value at index** writes one value at any index; it proposes the first index after the last
+  element. **Append values** adds values (one per line) at the insert cursor: if an element is already there (arrays
+  built by setting indices keep the cursor at 0), nothing is written and you are told so; use Set value at index
+  instead. **Delete a range** deletes every element between two indices after a confirmation that says how many there
+  were. **Add key** with the type `array` creates an array from values one per line, and never touches an existing key.
+  Ring buffers (ARRING), moving the cursor (ARSEEK) and setting several indices at once (ARMSET) are available in the
+  console to operators.
 - **Changed since you opened it**: edits, renames and deletes are checked against what the editor (or the inspector) read. If another client changed the value meanwhile, nothing is written and you see "This value changed since you opened it" with the current value (and the differences, for short text). Choose **Reload** to start again from the current value, or **Overwrite anyway** to write your draft over exactly what is there now (it is checked again). If the key became another type, only Reload is offered. An open row editor closes on its own when a refresh shows that its element changed.
 
 Every change is recorded in the audit log with your name. Values themselves are never logged.
@@ -224,6 +253,7 @@ Some commands are blocked for **everyone** because they are dangerous in a share
 | `MODULE`, `DEBUG`, `SHUTDOWN`, `REPLICAOF`, `MIGRATE`, `SAVE`, `BGSAVE` | Server operations. | Ask the platform team. |
 | `MULTI`/`EXEC`/`WATCH` | Commands run one at a time here. | Individual commands. |
 | `SELECT`, `MOVE`, `SWAPDB`, `COPY … DB` | The logical database is fixed per entry. | The database switcher. |
+| `ARGREP … RE …` | Redis runs the regular expression on every element of the range with no time limit; one pattern can stall the server for minutes. | `ARGREP` with `EXACT`, `MATCH` (substring) or `GLOB`, or the array inspector's search. |
 | `FT.DROPINDEX … DD` | It deletes every indexed key as well. | Admins: drop the index without `DD` (the keys stay), from Diagnostics → Search → Indexes or the console. |
 | `AUTH`, `HELLO`, `CLIENT SETNAME`, `ACL SETUSER` | The server manages connections and users. | — |
 | `SUBSCRIBE`, `MONITOR` | Need a live stream. | Diagnostics → Pub/Sub or Profiler. |

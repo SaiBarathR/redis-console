@@ -47,7 +47,7 @@ test('every string value viewer format renders payloads inertly', async ({ page 
   }
 });
 
-for (const suffix of ['hash', 'list', 'set', 'zset', 'stream', 'json']) {
+for (const suffix of ['hash', 'list', 'set', 'zset', 'stream', 'json', 'array']) {
   test(`${suffix} value with payloads`, async ({ page }) => {
     await gotoView(page, DB.e2e, 'keys');
     await page.getByTestId('key-delimiter').fill('');

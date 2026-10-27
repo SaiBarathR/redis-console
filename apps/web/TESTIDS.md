@@ -217,3 +217,36 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
   `vset-search-command`, `vset-search-submit`, `vset-search-results`, `vset-result-open`; member panel
   `vset-element-dialog`: `vset-element-name`, `vset-find-similar`, `vset-element-remove` (operator+), `vset-attributes`,
   `vset-attr-edit` (operator+), `vset-embedding`, `vset-links`.
+
+## v0.4 arrays
+
+- `array-detail`: the array inspector inside `key-detail` (Redis 8.8+ arrays, `TYPE` = `array`; type glyph `arr`).
+  `key-edit` is not rendered for arrays: their edits live here. `array-summary` holds `array-count` (ARCOUNT),
+  `array-length` (ARLEN: highest index + 1, grouped digits) and `array-next-insert` (ARNEXT, the insert cursor).
+- Paging toolbar (`role=toolbar`, "Array pages"): `array-first`, `array-last` (from the highest index down),
+  `array-prev` (back through the pages visited), `array-next` (disabled when the range is exhausted),
+  `array-jump-input` + `array-jump` (any index 0…18446744073709551614; bad input shows an alert and sends nothing),
+  `array-page-size` (25 / 100 / 500 / 1000). `array-page-note` names the indices shown and where the next page starts.
+- `array-table` with `array-row` per existing element (first cell: the exact index in `code`; value cells are the
+  collection cell `value-cell-open` with `Expand value`) and `array-gap` rows between non-adjacent indices
+  ("⋯ N empty positions: a–b"). `array-empty-page` when a page holds no element.
+- Writer-only row actions: `array-row-edit` ("Edit index N", inline editor labelled "Value at index N", compare-and-set
+  with the usual `edit-conflict`; hidden for truncated previews) and `array-row-delete` ("Delete index N", server
+  confirmation with ARDEL). The value inspector offers `Edit full element` for array elements after
+  `element-load-full`.
+- `array-search` (disclosure "Search values (ARGREP)"): `array-search-start`, `array-search-end`, one
+  `array-search-kind` (Equals (EXACT) / Contains (MATCH) / Glob pattern (GLOB); no RE) and `array-search-value` per
+  condition, `array-search-add` (up to 8), `array-search-combine` (or / and), `array-search-nocase`,
+  `array-search-submit`. Results: `array-search-results`, `array-search-summary` (matches, searched indices,
+  elements searched, where the rest starts), `array-search-match` rows (the index button opens the page at it),
+  `array-search-continue`.
+- `array-aggregate` (disclosure "Aggregate a range (AROP)"): `array-aggregate-start`, `array-aggregate-end`,
+  `array-aggregate-op`, `array-aggregate-value` (MATCH only), `array-aggregate-submit`, `array-aggregate-result`.
+- Writer-only forms: `array-append` (ARINSERT at the cursor; `array-append-values` one value per line,
+  `array-append-submit`; the server's refusal when the cursor points at existing elements shows as an alert),
+  `array-set` (`array-set-index`, defaulting to the length until edited; `array-set-value`, `array-set-submit`;
+  conflicts use `edit-conflict`), `array-delete-range` (`array-delete-range-start`, `array-delete-range-end`,
+  `array-delete-range-submit`; the confirmation's `confirmation-note` carries the counted elements).
+- Create form: `key-create-type` has `array`; `key-edit-value` takes the initial values one per line. Creating an
+  existing key shows "This key already exists" and writes nothing.
+- Landing `db-capability` shows "Arrays" for servers reporting Redis 8.8 or later.

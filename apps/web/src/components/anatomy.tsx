@@ -99,6 +99,7 @@ const TYPE_INFO: Record<string, { code: string; family: string; label: string }>
     "MBbloom--": { code: "bf", family: "probabilistic", label: "MBbloom--" },
     MBbloomCF: { code: "cf", family: "probabilistic", label: "MBbloomCF" },
     vectorset: { code: "vec", family: "vector", label: "vectorset" },
+    array: { code: "arr", family: "array", label: "array" },
   };
 
 export function typeInfo(type: RedisType) {

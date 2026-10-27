@@ -33,6 +33,7 @@ import { registerCliRoutes } from './routes/cli.ts';
 import { registerDiagnosticsRoutes } from './routes/diagnostics.ts';
 import { registerPubSubRoutes } from './routes/pubsub.ts';
 import { registerModuleRoutes } from './routes/modules.ts';
+import { registerArrayRoutes } from './routes/array.ts';
 import { registerImportRoutes } from './routes/import.ts';
 import { registerAdminRoutes } from './routes/admin.ts';
 import { registerHealthRoutes } from './routes/health.ts';
@@ -445,6 +446,7 @@ export async function buildApp(config: AppConfig, opts: BuildOptions = {}): Prom
   registerDiagnosticsRoutes(app, ctx);
   registerPubSubRoutes(app, ctx);
   registerModuleRoutes(app, ctx);
+  registerArrayRoutes(app, ctx); // v0.4 arrays
   registerImportRoutes(app, ctx);
   registerAdminRoutes(app, ctx);
   registerStatic(app, ctx);

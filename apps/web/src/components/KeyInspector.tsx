@@ -71,6 +71,8 @@ export function readCommand(details: KeyDetails) {
       return `JSON.GET ${key} $`;
     case "timeseries":
       return `TS.RANGE ${key} - +`;
+    case "array": // v0.4 arrays
+      return `ARSCAN ${key} 0 18446744073709551614 LIMIT 100`;
     default:
       return `TYPE ${key}`;
   }
@@ -93,6 +95,7 @@ export function inspectCommands(key: Bin, details?: KeyDetails) {
         `XLEN ${k}; XINFO STREAM ${k}; XREVRANGE ${k} + - COUNT 100`,
         `JSON.GET ${k}`,
         `TS.INFO ${k}; TS.REVRANGE ${k} - + COUNT 100`,
+        `ARINFO ${k}; ARSCAN ${k} 0 18446744073709551614 LIMIT 100`,
       ].join("\n")
     );
   const reads: Record<string, string> = {
@@ -104,6 +107,7 @@ export function inspectCommands(key: Bin, details?: KeyDetails) {
     stream: `XLEN ${k}\nXINFO STREAM ${k}\nXREVRANGE ${k} + - COUNT 100`,
     json: `JSON.GET ${k}`,
     timeseries: `TS.INFO ${k}\nTS.REVRANGE ${k} - + COUNT 100`,
+    array: `ARINFO ${k}\nARSCAN ${k} 0 18446744073709551614 LIMIT 100`,
   };
   return (
     common + "\n" + (reads[details.value.type] ?? "# No supported value reader")
@@ -221,7 +225,7 @@ export function KeyInspector({
     if (data) onRead?.(data);
   }, [data]);
   const editable = (d: KeyDetails | undefined) =>
-    !!d && d.value.type !== "unsupported" && !((d.value.type === "string" || d.value.type === "json") && d.value.truncated);
+    !!d && d.value.type !== "unsupported" && d.value.type !== "array" && !((d.value.type === "string" || d.value.type === "json") && d.value.truncated);
   /** Delete this key, expecting what the inspector last read (or, after a conflict, what the conflict showed). */
   const deleteKey = (expect?: EditExpect) => {
     if (!data) return;
@@ -347,7 +351,8 @@ export function KeyInspector({
             <div className="inspector-actions" role="toolbar" aria-label="Key actions">
               {writable && (
                 <div className="action-group">
-                  {data.value.type !== "unsupported" &&
+                  {/* Arrays have their own edit actions (ArrayDetail). */}
+                  {data.value.type !== "unsupported" && data.value.type !== "array" &&
                     !(
                       (data.value.type === "string" ||
                         data.value.type === "json") &&

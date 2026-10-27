@@ -108,6 +108,13 @@ const ROWS: Row[] = [
   { route: 'vsetAttributes', method: 'POST', path: e2e('vectorset/attributes'), body: { key: utf8(VSET), members: [utf8('m1')] }, expect: all(ANON_WRITE, 200, 200, 200) },
   { route: 'vsetElement', method: 'POST', path: e2e('vectorset/element'), body: { key: utf8(VSET), member: utf8('m1') }, expect: all(ANON_WRITE, 200, 200, 200) },
   { route: 'vsetSearch', method: 'POST', path: e2e('vectorset/search'), body: { key: utf8(VSET), query: { element: utf8('m1') }, count: 2 }, expect: all(ANON_WRITE, 200, 200, 200) },
+  // v0.4 arrays: reads for every role; writes are typed ops (operator and up), deletes stop at their confirmation.
+  { route: 'arrayRange', method: 'POST', path: e2e('array/range'), body: { key: utf8(K.array), count: 10 }, expect: all(ANON_WRITE, 200, 200, 200) },
+  { route: 'arraySearch', method: 'POST', path: e2e('array/search'), body: { key: utf8(K.array), predicates: [{ kind: 'match', value: utf8('a') }] }, expect: all(ANON_WRITE, 200, 200, 200) },
+  { route: 'arraySearch', label: 'array search with RE (refused)', method: 'POST', path: e2e('array/search'), body: { key: utf8(K.array), predicates: [{ kind: 're', value: utf8('(a+)+$') }] }, expect: all(ANON_WRITE, 400, 400, 400) },
+  { route: 'arrayAggregate', method: 'POST', path: e2e('array/aggregate'), body: { key: utf8(K.array), start: '0', end: '2000', op: 'used' }, expect: all(ANON_WRITE, 200, 200, 200) },
+  { route: 'ops', label: 'ops array.insert (create)', method: 'POST', path: e2e('ops'), body: () => ({ op: 'array.insert', key: utf8(`${K.scratchPrefix}matrix-array:${Math.random().toString(36).slice(2)}`), values: [utf8('v')], expect: { type: 'none' } }), expect: all(ANON_WRITE, 403, 200, 200) },
+  { route: 'ops', label: 'ops array.delete-range (confirmation)', method: 'POST', path: e2e('ops'), body: { op: 'array.delete-range', key: utf8(K.array), start: '0', end: '2' }, expect: all(ANON_WRITE, 403, 428, 428) },
   { route: 'audit', method: 'GET', path: `${API}/admin/audit`, expect: all(401, 403, 403, 200) },
   { route: 'users', method: 'GET', path: `${API}/admin/users`, expect: all(401, 403, 403, 200) },
   {
