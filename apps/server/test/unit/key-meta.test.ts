@@ -42,4 +42,10 @@ describe('key metadata (v0.2.1)', () => {
     const { conn } = fake((cmd) => (cmd === 'TYPE' ? 'none' : cmd === 'PTTL' ? -2 : null));
     expect(await keysMetadata(conn, [Buffer.from('x')], o)).toEqual([{ key: { enc: 'utf8', data: 'x' }, type: 'none', ttl: -2 }]);
   });
+  it('graphdata keys carry no size: core MEMORY USAGE is a constant unrelated to the graph (review v0.4 r2 graph L4)', async () => {
+    const { conn } = fake((cmd, key) => (cmd === 'TYPE' ? (key === 'g' ? 'graphdata' : 'hash') : cmd === 'PTTL' ? -1 : 40));
+    const out = await keysMetadata(conn, [Buffer.from('g'), Buffer.from('h')], o);
+    expect(out[0]).toEqual({ key: { enc: 'utf8', data: 'g' }, type: 'graphdata', ttl: -1 });
+    expect(out[1]).toMatchObject({ type: 'hash', size: 40 });
+  });
 });

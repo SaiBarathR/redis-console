@@ -263,7 +263,7 @@ async function keyMeta(conn: Conn, keys: Buffer[], knownType: string | undefined
         conn.send(['MEMORY', 'USAGE', k], { key: k, readonly: true }).then((v) => (v == null ? undefined : asNum(v)), () => undefined),
       ]);
       const item: KeyListItem = { key: bin(k), type, ttl };
-      if (size !== undefined) item.size = size;
+      if (size !== undefined && type !== 'graphdata') item.size = size;
       items[i] = item;
     }
   }));
@@ -326,7 +326,9 @@ export async function keysMetadata(conn: Conn, keys: Buffer[], o: { ttl: boolean
       item.ttl = t === 'none' ? -2 : ms < 0 ? ms : Math.ceil(ms / 1000);
     } else if (o.ttl && t === 'none') item.ttl = -2;
     const size = o.size ? r[per - 1] : undefined;
-    if (o.size && !(size instanceof ErrorReply) && size != null) item.size = asNum(size);
+    // Core MEMORY USAGE of a graph key is a small constant unrelated to the graph (FalkorDB keeps it in a module):
+    // unknown beats a wrong number.
+    if (o.size && t !== 'graphdata' && !(size instanceof ErrorReply) && size != null) item.size = asNum(size);
     return item;
   });
   return slot.map((at) => items[at]!);
@@ -602,7 +604,7 @@ export function registerKeyRoutes(app: FastifyInstance, ctx: AppContext) {
     }
     const out: KeyDetails = { key: bin(key), type, ttl, value, ...(filter ? { filter } : {}), ...(hashFieldExpiry ? { hashFieldExpiry } : {}) };
     if (encoding) out.encoding = encoding;
-    if (size !== undefined) out.size = size;
+    if (size !== undefined && type !== 'graphdata') out.size = size; // see keysMetadata: not the graph's size
     if (length !== undefined) out.length = length;
     return out;
   }

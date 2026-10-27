@@ -32,6 +32,10 @@ export function bytesLabel(bytes: number | undefined) {
   if (bytes < 1024 ** 3) return `${(bytes / 1024 ** 2).toFixed(1)} MiB`;
   return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
 }
+/** Graph keys live in a module: core MEMORY USAGE says a small constant for any graph, so their size is unmeasured. */
+export const sizeMeasured = (type: string | undefined) => type !== "graphdata";
+/** The size fact of a key: bytes, "not measured" for types core MEMORY USAGE does not cover, "—" when unknown. */
+export const memoryLabel = (type: string | undefined, bytes: number | undefined) => sizeMeasured(type) ? bytesLabel(bytes) : "not measured";
 /** 3d 4h, 5h 12m, 12m: uptime at a glance. */
 export function uptimeLabel(seconds: number) {
   const d = Math.floor(seconds / 86400);

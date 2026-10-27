@@ -64,6 +64,10 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
     const read = await c.req('POST', '/api/v1/databases/graph/key/read', { key: utf8(k) });
     expect(read.json.type).toBe('graphdata');
     expect(read.json.value.message).toMatch(/GRAPH.RO_QUERY.*Workbench/);
+    expect(read.json.size, 'core MEMORY USAGE of a graph key is not the graph size').toBeUndefined();
+    const meta = await c.req('POST', '/api/v1/databases/graph/keys/meta', { keys: [utf8(k)] });
+    expect(meta.json.keys[0].type).toBe('graphdata');
+    expect(meta.json.keys[0].size).toBeUndefined();
   });
   it('viewer, readOnly and maxRole reject graph writes before confirmation', async () => {
     for (const argv of [['GRAPH.QUERY', k, 'CREATE (:Nope)'], ['GRAPH.PROFILE', k, 'MATCH (n) DELETE n'], ['GRAPH.DELETE', k]]) {
