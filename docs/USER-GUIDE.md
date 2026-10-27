@@ -115,12 +115,11 @@ between. The inspector shows:
   **Next** continues after the last index shown, **Previous** goes back, **Last** starts from the highest index,
   **Jump to index** opens the page at any index (indices go up to 18446744073709551614, so they are shown in full),
   and **Page size** picks 25 to 1,000 elements.
-- **Search values (ARGREP)**: elements in a range that equal a value, contain it, or match a glob pattern (`*`, `?`,
-  `[a-z]`), with several conditions combined by any/all and an **Ignore case** option. Values are at most 1 KiB, and
-  a "contains" value with **Ignore case** at most 64 bytes. A search looks at up to 1,000,000 elements at a time
-  (fewer when elements are large or the search ignores case, so one request stays short) and then offers to
-  **Continue**; click an index in the results to open its page.
-  Regular expressions are not offered: Redis runs them without a time limit, and one pattern can stall the server.
+- **Search values**: elements in a range that equal a value, contain it, or match a glob pattern (`*`, `?`, `[a-z]`),
+  as ARGREP means them, with several conditions combined by any/all and an **Ignore case** option (ASCII letters).
+  Values are at most 1 KiB. One search reads up to 1,000,000 elements or 16 MiB of values and then offers to
+  **Continue**; a value larger than 8 MiB is not searched and its index is named. Click an index in the results to open
+  its page. Regular expressions are not offered.
 - **Aggregate a range (AROP)**: the sum, minimum or maximum of the numeric values in a range, bitwise AND/OR/XOR, the
   number of existing elements, or how many equal a value. Ranges with more than 1,000,000 elements are refused; narrow
   the range.

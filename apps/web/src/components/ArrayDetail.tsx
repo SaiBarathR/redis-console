@@ -4,11 +4,11 @@ import { Pencil, Trash2 } from "lucide-react";
 import {
   ARRAY_AGGREGATES,
   ARRAY_MAX_INDEX,
-  ARRAY_NOCASE_MATCH_MAX_BYTES,
   ARRAY_PAGE_MAX,
   ARRAY_PREDICATE_MAX_BYTES,
   ARRAY_PREDICATES_MAX,
   ARRAY_SCAN_MAX_ELEMENTS,
+  ARRAY_SEARCH_MAX_BYTES,
   ARRAY_SEARCH_KINDS,
   isArrayIndex,
   keyToParam,
@@ -31,6 +31,7 @@ import { canWrite, useDatabase } from "../lib/context.tsx";
 import { digestBin, sameBin } from "../lib/expect.ts";
 import { keyOperation } from "../lib/operations.ts";
 import { lineValues } from "../lib/array.ts";
+import { bytesLabel } from "../lib/format.ts";
 import { ConflictNotice, conflictOf, HandledError } from "./Conflict.tsx";
 import { InlineEdit } from "./InlineEdit.tsx";
 import { inputBin } from "./KeyOperations.tsx";
@@ -93,7 +94,7 @@ function checkIndex(text: string, label: string): string {
 
 /**
  * The array inspector (v0.4, F24): summary, a page of existing elements by index with the gaps between them, paging
- * and jump, search (ARGREP) and aggregates (AROP) over a range, and for operators: edit an element (compare-and-set),
+ * and jump, search (bounded reads matched on the server) and aggregates (AROP) over a range, and for operators: edit an element (compare-and-set),
  * append at the insert cursor, set a value at an index, delete an element or a range (server confirmation). Values
  * are text, rendered by the collection cell of the key inspector (formatters, value inspector, full element loads).
  */
@@ -321,7 +322,7 @@ function RangeFields({ start, end, onStart, onEnd, prefix }: { start: string; en
 
 interface Predicate { kind: (typeof ARRAY_SEARCH_KINDS)[number]; text: string; enc: Encoding }
 
-/** ARGREP over a range: conditions, AND/OR, case, limit; results continue from where the search stopped. */
+/** Search values over a range: conditions (ARGREP's meanings), AND/OR, case, limit; results continue where the search stopped. */
 function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastIndex: string; cell: (value: Bin, truncated: boolean, ref: ElementRef) => ReactNode; onShow: (index: string) => void }) {
   const db = useDatabase();
   const [start, setStart] = useState("0");
@@ -339,7 +340,7 @@ function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastI
   const update = (i: number, change: Partial<Predicate>) => setPredicates((list) => list.map((p, j) => (j === i ? { ...p, ...change } : p)));
   return (
     <details className="array-tool" data-testid="array-search">
-      <summary>Search values (ARGREP)</summary>
+      <summary>Search values</summary>
       <ActionForm label="Search" testId="array-search-submit" onSubmit={() => run({
         key: keyName, start: checkIndex(start, "From index"), end: checkIndex(end, "To index"),
         predicates: predicates.map((p) => ({ kind: p.kind, value: inputBin(p.text, p.enc) })), combine, nocase, limit,
@@ -370,10 +371,10 @@ function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastI
           <label>Up to <select value={limit} onChange={(e) => setLimit(Number(e.target.value))} aria-label="Search result limit">{PAGE_SIZES.map((n) => <option key={n} value={n}>{n}</option>)}</select> matches</label>
         </div>
         <p className="muted">
-          A search visits at most {count(ARRAY_SCAN_MAX_ELEMENTS)} elements per request, fewer for large values or with Ignore case, and then
-          offers to continue. Values are at most {count(ARRAY_PREDICATE_MAX_BYTES)} bytes; with Ignore case, "contains" values at most{" "}
-          {ARRAY_NOCASE_MATCH_MAX_BYTES} bytes. Regular expressions (RE) are not available: Redis runs them without a time limit, and one pattern
-          can block the server.
+          Conditions mean what they mean for ARGREP; values are at most {count(ARRAY_PREDICATE_MAX_BYTES)} bytes. A search reads at most{" "}
+          {count(ARRAY_SCAN_MAX_ELEMENTS)} elements or {bytesLabel(ARRAY_SEARCH_MAX_BYTES)} of values per request and then offers to continue; a value
+          larger than {bytesLabel(ARRAY_SEARCH_MAX_BYTES / 2)} is skipped and named. Regular expressions (RE) are not available, and ARGREP is not
+          run: Redis would search the whole range without a time limit.
         </p>
       </ActionForm>
       {found && (
@@ -382,6 +383,11 @@ function ArraySearch({ keyName, lastIndex, cell, onShow }: { keyName: Bin; lastI
             {count(found.result.items.length)} match{found.result.items.length === 1 ? "" : "es"} in indices {span(found.result.start, found.result.searchedTo)} ({count(found.result.elements)} elements searched).
             {found.result.next ? ` More of the range is left from index ${found.result.next}.` : " The whole range was searched."}
           </p>
+          {!!found.result.skipped?.length && (
+            <p className="muted" data-testid="array-search-skipped">
+              Not searched (each value is larger than one search reads, {bytesLabel(ARRAY_SEARCH_MAX_BYTES / 2)}): index {found.result.skipped.join(", ")}. Open it from the element table.
+            </p>
+          )}
           {!!found.result.items.length && (
             <table className="array-table">
               <thead><tr><th className="num">Index</th><th>Value</th></tr></thead>

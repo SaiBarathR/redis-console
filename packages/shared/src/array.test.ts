@@ -2,7 +2,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   ARRAY_MAX_INDEX,
-  ARRAY_NOCASE_MATCH_MAX_BYTES,
   ARRAY_PREDICATE_MAX_BYTES,
   isArrayIndex,
   zArrayAggregate,
@@ -95,7 +94,6 @@ describe('array command rules (v0.4 arrays block)', () => {
   });
   it('bounds ARGREP search values: at most 1 KiB, and a NOCASE MATCH at most 64 bytes (review v0.4 r1 H1)', () => {
     expect(ARRAY_PREDICATE_MAX_BYTES).toBe(ARGREP_VALUE_MAX_BYTES);
-    expect(ARRAY_NOCASE_MATCH_MAX_BYTES).toBe(ARGREP_NOCASE_MATCH_MAX_BYTES);
     const long = 'a'.repeat(1025);
     expect(argumentRule(['ARGREP', 'k', '0', '10', 'EXACT', long])?.class).toBe('blocked');
     expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'x', 'OR', 'GLOB', long])?.class).toBe('blocked');

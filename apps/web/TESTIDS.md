@@ -234,12 +234,12 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
   with the usual `edit-conflict`; hidden for truncated previews) and `array-row-delete` ("Delete index N", server
   confirmation with ARDEL). The value inspector offers `Edit full element` for array elements after
   `element-load-full`.
-- `array-search` (disclosure "Search values (ARGREP)"): `array-search-start`, `array-search-end`, one
+- `array-search` (disclosure "Search values"; matched on the server with ARGREP's meanings): `array-search-start`, `array-search-end`, one
   `array-search-kind` (Equals (EXACT) / Contains (MATCH) / Glob pattern (GLOB); no RE) and `array-search-value` per
   condition, `array-search-add` (up to 8), `array-search-combine` (or / and), `array-search-nocase`,
   `array-search-submit`. Results: `array-search-results`, `array-search-summary` (matches, searched indices,
-  elements searched, where the rest starts), `array-search-match` rows (the index button opens the page at it),
-  `array-search-continue`.
+  elements searched, where the rest starts), `array-search-skipped` (indices of values larger than one search reads),
+  `array-search-match` rows (the index button opens the page at it), `array-search-continue`.
 - `array-aggregate` (disclosure "Aggregate a range (AROP)"): `array-aggregate-start`, `array-aggregate-end`,
   `array-aggregate-op`, `array-aggregate-value` (MATCH only), `array-aggregate-submit`, `array-aggregate-result`.
 - Writer-only forms: `array-append` (ARINSERT at the cursor; `array-append-values` one value per line,

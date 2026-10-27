@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { RESP_TYPES } from 'redis';
 import {
   ARRAY_MAX_INDEX,
-  ARRAY_NOCASE_MATCH_MAX_BYTES,
+  ARRAY_PAGE_MAX,
   ARRAY_PREDICATE_MAX_BYTES,
   ARRAY_SCAN_MAX_ELEMENTS,
   ARRAY_SEARCH_MAX_BYTES,
@@ -43,6 +43,7 @@ import type { Probe } from './checked.ts';
 import { run } from './exec.ts';
 import { TM_BIN, type Arg, type Conn, type SendOpts } from './manager.ts';
 import { asStr, kv } from './reply.ts';
+import { globMatch, lower } from './glob.ts';
 
 /** Values as Buffers, integers as exact decimal text. */
 export const TM_ARRAY = { ...TM_BIN, [RESP_TYPES.NUMBER]: String } as const;
@@ -170,74 +171,136 @@ export async function windowEnd(scope: DbScope, conn: Conn, key: Buffer, start: 
 
 type SearchRequest = z.infer<typeof zArraySearch>;
 
-/** The ARGREP argv of a search over [start, to]. */
-export function searchArgv(key: Buffer, q: SearchRequest, to: string): Arg[] {
-  const argv: Arg[] = ['ARGREP', key, q.start, to];
-  for (const p of q.predicates) argv.push(p.kind.toUpperCase(), predicateBytes(p.value, p.kind, q.nocase));
-  argv.push(q.combine.toUpperCase());
-  if (q.nocase) argv.push('NOCASE');
-  argv.push('LIMIT', String(q.limit));
-  if (q.values) argv.push('WITHVALUES');
-  return argv;
-}
-
-/**
- * The bytes of a search or MATCH value (400 for malformed base64, an oversized value, a NOCASE MATCH pattern over
- * ARRAY_NOCASE_MATCH_MAX_BYTES or a GLOB with too many `*`).
- */
-export function predicateBytes(v: Bin, kind: string, nocase = false): Buffer {
+/** The bytes of a search value (400 for malformed base64, a value over ARRAY_PREDICATE_MAX_BYTES or a GLOB with too many `*`). */
+export function predicateBytes(v: Bin, kind: string): Buffer {
   if (v.enc === 'base64' && !/^[A-Za-z0-9+/]*={0,2}$/.test(v.data)) throw new HttpError('validation', 'A search value is not valid base64.');
   const b = Buffer.from(bytesFromBin(v));
   if (b.length > ARRAY_PREDICATE_MAX_BYTES) throw new HttpError('validation', `A search value is at most ${ARRAY_PREDICATE_MAX_BYTES} bytes.`);
-  if (nocase && kind === 'match' && b.length > ARRAY_NOCASE_MATCH_MAX_BYTES) {
-    throw new HttpError('validation', `With "Ignore case", a "Contains" value is at most ${ARRAY_NOCASE_MATCH_MAX_BYTES} bytes (Redis compares case-insensitive substrings byte by byte). Shorten it or search case-sensitively.`);
-  }
   if (kind === 'glob') checkGlob(b, 'GLOB pattern');
   return b;
 }
 
-/**
- * How many plain scans of the elements a search costs: 1 per predicate, and for a NOCASE MATCH its pattern length / 4
- * (measured on Redis 8.10: case-insensitive substring search costs about the pattern length times a plain scan, and a
- * plain MATCH about 4 bytes of pattern).
- */
-export function searchWeight(q: SearchRequest): number {
-  let w = 0;
-  for (const p of q.predicates) w += q.nocase && p.kind === 'match' ? Math.max(1, Math.ceil(Buffer.from(bytesFromBin(p.value)).length / 4)) : 1;
-  return Math.max(1, w);
-}
-
-/**
- * The most elements one search request may visit (review v0.4 r1 H1): ARRAY_SCAN_MAX_ELEMENTS, and no more than
- * `maxBytes` of element data divided by the search weight, using the array's average element size (MEMORY USAGE /
- * ARCOUNT). At least one element, so a search always makes progress.
- */
-async function searchElementCap(scope: DbScope, conn: Conn, key: Buffer, q: SearchRequest, timeout: number, maxElements: number, maxBytes: number): Promise<number> {
-  const memory = Number(intText(await arrayRead(scope, conn, ['MEMORY', 'USAGE', key, 'SAMPLES', '5'], { key, timeout, maxBytes: 64 })));
-  const count = Number(intText(await arrayRead(scope, conn, ['ARCOUNT', key], { key, timeout, maxBytes: 64 })));
-  if (!(count > 0) || !(memory > 0)) return maxElements;
-  const perElement = memory / count;
-  return Math.max(1, Math.min(maxElements, Math.floor(maxBytes / searchWeight(q) / perElement)));
-}
-
-/** ARGREP over at most the search's element cap of the range (searchElementCap); `next` continues it. */
-export async function searchArray(scope: DbScope, conn: Conn, key: Buffer, q: SearchRequest, preview: Preview, timeout: number, maxElements = ARRAY_SCAN_MAX_ELEMENTS, maxBytes = ARRAY_SEARCH_MAX_BYTES): Promise<ArraySearchResult> {
-  for (const p of q.predicates) predicateBytes(p.value, p.kind, q.nocase);
-  const down = BigInt(q.start) > BigInt(q.end);
-  const cap = await searchElementCap(scope, conn, key, q, timeout, maxElements, maxBytes);
-  const w = await windowEnd(scope, conn, key, q.start, q.end, cap, timeout);
-  const raw = await arrayRead<unknown[]>(scope, conn, searchArgv(key, q, w.to), { key, timeout });
-  const items: ArraySearchResult['items'] = q.values
-    ? pairs(raw).map(([index, value]) => element(index, value, preview))
-    : (Array.isArray(raw) ? raw : []).map((i) => ({ index: intText(i) }));
-  const out: ArraySearchResult = { items, start: q.start, searchedTo: w.to, elements: w.elements };
-  const last = items.at(-1)?.index;
-  const from = items.length === q.limit && last !== undefined ? last : w.to !== q.end ? w.to : undefined;
-  if (from !== undefined && from !== q.end) {
-    const next = stepIndex(from, down);
-    if (next !== undefined) out.next = next;
-  }
+/** ASCII lower-casing of a whole value (Redis's `tolower` in the C locale; other bytes are kept). */
+function folded(b: Buffer): Buffer {
+  const out = Buffer.allocUnsafe(b.length);
+  for (let i = 0; i < b.length; i++) out[i] = lower(b[i]!);
   return out;
+}
+
+/**
+ * A search's predicates as one test of an element's bytes, with ARGREP's meanings: EXACT equal bytes, MATCH a
+ * substring, GLOB Redis's glob (`glob.ts`), NOCASE folding ASCII letters, `or` any and `and` all of them.
+ */
+export function searchMatcher(q: SearchRequest): (value: Buffer) => boolean {
+  const tests = q.predicates.map((p) => {
+    const raw = predicateBytes(p.value, p.kind);
+    const needle = q.nocase && p.kind !== 'glob' ? folded(raw) : raw;
+    if (p.kind === 'glob') return (_v: Buffer) => globMatch(raw, _v, q.nocase);
+    if (p.kind === 'exact') return (v: Buffer, f: () => Buffer) => (q.nocase ? f() : v).equals(needle);
+    return (v: Buffer, f: () => Buffer) => (q.nocase ? f() : v).indexOf(needle) !== -1;
+  });
+  return (value) => {
+    let fold: Buffer | undefined;
+    const f = () => (fold ??= folded(value));
+    return q.combine === 'and' ? tests.every((t) => t(value, f)) : tests.some((t) => t(value, f));
+  };
+}
+
+/** The index of the first existing element from `from` towards `end` (there is one): AROP USED bisection, no value read. */
+async function firstElement(scope: DbScope, conn: Conn, key: Buffer, from: string, end: string, timeout: number): Promise<string> {
+  if ((await used(scope, conn, key, from, from, timeout)) > 0) return from;
+  const before = await windowEnd(scope, conn, key, from, end, 0, timeout);
+  return stepIndex(before.to, BigInt(from) > BigInt(end)) ?? before.to;
+}
+
+const tooLarge = (e: unknown) => e instanceof HttpError && e.code === 'too_large';
+
+/**
+ * Search values over [start, end] in either direction (review v0.4 r2 H1/H2). The elements are read with ARSCAN in
+ * batches through the measured transport, all from one cumulative budget of `maxBytes` (ARRAY_SEARCH_MAX_BYTES, or the
+ * request read budget when smaller), and matched here (searchMatcher). A request therefore makes Redis copy at most
+ * that many bytes and visit at most `maxElements` elements, whatever the predicates, the element sizes or how they are
+ * spread; ARGREP is not used, since nothing bounds its work in Redis.
+ *
+ * Each read is capped at `readCap` (at most half the budget), so a batch whose reply is too large costs at most half.
+ * Batches start small and follow the sizes seen; after one overflows, the elements it held are read one at a time. An
+ * element larger than `readCap` is located by AROP USED bisection (no value read) and reported in `skipped`; the next
+ * request continues after it. When the budget runs out the next request continues where this one stopped, and reaches
+ * a large element with a whole read cap (its first batch costs at most half the budget), so every request progresses.
+ */
+export async function searchArray(
+  scope: DbScope,
+  conn: Conn,
+  key: Buffer,
+  q: SearchRequest,
+  preview: Preview,
+  timeout: number,
+  o: { maxElements?: number; maxBytes?: number; readCap?: number } = {},
+): Promise<ArraySearchResult> {
+  const maxElements = o.maxElements ?? ARRAY_SCAN_MAX_ELEMENTS;
+  const maxBytes = o.maxBytes ?? ARRAY_SEARCH_MAX_BYTES;
+  const readCap = Math.max(1, Math.min(o.readCap ?? maxBytes, Math.floor(maxBytes / 2)));
+  const matches = searchMatcher(q);
+  const down = BigInt(q.start) > BigInt(q.end);
+  const budget = { remaining: maxBytes };
+  const items: ArraySearchResult['items'] = [];
+  const out = (searchedTo: string, elements: number, next?: string, skipped?: string): ArraySearchResult => ({
+    items,
+    start: q.start,
+    searchedTo,
+    elements,
+    ...(next !== undefined ? { next } : {}),
+    ...(skipped !== undefined ? { skipped: [skipped] } : {}),
+  });
+  let cursor = q.start;
+  let examined = 0;
+  let wire = 0;
+  let batch = 16;
+  // After a batch overflowed, the next elements it held are read one at a time, so the large one is reached alone.
+  let careful = 0;
+  for (;;) {
+    const n = Math.min(careful > 0 ? 1 : batch, ARRAY_PAGE_MAX, maxElements - examined);
+    // The element bound: stop before the next element, which the next request reads.
+    if (n <= 0) return out(stepIndex(cursor, !down) ?? cursor, examined, cursor);
+    // The budget is spent: the next request continues here.
+    if (budget.remaining <= 0) return out(stepIndex(cursor, !down) ?? cursor, examined, cursor);
+    const cap = Math.min(readCap, budget.remaining);
+    let raw: unknown;
+    const before = budget.remaining;
+    try {
+      raw = await arrayRead(scope, conn, ['ARSCAN', key, cursor, q.end, 'LIMIT', String(n)], { key, timeout, maxBytes: cap, replyBudget: budget });
+    } catch (e) {
+      if (!tooLarge(e)) throw e;
+      if (n > 1) { careful = n; continue; }
+      // One element did not fit in what is left of the budget: the next request, with a whole budget, reads it.
+      if (cap < readCap) return out(stepIndex(cursor, !down) ?? cursor, examined, cursor);
+      // It is larger than one read may be: skip it.
+      const at = await firstElement(scope, conn, key, cursor, q.end, timeout);
+      const next = at === q.end ? undefined : stepIndex(at, down);
+      return out(at, examined, next, at);
+    }
+    wire += before - budget.remaining;
+    const got = pairs(raw);
+    if (careful > 0) careful -= got.length;
+    for (const [index, value] of got) {
+      examined++;
+      if (matches(value)) {
+        items.push(q.values ? element(index, value, preview) : { index });
+        if (items.length === q.limit) {
+          const next = index === q.end ? undefined : stepIndex(index, down);
+          return out(index, examined, next);
+        }
+      }
+    }
+    const last = got.at(-1)?.[0];
+    // Fewer than asked: nothing is left in the range.
+    if (got.length < n || last === undefined || last === q.end) return out(q.end, examined);
+    const next = stepIndex(last, down);
+    if (next === undefined) return out(q.end, examined);
+    cursor = next;
+    // The next batch: as many elements as one read (or the rest of the budget) holds at the wire size seen so far.
+    batch = Math.max(1, Math.min(ARRAY_PAGE_MAX, Math.floor(Math.min(readCap, budget.remaining) / Math.max(16, wire / examined))));
+  }
 }
 
 type AggregateRequest = z.infer<typeof zArrayAggregate>;

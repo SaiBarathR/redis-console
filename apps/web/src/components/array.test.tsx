@@ -108,7 +108,7 @@ describe("array inspector: search and aggregates", () => {
   it("offers EXACT, MATCH and GLOB only, sends the conditions in a POST body, and continues where the search stopped", async () => {
     const sent = mockServer((path, body) => json({ items: [el(body.start === "0" ? "1" : "40", "pineapple")], start: body.start, searchedTo: ARRAY_MAX_INDEX, elements: 6, ...(body.start === "0" ? { next: "2" } : {}) }));
     show();
-    await userEvent.click(screen.getByText("Search values (ARGREP)"));
+    await userEvent.click(screen.getByText("Search values"));
     const kinds = within(screen.getByTestId("array-search")).getAllByTestId("array-search-kind")[0]!;
     expect([...kinds.querySelectorAll("option")].map((o) => o.value)).toEqual(["exact", "match", "glob"]);
     expect(screen.getByTestId("array-search")).toHaveTextContent("Regular expressions (RE) are not available");
@@ -133,7 +133,7 @@ describe("array inspector: search and aggregates", () => {
   it("an invalid index or base64 value is reported and the search can be corrected and run (review v0.4 r1 M1)", async () => {
     const sent = mockServer((_path, body) => json({ items: [], start: body.start, searchedTo: body.end, elements: 6 }));
     show();
-    await userEvent.click(screen.getByText("Search values (ARGREP)"));
+    await userEvent.click(screen.getByText("Search values"));
     await userEvent.type(screen.getByTestId("array-search-value"), "apple");
     await userEvent.clear(screen.getByTestId("array-search-end"));
     await userEvent.type(screen.getByTestId("array-search-end"), "abc");
@@ -151,6 +151,17 @@ describe("array inspector: search and aggregates", () => {
     await userEvent.click(screen.getByTestId("array-search-submit"));
     await waitFor(() => expect(sent.at(-1)?.body).toMatchObject({ start: "0", end: "9", predicates: [{ kind: "match", value: bin("apple") }] }));
     expect(await screen.findByTestId("array-search-summary")).toHaveTextContent("The whole range was searched.");
+  });
+
+  it("names the values a search skipped because they are larger than one search reads (review v0.4 r2 H2)", async () => {
+    mockServer((_path, body) => json({ items: [el("0", "apple")], start: body.start, searchedTo: "7", elements: 3, next: "8", skipped: ["7"] }));
+    show();
+    await userEvent.click(screen.getByText("Search values"));
+    expect(screen.getByTestId("array-search")).toHaveTextContent("ARGREP is not run");
+    await userEvent.type(screen.getByTestId("array-search-value"), "apple");
+    await userEvent.click(screen.getByTestId("array-search-submit"));
+    expect(await screen.findByTestId("array-search-skipped")).toHaveTextContent("Not searched (each value is larger than one search reads, 8.0 MiB): index 7.");
+    expect(screen.getByTestId("array-search-summary")).toHaveTextContent("More of the range is left from index 8.");
   });
 
   it("computes an aggregate over a range and shows Redis's text", async () => {

@@ -37,7 +37,7 @@ for (const role of ['viewer', 'operator', 'admin'] as const) {
       await array.getByTestId('array-last').click();
       await expect(array.getByTestId('array-row').first()).toContainText('9007199254740993');
       // Search (MATCH, case-insensitive) and an aggregate over the whole array.
-      await array.getByText('Search values (ARGREP)').click();
+      await array.getByText('Search values', { exact: true }).click();
       await array.getByTestId('array-search-value').fill('A');
       await array.getByTestId('array-search-nocase').check();
       await array.getByTestId('array-search-submit').click();

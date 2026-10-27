@@ -2,6 +2,18 @@
 
 Changes to `packages/shared` made after the initial scaffold. Newest first. All are additive unless marked **breaking**.
 
+## 2026-10-27 — v0.4 review round 2 fixes (fix/v04-review-r2)
+
+### `api.ts`
+- **`array/search` no longer runs ARGREP** (review v0.4 r2 H2, D22): the server reads the range with ARSCAN in batches
+  and matches the values itself (ARGREP's meanings). `ARRAY_SEARCH_MAX_BYTES` is now 16 MiB of values read per request
+  (was a 64 MiB weighted estimate); each read is at most half of it. **Breaking (unreleased):**
+  `ARRAY_NOCASE_MATCH_MAX_BYTES` is removed (case-insensitive values follow `ARRAY_PREDICATE_MAX_BYTES`, 1 KiB).
+- `ArraySearchResult` (additive): `skipped?: string[]`, values larger than one read (not tested; `next` is after them).
+  `searchedTo` is where the search actually got to (the last element read, the last match when `limit` was reached,
+  or `end`), and `elements` counts the elements read and tested. Audit: action `array.search`, command `ARSCAN`
+  (was `ARGREP`), argv with predicate kinds and value sizes only.
+
 ## 2026-10-27 — v0.4 review round 1 fixes (fix/v04-review-r1)
 
 ### `api.ts`

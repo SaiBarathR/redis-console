@@ -352,26 +352,25 @@ export const zArrayIndex = z.string().max(20).refine(isArrayIndex, `an array ind
 /** Most elements one page, search or aggregate request returns (the `LIMIT` of ARSCAN and ARGREP). */
 export const ARRAY_PAGE_MAX = 1000;
 /**
- * Most existing elements one search (ARGREP) or aggregate (AROP) request makes Redis visit. A search over a range that
+ * Most existing elements one search or aggregate (AROP) request makes Redis visit. A search over a range that
  * holds more stops after this many elements and says where to continue; an aggregate over such a range is refused
  * (400, with the count), so a result never covers less of the range than it claims.
  */
 export const ARRAY_SCAN_MAX_ELEMENTS = 1_000_000;
 /** At most this many predicates per search, each value at most ARRAY_PREDICATE_MAX_BYTES bytes. */
 export const ARRAY_PREDICATES_MAX = 8;
-/** 1 KiB, and 64 bytes for a MATCH with NOCASE (the console's limits: `ARGREP_VALUE_MAX_BYTES`, `ARGREP_NOCASE_MATCH_MAX_BYTES`). */
 export const ARRAY_PREDICATE_MAX_BYTES = 1024;
-export const ARRAY_NOCASE_MATCH_MAX_BYTES = 64;
 /**
- * Element bytes one search request makes Redis read (review v0.4 r1 H1). The server estimates the array's average
- * element size (MEMORY USAGE / ARCOUNT) and searches at most this many bytes' worth of elements, divided by the cost
- * weight of the predicates (a NOCASE MATCH weighs its pattern length / 4), then says where to continue (`next`).
+ * Element bytes one search request reads (review v0.4 r2 H2): the server reads the range with ARSCAN in batches from
+ * one budget of this many wire bytes (or the request read budget, `policy.maxReadReplyBytes`, when smaller) and
+ * matches the values itself, then says where to continue (`next`). Each read is at most half of it, so an element
+ * larger than half is not searched and is listed in `skipped`.
  */
-export const ARRAY_SEARCH_MAX_BYTES = 64 * 1024 * 1024;
+export const ARRAY_SEARCH_MAX_BYTES = 16 * 1024 * 1024;
 /**
- * ARGREP predicates the search offers: EXACT (whole value), MATCH (substring), GLOB (glob pattern, at most 8 `*`).
- * RE (regular expressions) is not offered and is blocked in the console: Redis evaluates it on every element of the
- * range with no time limit, and a 15-character pattern took about 1 s per KiB of value (docs/ARCHITECTURE.md § 7).
+ * The predicates the search offers, with ARGREP's meanings: EXACT (whole value), MATCH (substring), GLOB (Redis's glob,
+ * at most 8 `*`). The search runs on the server over bounded reads, not as ARGREP: nothing bounds ARGREP's work inside
+ * Redis, so the console blocks it (`commands.ts`).
  */
 export const ARRAY_SEARCH_KINDS = ['exact', 'match', 'glob'] as const;
 /** AROP operations over a range (MATCH counts elements equal to `value`; USED counts existing elements). */
@@ -418,9 +417,10 @@ export const zArrayRange = z
 export type ArrayRangeRequest = z.input<typeof zArrayRange>;
 
 /**
- * POST /databases/:db/array/search (read-only): `ARGREP key start end <predicates> AND|OR [NOCASE] LIMIT limit
- * [WITHVALUES]`. A range with more than ARRAY_SCAN_MAX_ELEMENTS elements is searched up to that many (`searchedTo`) and
- * continued with `next`. `start` > `end` searches downwards.
+ * POST /databases/:db/array/search (read-only): the values of [start, end] that match the predicates (ARGREP's
+ * meanings, `combine` any or all, NOCASE folding ASCII letters), at most `limit`. Read with ARSCAN in batches and
+ * matched on the server; one request reads at most ARRAY_SCAN_MAX_ELEMENTS elements and ARRAY_SEARCH_MAX_BYTES, then
+ * continues with `next`. `start` > `end` searches downwards.
  */
 export const zArraySearch = z
   .object({
@@ -439,12 +439,17 @@ export interface ArraySearchResult {
   /** Matches in the search direction. `value`, `truncated` and `ref` are absent when the request set `values: false`. */
   items: { index: string; value?: Bin; truncated?: true; ref?: ElementRef }[];
   start: string;
-  /** The searched part of the range ends here (the request's `end` unless ARRAY_SCAN_MAX_ELEMENTS stopped it). */
+  /**
+   * The search reached this index: the request's `end`, or where `limit`, ARRAY_SCAN_MAX_ELEMENTS, the byte budget
+   * (ARRAY_SEARCH_MAX_BYTES) or a skipped element stopped it.
+   */
   searchedTo: string;
-  /** Existing elements in the searched part (AROP USED). */
+  /** Existing elements read and tested. */
   elements: number;
-  /** Where to continue towards the same `end`: after the last match when `limit` was reached, else after `searchedTo`. Absent when done. */
+  /** Where to continue towards the same `end`. Absent when done. */
   next?: string;
+  /** Elements larger than one read of the search (half of ARRAY_SEARCH_MAX_BYTES): not tested; `next` is after them. */
+  skipped?: string[];
 }
 
 /**

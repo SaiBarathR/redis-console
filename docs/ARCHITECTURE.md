@@ -207,14 +207,15 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
 - **Arrays (v0.4, `redis/array.ts`):** every read is a fixed read-class command on the measured, actor-checked
   transport within the request's reply budget. Pages (`key/read`, `array/range`: ARSCAN … LIMIT) and searches return
   at most 1,000 elements, each value previewed to 64 KiB within `maxReplyBytes`, with a reference whose full read
-  (`key/element`, ARGET) is capped at `maxValueBytes`. A search (ARGREP) visits at most 1,000,000 existing elements per
-  request, and at most `ARRAY_SEARCH_MAX_BYTES` (64 MiB) of element data divided by its weight: 1 per predicate, and
-  pattern bytes / 4 for a case-insensitive MATCH, which Redis evaluates byte by byte for each pattern byte (measured on
-  5,000 × 4 KiB elements: a 9-byte NOCASE MATCH 103 ms, 33 bytes 330 ms, 257 bytes 2.4 s; case-sensitive 24–66 ms).
-  The average element size is `MEMORY USAGE … SAMPLES 5` / ARCOUNT. When a range holds more, the server bisects on
-  `AROP … USED` (answered from per-slice counters; at most 65 small reads) to cut it, and the response says where to
-  continue. At most 8 predicates of 1 KiB each, a NOCASE MATCH at most 64 bytes (the console's `argumentRule` refuses
-  longer ARGREP values too); GLOB patterns have at most 8 `*`. Aggregates (AROP) over ranges holding more than 1,000,000 elements are refused with 400 and the
+  (`key/element`, ARGET) is capped at `maxValueBytes`. A search does not run ARGREP (D22): the server reads the range
+  with `ARSCAN … LIMIT n` in batches through the measured transport, all from one budget of `ARRAY_SEARCH_MAX_BYTES`
+  (16 MiB, or `maxReadReplyBytes` when smaller) with each read at most half of it, and matches the values itself with
+  ARGREP's meanings (`redis/glob.ts` ports Redis's glob; an integration test compares both on Redis). One request reads
+  at most 1,000,000 elements and that many bytes, however the values are sized or spread, then says where to continue;
+  a value over half the budget is located by `AROP … USED` bisection (no value read) and listed in `skipped`. Before
+  (review v0.4 r2 H1/H2), ARGREP ran inside Redis with a work cap estimated from the whole array's average element
+  size, which small values elsewhere in the array or one huge value defeated; nothing bounds ARGREP's own work, so the
+  console blocks it. At most 8 predicates of 1 KiB each; GLOB patterns have at most 8 `*`. Aggregates (AROP) over ranges holding more than 1,000,000 elements are refused with 400 and the
   count. Measured on Redis 8.10 with 6,000,000 elements: USED 10 ms, SUM 40 ms, MATCH over all of them 80 ms. Regular
   expressions (`RE`) are not offered and `ARGREP … RE …` is blocked in the console: Redis evaluates them in its main
   thread with no time limit and no way to stop them, at a cost of pattern states × value bytes, so no range, LIMIT or

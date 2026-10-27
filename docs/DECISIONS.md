@@ -538,3 +538,32 @@ a sandbox canary CSV was read successfully with a temporary import folder (resto
 plain HTTP was refused; application policy refuses every LOAD before dispatch. The pinned upstream
 [CSV documentation](https://falkordb.github.io/docs-staging/cypher/load-csv/) describes server file imports, and
 [UDF tests](https://github.com/FalkorDB/FalkorDB/blob/v6.0.3/tests/flow/test_udf.py) demonstrate namespaced code execution.
+
+
+## D22. Array search reads values in bounded batches and matches them on the server, not with ARGREP
+
+**Context.** ARGREP (Redis 8.8 arrays) evaluates its predicates inside Redis over a whole range, on the main thread and
+with no time limit; a case-insensitive substring search costs about value bytes × pattern bytes. Redis reports no
+byte size for a range (ARINFO has counts and slice layout only; AROP has no length operation), so no argument check
+bounds that work: in review v0.4 r2 (H1, H2) a console ARGREP scanned a whole 20 MiB range in 619 ms, and the inspector's
+cap, estimated from the array's average element size, admitted 5 times its budget when small values sat elsewhere in
+the array, or one 8 MiB value.
+
+**Decision.** The inspector's search reads the range with `ARSCAN … LIMIT n` through the measured transport, in
+batches from one per-request budget (`ARRAY_SEARCH_MAX_BYTES`, 16 MiB; each read at most half), and matches on the
+server with ARGREP's meanings: EXACT equal bytes, MATCH a substring, GLOB a port of Redis's `stringmatchlen`, NOCASE
+folding ASCII letters as Redis's `tolower` does. A value larger than half the budget is skipped by index (found with
+`AROP … USED` bisection). ARGREP is blocked in the console and the Workbench.
+
+**Alternatives.** *Keep ARGREP with a sampled size estimate* (not a bound: the reviewer defeated it); *bound the range
+span* (element sizes are unknown, so no span is safe); *allow console ARGREP without NOCASE* (still a whole-range scan
+of arbitrarily large values in Redis's main thread).
+
+**Consequences.** Redis does only plain bounded reads for a search; the server reads up to 16 MiB per request and
+matches it. The results are the same as ARGREP's (verified against Redis for EXACT, MATCH and GLOB with and without
+NOCASE, classes, ranges, escapes, binary and Latin-1 bytes), except a `[a-z]` range against bytes above 0x7f on a Redis
+built where `char` is signed. Searching large values takes more requests (Continue). Console users search arrays in the
+inspector.
+
+**Evidence.** `apps/server/test/integration/array.test.ts` (ARGREP agreement, clustered values, a skipped 8 MiB value),
+`apps/server/test/unit/array.test.ts` ("array search byte bound"), `docs/research/29-v04-review-r2-data.md`.

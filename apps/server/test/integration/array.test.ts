@@ -5,8 +5,10 @@
  */
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ARRAY_MAX_INDEX, ARGREP_RE_HINT } from '@rconsole/shared';
+import { ARRAY_MAX_INDEX, ARRAY_SEARCH_MAX_BYTES, ARGREP_RE_HINT } from '@rconsole/shared';
 import { checkedWrite, type CheckedPlan } from '../../src/redis/checked.ts';
+import { searchMatcher } from '../../src/redis/array.ts';
+import { zArraySearch } from '@rconsole/shared';
 import type { Conn } from '../../src/redis/manager.ts';
 import { HttpError } from '../../src/http/errors.ts';
 import { b64, cleanupPrefix, keyPrefix, sandboxAdmin, sandboxUp, startApp, userSession, utf8, type Client, type TestApp } from '../helpers.ts';
@@ -45,6 +47,92 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
     await r?.close();
     await t?.close();
     await cleanupPrefix(P);
+  });
+
+  describe('search matches as ARGREP does (review v0.4 r2 H2: the search runs on the server)', () => {
+    it('EXACT, MATCH and GLOB, with and without NOCASE, agree with ARGREP on Redis for edge-case values and patterns', async () => {
+      const values: Buffer[] = [
+        '', 'a', 'A', 'abc', 'ABC', 'aBc', 'a*c', 'a?c', 'a[b]c', 'a\\c', 'x-y', ']', '^', '[', '\\', '-', 'é', 'É', 'hello world',
+        'Hello World', 'aaaaaaaaab', 'aaaaaaaaaa', 'Zebra', '0123', 'a-c', 'b', 'ab', 'abcabc',
+      ].map((v) => Buffer.from(v));
+      // Binary and single Latin-1 bytes (É 0xc9, é 0xe9): NOCASE must fold ASCII letters only.
+      values.push(Buffer.from([0xff, 0x00, 0x80]), Buffer.from([0x00]), Buffer.from('a\r\nb'), Buffer.from([0xc9]), Buffer.from([0xe9]), Buffer.from([0x41, 0xc9, 0x62]));
+      await ar('ARSET', k('fidelity'), '0', ...values);
+      const globs = ['*', 'a*', '*c', 'a?c', '?', '??', '???', '[a-c]bc', '[c-a]bc', '[^a]bc', '[!a]bc', 'a\\*c', 'a[*]c', '[\\]]', '[]]', '[', 'a[', '[abc', '\\', '*\\', 'a*b*c',
+        '[A-Z]*', 'h*o w*', 'H*O W*', 'É', 'é', '[^x]', 'a*a*a*a*b', '\\a\\b\\c', '*-*', '[a-]', '[-a]', '[a\\-c]', 'a\\', '**', '*a*', '[\\x00-\\x7f]', 'z*', 'Z*', '[0-9]*'];
+      const substrings = ['a', 'A', 'b', 'é', 'É', 'wor', 'O W', 'aaaab', '\\', '[', 'c'];
+      const exacts = ['abc', 'ABC', 'é', 'É', 'a', 'hello world'];
+      const bin = (...b: number[]) => Buffer.from(b).toString('latin1');
+      const latin1 = [bin(0xc9), bin(0xe9), bin(0xc0, 0x2d, 0xde), bin(0x5b, 0xc0, 0x2d, 0xde, 0x5d), bin(0x2a, 0xc9, 0x2a), bin(0x41, 0xe9, 0x42)];
+      const cases: [string, string][] = [
+        ...globs.map((g) => ['glob', g] as [string, string]),
+        ...substrings.map((m) => ['match', m] as [string, string]),
+        ...exacts.map((e) => ['exact', e] as [string, string]),
+        ...latin1.flatMap((b) => [['glob', b], ['match', b], ['exact', b]] as [string, string][]),
+      ];
+      let compared = 0;
+      for (const [kind, pattern] of cases) {
+        for (const nocase of [false, true]) {
+          let redis: string[];
+          try {
+            const reply = (await ar('ARGREP', k('fidelity'), '0', String(values.length - 1), kind.toUpperCase(), Buffer.from(pattern, latin1.includes(pattern) ? 'latin1' : 'utf8'), ...(nocase ? ['NOCASE'] : []), 'LIMIT', '1000')) as unknown as unknown[];
+            redis = reply.map(String);
+          } catch {
+            continue; // Redis refuses the pattern; the search refuses or matches nothing, never more.
+          }
+          const value = latin1.includes(pattern) ? b64(Buffer.from(pattern, 'latin1')) : utf8(pattern);
+          const m = searchMatcher(zArraySearch.parse({ key: utf8('k'), predicates: [{ kind, value }], nocase }));
+          const ours = values.flatMap((v, i) => (m(v) ? [String(i)] : []));
+          expect(ours, `${kind} ${JSON.stringify(pattern)}${nocase ? ' NOCASE' : ''}`).toEqual(redis);
+          compared++;
+        }
+      }
+      expect(compared).toBeGreaterThan(100);
+      // AND/OR over several predicates.
+      for (const combine of ['and', 'or'] as const) {
+        const reply = (await ar('ARGREP', k('fidelity'), '0', String(values.length - 1), 'MATCH', 'a', 'GLOB', '*c', combine.toUpperCase(), 'LIMIT', '1000')) as unknown as unknown[];
+        const m = searchMatcher(zArraySearch.parse({ key: utf8('k'), predicates: [{ kind: 'match', value: utf8('a') }, { kind: 'glob', value: utf8('*c') }], combine }));
+        expect(values.flatMap((v, i) => (m(v) ? [String(i)] : [])), combine).toEqual(reply.map(String));
+      }
+    });
+  });
+
+  describe('search work is bounded by the bytes it reads (review v0.4 r2 H2)', () => {
+    it('clustered large values with many small ones elsewhere: one request reads at most ARRAY_SEARCH_MAX_BYTES of the range', async () => {
+      // The reproduction: 5,000 values of 4 KiB at 0–4999 (20 MiB), then 50,000 one-byte values after them.
+      const big = 'a'.repeat(4096);
+      for (let i = 0; i < 5000; i += 500) await ar('ARSET', k('clustered'), String(i), ...Array<string>(500).fill(big));
+      for (let i = 5000; i < 55_000; i += 5000) await ar('ARSET', k('clustered'), String(i), ...Array<string>(5000).fill('x'));
+      const pattern = utf8('a'.repeat(63) + 'b');
+      for (const [start, end] of [['0', '4999'], ['4999', '0']]) {
+        const t0 = Date.now();
+        const res = await viewer.req('POST', `${DB}/array/search`, { key: utf8(k('clustered')), start, end, predicates: Array.from({ length: 8 }, () => ({ kind: 'match', value: pattern })), nocase: true, values: false, limit: 1 });
+        expect(res.status, res.body.slice(0, 200)).toBe(200);
+        expect(res.json.items).toEqual([]);
+        expect(res.json.elements * 4096).toBeLessThanOrEqual(ARRAY_SEARCH_MAX_BYTES);
+        expect(res.json.elements).toBeGreaterThan(3000);
+        expect(res.json.next).toBeDefined();
+        expect(Date.now() - t0).toBeLessThan(5000);
+      }
+    });
+
+    it('an element over half the budget is skipped by index; the search continues after it', async () => {
+      await ar('ARSET', k('huge'), '0', 'small-a');
+      await ar('ARSET', k('huge'), '5', Buffer.alloc(ARRAY_SEARCH_MAX_BYTES / 2 + 1024, 0x61));
+      await ar('ARSET', k('huge'), '9', 'small-b');
+      const find = (start: string) => viewer.req('POST', `${DB}/array/search`, { key: utf8(k('huge')), start, predicates: [{ kind: 'match', value: utf8('small') }], values: false });
+      let res = await find('0');
+      const seen: string[] = res.json.items.map((i: { index: string }) => i.index);
+      const skipped: string[] = [...(res.json.skipped ?? [])];
+      for (let n = 0; res.json.next && n < 5; n++) {
+        res = await find(res.json.next);
+        expect(res.status).toBe(200);
+        seen.push(...res.json.items.map((i: { index: string }) => i.index));
+        skipped.push(...(res.json.skipped ?? []));
+      }
+      expect(seen).toEqual(['0', '9']);
+      expect(skipped).toEqual(['5']);
+    });
   });
 
   describe('reads', () => {
@@ -212,10 +300,10 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       const lines = t.auditLines.slice(before).map((l) => JSON.parse(l));
       expect(lines.map((l) => [l.action, l.command, l.outcome])).toEqual([
         ['array.range', 'ARSCAN', 'allowed'],
-        ['array.search', 'ARGREP', 'allowed'],
+        ['array.search', 'ARSCAN', 'allowed'],
         ['array.aggregate', 'AROP', 'allowed'],
       ]);
-      expect(lines[1].argvRedacted).toEqual(['ARGREP', expect.stringMatching(/^key#[0-9a-f]{12}$/), 'EXACT', '<6 bytes>', 'OR']);
+      expect(lines[1].argvRedacted).toEqual(['ARSCAN', expect.stringMatching(/^key#[0-9a-f]{12}$/), 'EXACT', '<6 bytes>', 'OR']);
       expect(lines[1].detail).toBe('returned=1 elements=6');
       const text = t.auditLines.slice(before).join('\n');
       for (const secret of ['cherry', 'banana', P]) expect(text).not.toContain(secret);

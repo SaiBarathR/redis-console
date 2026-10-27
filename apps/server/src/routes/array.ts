@@ -6,6 +6,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import {
+  ARRAY_SEARCH_MAX_BYTES,
   zArrayAggregate,
   zArrayRange,
   zArraySearch,
@@ -47,12 +48,15 @@ export function registerArrayRoutes(app: FastifyInstance, ctx: AppContext) {
     const key = keyBytes(q.key);
     // Predicate kinds are fixed words; their values are data (sizes only).
     const predicates = q.predicates.flatMap((p) => [p.kind.toUpperCase(), `<${predicateBytes(p.value, p.kind).length} bytes>`]);
-    const base = { action: 'array.search', databaseId: scope.db.id, command: 'ARGREP', argvRedacted: ['ARGREP', keyTag(key), ...predicates, q.combine.toUpperCase(), ...(q.nocase ? ['NOCASE'] : [])], keyCount: 1 };
+    const base = { action: 'array.search', databaseId: scope.db.id, command: 'ARSCAN', argvRedacted: ['ARSCAN', keyTag(key), ...predicates, q.combine.toUpperCase(), ...(q.nocase ? ['NOCASE'] : [])], keyCount: 1 };
     return auditedRead(ctx, req, base, async () => {
       const budget = new PageBudget(policy.maxReplyBytes);
       const conn = await scope.conn();
       await requireArray(scope, conn, key, policy.commandTimeoutMs);
-      return searchArray(scope, conn, key, q, (x) => budget.preview(x), policy.commandTimeoutMs);
+      // Values read from one budget of at most ARRAY_SEARCH_MAX_BYTES (and the request read budget), each read within the
+      // per-reply cap (review v0.4 r2 H2).
+      const maxBytes = Math.min(ARRAY_SEARCH_MAX_BYTES, policy.maxReadReplyBytes);
+      return searchArray(scope, conn, key, q, (x) => budget.preview(x), policy.commandTimeoutMs, { maxBytes, readCap: policy.maxReadReplyBytes });
     }, (r) => pageDetail(r.items as { truncated?: true }[], [`elements=${r.elements}`, ...(r.next ? ['more'] : [])]));
   });
 
