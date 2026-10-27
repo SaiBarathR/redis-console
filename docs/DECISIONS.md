@@ -508,7 +508,7 @@ Unknown GRAPH commands fail closed even if a later module reports permissive fla
 
 A conservative lexical guard, applied server-side to exact argv for every query/plan command, refuses LOAD, all CALLs
 except no-argument `db.labels()`, `db.relationshipTypes()` and `db.propertyKeys()`, and all namespaced/quoted function
-calls. This also prevents invoking already-loaded JavaScript UDFs through RO_QUERY. Backtick identifiers use doubled backticks for escaping; backslashes are literal (verified against the engine).
+calls. This also prevents invoking already-loaded JavaScript UDFs through RO_QUERY. In backtick identifiers backslashes are literal, and FalkorDB 6.0.3 refuses a doubled backtick (the guard reads it as an escape, which can only widen what it treats as a name in a query the engine refuses; verified against the engine, review v0.4 r3 graph L3).
 Strings and comments are inert;
 unbalanced delimiters and non-ASCII unquoted identifiers/line comments fail closed (use quoted labels and string literals for Unicode). Queries are limited to 64 KiB. This is a feature guard, **not a Cypher parser**:
 reserved words used as unquoted properties can be refused, legitimate namespaced/quoted built-ins are unavailable,

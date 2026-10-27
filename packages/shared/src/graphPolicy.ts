@@ -39,7 +39,8 @@ function tokens(query: string): string[] | { refused: string } {
       i++;
       let closed = false;
       while (i < query.length) {
-        // Cypher escapes identifier backticks by doubling them. Backslashes are literal there.
+        // Backslashes are literal in quoted names. FalkorDB 6.0.3 refuses a doubled backtick inside a name; reading it as
+        // an escape here only makes the guard read more of such a query as a name, and the engine runs none of it.
         if (query[i] === '\\' && quote !== '`') { i += 2; continue; }
         if (query[i++] === quote) {
           if (query[i] === quote) { i++; continue; }
