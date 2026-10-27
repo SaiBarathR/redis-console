@@ -61,6 +61,16 @@ async function arrayRead<T = unknown>(scope: DbScope, conn: Conn, args: Arg[], o
   return run<T>(conn, args, { typeMapping: TM_ARRAY, ...o });
 }
 
+/**
+ * The key must be an array: TYPE first, so a missing key is 404 and another type a clear 400 rather than WRONGTYPE
+ * (as for vector sets; review v0.4 r1 L3).
+ */
+export async function requireArray(scope: DbScope, conn: Conn, key: Buffer, timeout: number): Promise<void> {
+  const type = asStr(await arrayRead(scope, conn, ['TYPE', key], { key, timeout, maxBytes: 4096 }));
+  if (type === 'none') throw new HttpError('not_found', 'Key does not exist.');
+  if (type !== 'array') throw new HttpError('validation', 'This key is not an array.');
+}
+
 /** One step from `index` in a direction, or undefined past either end of the index space. */
 export function stepIndex(index: string, reverse: boolean): string | undefined {
   const n = BigInt(index);

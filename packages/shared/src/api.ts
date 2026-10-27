@@ -637,7 +637,8 @@ export const VSET_VALUES_MAX = VSET_EMBED_MAX_DIM;
 /** A finite decimal coordinate as Redis parses it (no inf/nan, no hex). */
 export const VSET_NUMBER = /^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d{1,3})?$/;
 
-const zVsetNumber = z.string().max(40).regex(VSET_NUMBER, 'not a finite decimal number');
+// Redis reads each coordinate as a double and refuses one beyond its range (review v0.4 r1 L3).
+const zVsetNumber = z.string().max(40).regex(VSET_NUMBER, 'not a finite decimal number').refine((x) => Number.isFinite(Number(x)), 'not a finite decimal number');
 const zVsetValues = z.array(zVsetNumber).min(1).max(VSET_VALUES_MAX);
 
 /** `VINFO` fields the inspector shows (absent when this Redis does not report them), plus `VCARD` and `VDIM`. */

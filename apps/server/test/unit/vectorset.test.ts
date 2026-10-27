@@ -36,6 +36,8 @@ describe('VRANGE paging and prefix bounds', () => {
     expect(vrangeArgs(B('k'), { prefix: B('m29'), after: B('m2:'), count: 5 })).toBeNull();
     // A 0xff prefix runs to +.
     expect(text(vrangeArgs(B('k'), { prefix: B([0xff]), count: 5 })!)).toEqual(['VRANGE', 'k', '[\xff', '+', '6']);
+    // After the empty member (a legal name): the smallest name after it, since "(" alone is not a range (review v0.4 r1 L3).
+    expect(text(vrangeArgs(B('k'), { after: B(''), count: 5 })!)).toEqual(['VRANGE', 'k', '[\x00', '+', '6']);
   });
 
   it('pageOf names the next start only when VRANGE returned more than a page, in full bytes, and cuts long names', () => {
@@ -95,6 +97,7 @@ describe('reply parsers', () => {
     expect(vsetRequestError(new HttpError('redis_error', 'ERR element not found in set'))?.code).toBe('not_found');
     expect(vsetRequestError(new HttpError('redis_error', 'ERR Vector dimension mismatch - got 2 but set has 3'))?.code).toBe('validation');
     expect(vsetRequestError(new HttpError('redis_error', 'ERR syntax error in FILTER expression near: x'))?.message).toContain('syntax error in FILTER expression');
+    expect(vsetRequestError(new HttpError('redis_error', 'ERR invalid vector specification'))?.code).toBe('validation');
     expect(vsetRequestError(new HttpError('redis_error', 'ERR something else'))).toBeUndefined();
     expect(vsetRequestError(new HttpError('timeout', 'element not found'))).toBeUndefined();
   });

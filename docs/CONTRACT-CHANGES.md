@@ -10,6 +10,14 @@ Changes to `packages/shared` made after the initial scaffold. Newest first. All 
   than that is refused with 400. New `ARRAY_SEARCH_MAX_BYTES` (64 MiB): `array/search` visits at most that much element
   data divided by the search's weight per request (review v0.4 r1 H1); `searchedTo`/`next` report the cut as before.
   The route additionally sends `MEMORY USAGE <key> SAMPLES 5` and `ARCOUNT` (fixed reads on the caller's tier).
+- `array/range`, `array/search`, `array/aggregate` check TYPE first: a missing key is 404 `not_found` (before: an
+  empty page or result) and another type 400 `validation` "This key is not an array." (before: 502 WRONGTYPE);
+  **breaking** for clients that relied on the empty page (review v0.4 r1 L3).
+- Vector coordinates (`zVsetSearchRequest`, `vset.add`) must also be finite as doubles (`1e309` is 400, was a 502 from
+  Redis). `vectorset/members` with an empty `after` pages after the empty member name instead of failing with 502,
+  and Redis's "invalid vector specification" is a 400 (review v0.4 r1 L3).
+- Full last pages: `array/range`/`key/read` (arrays) and `vectorset/members` name `next` only when another element
+  or member follows (review v0.4 r1 L1). VRANGE is sent with `count + 1`.
 
 ### `commands.ts`
 - `argumentRule` blocks `ARGREP` when a predicate value is over `ARGREP_VALUE_MAX_BYTES` (1 KiB) or a `MATCH` value

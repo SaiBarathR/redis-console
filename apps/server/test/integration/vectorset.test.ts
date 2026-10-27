@@ -135,6 +135,12 @@ describe.skipIf(!aclReady)('vector-set inspector (v0.4 F23)', () => {
     // Bounds and types.
     expect((await post(viewer, 'vectorset/members', { key: utf8(k('v3')), count: VSET_PAGE_MAX + 1 })).status).toBe(400);
     expect((await post(viewer, 'vectorset/members', { key: utf8(k('str')) })).json.error.code).toBe('validation');
+    // Paging after a member with an empty name (review v0.4 r1 L3): the page starts with the first non-empty name.
+    res = await post(viewer, 'vectorset/members', { key: utf8(k('v3')), after: utf8(''), count: 2 });
+    expect(res.status, res.body).toBe(200);
+    expect(res.json.page.members).toHaveLength(2);
+    const huge = await post(viewer, 'vectorset/search', { key: utf8(k('v3')), query: { values: ['1e999', '0', '0'] } });
+    expect(huge.status, huge.body).toBe(400);
     expect((await post(viewer, 'vectorset/members', { key: utf8(k('missing')) })).status).toBe(404);
     expect((await post(anonymous(t), 'vectorset/members', { key: utf8(k('v3')) })).status).toBe(401);
   });

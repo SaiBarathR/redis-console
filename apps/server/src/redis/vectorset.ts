@@ -76,7 +76,8 @@ export function vrangeArgs(key: Buffer, o: { after?: Buffer | undefined; prefix?
   const end = prefix ? prefixEnd(prefix) : undefined;
   let start: Buffer | string = '-';
   if (prefix && (!o.after || Buffer.compare(o.after, prefix) < 0)) start = Buffer.concat([Buffer.from('['), prefix]);
-  else if (o.after) start = Buffer.concat([Buffer.from('('), o.after]);
+  // After the empty member (a legal name): `(` alone is not a range, so start at the smallest name after it.
+  else if (o.after) start = o.after.length ? Buffer.concat([Buffer.from('('), o.after]) : Buffer.from([0x5b, 0x00]);
   if (end && o.after && Buffer.compare(o.after, end) >= 0) return null;
   return ['VRANGE', key, start, end ? Buffer.concat([Buffer.from('('), end]) : '+', String(o.count + 1)];
 }
@@ -182,6 +183,7 @@ export function vsetRequestError(e: unknown): HttpError | undefined {
   if (/element not found/i.test(e.message)) return new HttpError('not_found', 'This member does not exist in the vector set.');
   if (/dimension mismatch/i.test(e.message)) return new HttpError('validation', 'The query vector has a different number of dimensions than the set.');
   if (/syntax error in FILTER/i.test(e.message)) return new HttpError('validation', `Invalid filter expression: ${e.message.replace(/^ERR\s+/, '').slice(0, 300)}`);
+  if (/invalid vector specification/i.test(e.message)) return new HttpError('validation', 'Redis refused the vector: each coordinate must be a number it can read as a double.');
   return undefined;
 }
 

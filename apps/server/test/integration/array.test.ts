@@ -102,7 +102,20 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       // Bounds and direction are validated before Redis is asked.
       for (const body of [{ count: 1001 }, { count: 0 }, { start: '-1' }, { start: '01' }, { start: '5', end: '1' }, { start: '1', end: '5', reverse: true }, { start: '18446744073709551615' }])
         expect((await page(body)).status, JSON.stringify(body)).toBe(400);
-      expect((await viewer.req('POST', `${DB}/array/range`, { key: utf8(k('missing')), count: 5 })).json.items).toEqual([]);
+      // Like the vector-set routes: a missing key is 404 and another type a clear 400, not WRONGTYPE (review v0.4 r1 L3).
+      await r.set(k('text'), 'not an array');
+      const routes: [string, Record<string, unknown>][] = [
+        ['array/range', { count: 5 }],
+        ['array/search', { predicates: [{ kind: 'exact', value: utf8('x') }] }],
+        ['array/aggregate', { start: '0', end: '9', op: 'sum' }],
+      ];
+      for (const [route, body] of routes) {
+        const missing = await viewer.req('POST', `${DB}/${route}`, { key: utf8(k('missing')), ...body });
+        expect(missing.status, route).toBe(404);
+        const other = await viewer.req('POST', `${DB}/${route}`, { key: utf8(k('text')), ...body });
+        expect(other.status, route).toBe(400);
+        expect(other.json.error.message).toBe('This key is not an array.');
+      }
     });
 
     it('previews long values and reads the full element by reference, bounded by maxValueBytes', async () => {

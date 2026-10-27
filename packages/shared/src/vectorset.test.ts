@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ROUTES, VSET_FILTER_EF_MAX, VSET_FILTER_MAX_CHARS, VSET_NUMBER, VSET_SEARCH_EF_MAX, zKeyOp, zVsetAttributesRequest, zVsetMembersRequest } from './api.ts';
+import { ROUTES, VSET_FILTER_EF_MAX, VSET_FILTER_MAX_CHARS, VSET_NUMBER, VSET_SEARCH_EF_MAX, zKeyOp, zVsetAttributesRequest, zVsetMembersRequest, zVsetSearchRequest } from './api.ts';
 import { argumentRule, lookupRule, VSIM_COUNT_MAX, VSIM_EF_MAX, VSIM_FILTER_EF_MAX, VSIM_FILTER_MAX_BYTES } from './commands.ts';
 
 const utf8 = (data: string) => ({ enc: 'utf8' as const, data });
@@ -26,6 +26,10 @@ describe('v0.4 vector sets: policy and contract', () => {
   it('coordinates are finite decimals', () => {
     for (const ok of ['1', '-0.5', '+.25', '3e-2', '1.']) expect(VSET_NUMBER.test(ok), ok).toBe(true);
     for (const bad of ['', 'inf', 'nan', '0x1', '1e', '1,5', ' 1']) expect(VSET_NUMBER.test(bad), bad).toBe(false);
+    // Redis reads each coordinate as a double: beyond its range is refused here, not passed on (review v0.4 r1 L3).
+    const search = (x: string) => zVsetSearchRequest.safeParse({ key: utf8('k'), query: { values: [x, '0'] } }).success;
+    for (const ok of ['1e99', '-1e308', '1e-300']) expect(search(ok), ok).toBe(true);
+    for (const bad of ['1e309', '-1e999', '1e999']) expect(search(bad), bad).toBe(false);
   });
 
   it('vset ops parse as typed ops; remove takes one member', () => {
