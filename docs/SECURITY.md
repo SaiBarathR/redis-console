@@ -129,18 +129,6 @@ The end-to-end suite (`tests/e2e`, Playwright) runs against the real server with
 | The image is non-root, has no package managers, is friendly to a read-only root filesystem, and won't start without a valid config. | `Dockerfile`; smoke test in CI (`image` job) |
 | Kubernetes: restricted Pod Security, a securityContext, NetworkPolicy default-deny, and secrets as files. | `deploy/k8s/` |
 
-## Known limitations
-
-- With only a `default` Redis credential for a database, the server policy is the only enforcement layer. Use per-tier ACL users.
-- SQLite state means a single replica. High availability is "restart quickly" plus backups. Rate limits, confirmation tokens and jobs are in memory, per instance.
-- OIDC roles are read at sign-in. Removing someone from an IdP group takes effect at their next sign-in (bound it with `auth.oidc.sessionTtlMinutes`); there is no back-channel logout.
-- Closing a socket bounds the console's memory but doesn't stop work Redis already started or undo a mutation that was sent. Replies the client library reads itself (handshake, `CLUSTER SLOTS`, Sentinel) are not size-measured; use verified TLS outside trusted networks.
-- A `server.trustProxy` hop count trusts whatever connects to the app port, so a client that can reach the port without the proxy can choose the address the audit log and the per-address limits see. Use a hop count only when the port is reachable through the proxy chain alone (the `deploy/` examples ensure that); otherwise set the proxy's address or a narrow CIDR, which ignores `X-Forwarded-For` from anyone else. See [INSTALL.md](INSTALL.md#setting-trustproxy).
-- If the TOTP encryption key is lost or changed, the server refuses to start until the key is restored or the seeds are cleared (deliberate; see DECISIONS D07).
-- The console blocks MULTI/EXEC and Lua by design. Workflows that need atomic scripts belong in application code, not in an admin UI. The server itself uses WATCH/MULTI/EXEC (never Lua) only for its own compare-and-set edits, with a fixed command it builds, on the caller's tier (which therefore needs `+@transaction`).
-- Compare-and-set compares bytes. A list element is identified by its index and bytes, so an LPUSH/LPOP pair that leaves equal bytes at that index is not detected; renames and deletes of collections compare the type only. Ops without compare-and-set (TTL, element removals, adds) refuse an `expect` field with 400 rather than ignoring it.
-- Review findings and their verdicts are in [REVIEW-LOG.md](REVIEW-LOG.md); e2e findings in [E2E-FINDINGS.md](E2E-FINDINGS.md).
-
 ### v0.4 FalkorDB graph boundary
 
 - GRAPH commands are explicitly classified; future commands fail closed. QUERY/PROFILE require an operator and
@@ -159,3 +147,15 @@ Tests: shared `graphPolicy.test.ts`, server unit `graph-policy.test.ts`, server 
 `graph.test.tsx`, e2e `ui/graph.spec.ts`, and `qa/graph-live.browser.spec.ts` (local and Keycloak roles). Evidence and
 cleanup: [v04-graph.md](qa/v04-graph.md). The lexical guard's deliberate conservative restrictions are in D21;
 it does not attempt to parse arbitrary Cypher or infer whether a query writes.
+
+## Known limitations
+
+- With only a `default` Redis credential for a database, the server policy is the only enforcement layer. Use per-tier ACL users.
+- SQLite state means a single replica. High availability is "restart quickly" plus backups. Rate limits, confirmation tokens and jobs are in memory, per instance.
+- OIDC roles are read at sign-in. Removing someone from an IdP group takes effect at their next sign-in (bound it with `auth.oidc.sessionTtlMinutes`); there is no back-channel logout.
+- Closing a socket bounds the console's memory but doesn't stop work Redis already started or undo a mutation that was sent. Replies the client library reads itself (handshake, `CLUSTER SLOTS`, Sentinel) are not size-measured; use verified TLS outside trusted networks.
+- A `server.trustProxy` hop count trusts whatever connects to the app port, so a client that can reach the port without the proxy can choose the address the audit log and the per-address limits see. Use a hop count only when the port is reachable through the proxy chain alone (the `deploy/` examples ensure that); otherwise set the proxy's address or a narrow CIDR, which ignores `X-Forwarded-For` from anyone else. See [INSTALL.md](INSTALL.md#setting-trustproxy).
+- If the TOTP encryption key is lost or changed, the server refuses to start until the key is restored or the seeds are cleared (deliberate; see DECISIONS D07).
+- The console blocks MULTI/EXEC and Lua by design. Workflows that need atomic scripts belong in application code, not in an admin UI. The server itself uses WATCH/MULTI/EXEC (never Lua) only for its own compare-and-set edits, with a fixed command it builds, on the caller's tier (which therefore needs `+@transaction`).
+- Compare-and-set compares bytes. A list element is identified by its index and bytes, so an LPUSH/LPOP pair that leaves equal bytes at that index is not detected; renames and deletes of collections compare the type only. Ops without compare-and-set (TTL, element removals, adds) refuse an `expect` field with 400 rather than ignoring it.
+- Review findings and their verdicts are in [REVIEW-LOG.md](REVIEW-LOG.md); e2e findings in [E2E-FINDINGS.md](E2E-FINDINGS.md).
