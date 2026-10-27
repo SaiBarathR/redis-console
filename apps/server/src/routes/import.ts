@@ -443,6 +443,8 @@ export function registerImportRoutes(app: FastifyInstance, ctx: AppContext) {
       if (c.base) audit(ctx, req, { ...c.base, outcome: !outcome.ok && (outcome.notSent || outcome.he.code === 'unauthenticated') ? 'denied' : 'error', detail: failureDetail(error.code, error.message, known) });
       fail(it, c.name, error);
       if (!outcome.ok && outcome.he.code === 'unauthenticated') return end('failed', 'Your session ended or your account changed; the remaining commands were not sent.', i + 1);
+      // A cancel requested while this line ran comes first: it finished (with an error) and is counted (review v0.4 r5 L1).
+      if (signal.aborted) return end('cancelled', `Cancelled while line ${it.line} was running; it finished and is counted above.`, i + 1);
       if (opts.stopOnError) return end('stopped', `Stopped at the first failure (line ${it.line}); the remaining commands were not sent.`, i + 1);
     }
     st.chunks.done = st.chunks.total;

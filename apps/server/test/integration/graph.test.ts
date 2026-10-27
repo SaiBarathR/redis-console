@@ -224,6 +224,14 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
     let end = await status(plan.json.id);
     expect(end.state).toBe('cancelled');
     await freeSlot();
+    // With stop-on-error, a cancelled line whose reply is an error still ends the job cancelled (review v0.4 r5 L1).
+    plan = await op.req('POST', IMP, { script: `${slow(300_000)} TIMEOUT 1` });
+    expect((await op.req('POST', `${IMP}/${plan.json.id}/start`, { stopOnError: true })).status).toBe(200);
+    await new Promise((r) => setTimeout(r, 100));
+    await op.req('POST', `${IMP}/${plan.json.id}/cancel`, {});
+    end = await status(plan.json.id);
+    expect(end).toMatchObject({ state: 'cancelled', failed: 1 });
+    await freeSlot();
     // L2: the second line waits for the graph slot (refused before sending); cancelled there, it is not "may have run".
     const before = t.auditLines.length;
     plan = await op.req('POST', IMP, { script: `${slow(800_000)}\nGRAPH.RO_QUERY ${k} "RETURN 9"` });
