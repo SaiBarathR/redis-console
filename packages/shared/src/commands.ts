@@ -281,7 +281,9 @@ export const CLASS_MIN_ROLE: Record<Exclude<CommandClass, 'blocked' | 'dedicated
 
 /**
  * Rules that depend on arguments, not only on the command name. Checked before `lookupRule` by the server's
- * classification and by the browser's hints. Undefined when the arguments change nothing.
+ * classification and by the browser's hints. Undefined when the arguments change nothing. Each argument is its bytes as
+ * latin1 characters (one character per byte), on the server and in the browser alike, so sizes are byte counts and both
+ * sides give the same verdict.
  */
 export function argumentRule(argv: readonly string[]): CommandRule | undefined {
   const name = (argv[0] ?? '').toUpperCase();
@@ -343,12 +345,13 @@ export function vsimRefusal(argv: readonly string[]): string | undefined {
     i++;
     const limit = VSIM_LIMITS[option];
     if (limit && !(/^\d{1,7}$/.test(value) && Number(value) >= limit[0] && Number(value) <= limit[1])) return `VSIM ${option} must be a whole number from ${limit[0]} to ${limit[1]} here.`;
-    if (option === 'FILTER' && utf8Length(value) > VSIM_FILTER_MAX_BYTES) return `VSIM FILTER expressions are limited to ${VSIM_FILTER_MAX_BYTES} bytes here.`;
+    // Arguments reach the rules as their bytes in latin1 (server and browser alike), so the length is the byte count
+    // (review v0.4 r4 graph L5).
+    if (option === 'FILTER' && value.length > VSIM_FILTER_MAX_BYTES) return `VSIM FILTER expressions are limited to ${VSIM_FILTER_MAX_BYTES} bytes here.`;
   }
   return undefined;
 }
 
-const utf8Length = (s: string) => new TextEncoder().encode(s).length;
 
 /** Static lookup only (no COMMAND INFO). Returns undefined when the server must classify from flags. */
 export function lookupRule(argv: readonly string[]): CommandRule | undefined {

@@ -160,3 +160,15 @@ describe("argument rules see the bytes the server sees (review v0.4 r3 graph L5)
     expect(commandPolicy(`GRAPH.RO_QUERY g "RETURN 'Zoë'"`, [], viewer)).toMatchObject({ allowed: true });
   });
 });
+
+describe("argument rules count bytes as the server receives them (review v0.4 r4 graph L4, L5)", () => {
+  const viewer: DatabaseSummary = { ...database, effectiveRole: "viewer" };
+  it("a \\xHH escape is one byte, as the server receives it", () => {
+    // 40,000 escaped 0x80 bytes: 40,000 bytes sent (under 64 KiB), 80,000 if each counted as a UTF-8 character.
+    expect(commandPolicy(`GRAPH.RO_QUERY g "RETURN '${"\\x80".repeat(40_000)}'"`, [], viewer)).toMatchObject({ allowed: true });
+  });
+  it("the VSIM FILTER limit counts UTF-8 bytes once (300 × é is 600 bytes)", () => {
+    expect(commandPolicy(`VSIM k ELE m FILTER ".name == '${"é".repeat(300)}'"`, [], viewer)).toMatchObject({ allowed: true });
+    expect(commandPolicy(`VSIM k ELE m FILTER ".name == '${"é".repeat(520)}'"`, [], viewer).allowed).toBe(false);
+  });
+});

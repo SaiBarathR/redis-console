@@ -4,6 +4,7 @@ import {
   lookupRule,
   roleAtLeast,
   tokenizeCommandLine,
+  tokenizeCommandLineBytes,
   CLASS_MIN_ROLE,
   type CommandDoc,
   type DatabaseSummary,
@@ -17,16 +18,16 @@ export const LOADING_HINT = "Loading command info…";
 export const CATALOG_ERROR_HINT =
   "Command info could not be loaded. Press Enter to try again.";
 /**
- * An argument as the server's policy reads it: its UTF-8 bytes as latin1 characters. Argument rules (sizes, the graph
- * guard's character rules) then give the same verdict in the browser as on the server (review v0.4 r3 graph L5).
+ * The arguments as the server's policy reads them: the bytes the server receives (the shared byte tokenizer, so a
+ * `\xHH` escape is one byte) as latin1 characters. Argument rules (sizes, the graph guard's character rules) then give
+ * the same verdict in the browser as on the server (review v0.4 r3 graph L5, r4 L4).
  */
-const encoder = new TextEncoder();
-function serverForm(arg: string): string {
-  if (/^[\x00-\x7f]*$/.test(arg)) return arg;
-  const bytes = encoder.encode(arg);
-  let out = "";
-  for (let i = 0; i < bytes.length; i += 8192) out += String.fromCharCode(...bytes.subarray(i, i + 8192));
-  return out;
+function serverForm(line: string): string[] {
+  return tokenizeCommandLineBytes(line).map((bytes) => {
+    let out = "";
+    for (let i = 0; i < bytes.length; i += 8192) out += String.fromCharCode(...bytes.subarray(i, i + 8192));
+    return out;
+  });
 }
 
 export function commandPolicy(
@@ -64,7 +65,7 @@ export function commandPolicy(
   const doc =
     docs.find((item) => item.name.toUpperCase() === pair) ??
     docs.find((item) => item.name.toUpperCase() === name);
-  const rule = argumentRule(argv.map(serverForm)) ?? lookupRule(argv);
+  const rule = argumentRule(serverForm(line)) ?? lookupRule(argv);
   // A shared rule for this exact argv decides, as it does on the server (authorize checks the rule's class against the
   // role, read-only and prod, all known here). The catalog classifies bare names, and a rule that refuses some argument
   // shapes (GRAPH.INFO without ObjectPool) marks the bare name blocked there, so its verdict and hint apply only to
