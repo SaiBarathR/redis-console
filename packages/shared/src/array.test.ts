@@ -2,6 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   ARRAY_MAX_INDEX,
+  ARRAY_NOCASE_MATCH_MAX_BYTES,
+  ARRAY_PREDICATE_MAX_BYTES,
   isArrayIndex,
   zArrayAggregate,
   zArrayIndex,
@@ -10,7 +12,7 @@ import {
   zElementRef,
   zKeyOp,
 } from './api.ts';
-import { ARGREP_RE_HINT, argrepPredicates, argumentRule, lookupRule } from './commands.ts';
+import { ARGREP_NOCASE_MATCH_MAX_BYTES, ARGREP_RE_HINT, ARGREP_VALUE_MAX_BYTES, argrepPredicates, argumentRule, lookupRule } from './commands.ts';
 
 const key = { enc: 'utf8' as const, data: 'arr' };
 const sha = 'a'.repeat(64);
@@ -90,5 +92,22 @@ describe('array command rules (v0.4 arrays block)', () => {
     // The key, start and end are never predicates.
     expect(argumentRule(['ARGREP', 'RE', 'RE', 'RE', 'MATCH', 'x'])).toBeUndefined();
     expect(argrepPredicates(['ARGREP', 'k', '0', '10', 'EXACT', 'LIMIT', 'RE', 'x', 'MATCH', 'RE'])).toEqual(['EXACT', 'RE', 'MATCH']);
+  });
+  it('bounds ARGREP search values: at most 1 KiB, and a NOCASE MATCH at most 64 bytes (review v0.4 r1 H1)', () => {
+    expect(ARRAY_PREDICATE_MAX_BYTES).toBe(ARGREP_VALUE_MAX_BYTES);
+    expect(ARRAY_NOCASE_MATCH_MAX_BYTES).toBe(ARGREP_NOCASE_MATCH_MAX_BYTES);
+    const long = 'a'.repeat(1025);
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'EXACT', long])?.class).toBe('blocked');
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'x', 'OR', 'GLOB', long])?.class).toBe('blocked');
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'a'.repeat(1024)])).toBeUndefined();
+    // NOCASE makes MATCH cost the pattern length times a plain scan, wherever NOCASE is written.
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'a'.repeat(65), 'NOCASE'])?.class).toBe('blocked');
+    expect(argumentRule(['argrep', 'k', '0', '10', 'nocase', 'match', 'a'.repeat(65)])?.class).toBe('blocked');
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'a'.repeat(64), 'NOCASE'])).toBeUndefined();
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'EXACT', 'a'.repeat(65), 'NOCASE'])).toBeUndefined();
+    // Multi-byte characters count as bytes.
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'é'.repeat(33), 'NOCASE'])?.class).toBe('blocked');
+    // A value that reads "NOCASE" is not the option.
+    expect(argumentRule(['ARGREP', 'k', '0', '10', 'MATCH', 'NOCASE', 'EXACT', 'a'.repeat(65)])).toBeUndefined();
   });
 });

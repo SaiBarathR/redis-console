@@ -2,6 +2,20 @@
 
 Changes to `packages/shared` made after the initial scaffold. Newest first. All are additive unless marked **breaking**.
 
+## 2026-10-27 — v0.4 review round 1 fixes (fix/v04-review-r1)
+
+### `api.ts`
+- **`ARRAY_PREDICATE_MAX_BYTES` lowered from 16 KiB to 1 KiB** (**breaking** for clients sending longer values: the
+  server answers 400 `validation`). New `ARRAY_NOCASE_MATCH_MAX_BYTES` (64): a `match` predicate with `nocase` longer
+  than that is refused with 400. New `ARRAY_SEARCH_MAX_BYTES` (64 MiB): `array/search` visits at most that much element
+  data divided by the search's weight per request (review v0.4 r1 H1); `searchedTo`/`next` report the cut as before.
+  The route additionally sends `MEMORY USAGE <key> SAMPLES 5` and `ARCOUNT` (fixed reads on the caller's tier).
+
+### `commands.ts`
+- `argumentRule` blocks `ARGREP` when a predicate value is over `ARGREP_VALUE_MAX_BYTES` (1 KiB) or a `MATCH` value
+  is over `ARGREP_NOCASE_MATCH_MAX_BYTES` (64) with `NOCASE` anywhere among the options (additive; new
+  `argrepParts`). Audit: the refused command as `blocked`, as for `RE`.
+
 ## 2026-10-26 — v0.4 S2 vector sets (feat/v04-vectorset)
 
 ### `api.ts`

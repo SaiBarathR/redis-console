@@ -16,8 +16,10 @@ import { createHash } from 'node:crypto';
 import { RESP_TYPES } from 'redis';
 import {
   ARRAY_MAX_INDEX,
+  ARRAY_NOCASE_MATCH_MAX_BYTES,
   ARRAY_PREDICATE_MAX_BYTES,
   ARRAY_SCAN_MAX_ELEMENTS,
+  ARRAY_SEARCH_MAX_BYTES,
   binFromBytes,
   bytesFromBin,
   type ArrayAggregateResult,
@@ -159,7 +161,7 @@ type SearchRequest = z.infer<typeof zArraySearch>;
 /** The ARGREP argv of a search over [start, to]. */
 export function searchArgv(key: Buffer, q: SearchRequest, to: string): Arg[] {
   const argv: Arg[] = ['ARGREP', key, q.start, to];
-  for (const p of q.predicates) argv.push(p.kind.toUpperCase(), predicateBytes(p.value, p.kind));
+  for (const p of q.predicates) argv.push(p.kind.toUpperCase(), predicateBytes(p.value, p.kind, q.nocase));
   argv.push(q.combine.toUpperCase());
   if (q.nocase) argv.push('NOCASE');
   argv.push('LIMIT', String(q.limit));
@@ -167,20 +169,51 @@ export function searchArgv(key: Buffer, q: SearchRequest, to: string): Arg[] {
   return argv;
 }
 
-/** The bytes of a search or MATCH value (400 for malformed base64, an oversized value or a GLOB with too many `*`). */
-export function predicateBytes(v: Bin, kind: string): Buffer {
+/**
+ * The bytes of a search or MATCH value (400 for malformed base64, an oversized value, a NOCASE MATCH pattern over
+ * ARRAY_NOCASE_MATCH_MAX_BYTES or a GLOB with too many `*`).
+ */
+export function predicateBytes(v: Bin, kind: string, nocase = false): Buffer {
   if (v.enc === 'base64' && !/^[A-Za-z0-9+/]*={0,2}$/.test(v.data)) throw new HttpError('validation', 'A search value is not valid base64.');
   const b = Buffer.from(bytesFromBin(v));
   if (b.length > ARRAY_PREDICATE_MAX_BYTES) throw new HttpError('validation', `A search value is at most ${ARRAY_PREDICATE_MAX_BYTES} bytes.`);
+  if (nocase && kind === 'match' && b.length > ARRAY_NOCASE_MATCH_MAX_BYTES) {
+    throw new HttpError('validation', `With "Ignore case", a "Contains" value is at most ${ARRAY_NOCASE_MATCH_MAX_BYTES} bytes (Redis compares case-insensitive substrings byte by byte). Shorten it or search case-sensitively.`);
+  }
   if (kind === 'glob') checkGlob(b, 'GLOB pattern');
   return b;
 }
 
-/** ARGREP over at most ARRAY_SCAN_MAX_ELEMENTS elements of the range; `next` continues it. */
-export async function searchArray(scope: DbScope, conn: Conn, key: Buffer, q: SearchRequest, preview: Preview, timeout: number, maxElements = ARRAY_SCAN_MAX_ELEMENTS): Promise<ArraySearchResult> {
-  for (const p of q.predicates) predicateBytes(p.value, p.kind);
+/**
+ * How many plain scans of the elements a search costs: 1 per predicate, and for a NOCASE MATCH its pattern length / 4
+ * (measured on Redis 8.10: case-insensitive substring search costs about the pattern length times a plain scan, and a
+ * plain MATCH about 4 bytes of pattern).
+ */
+export function searchWeight(q: SearchRequest): number {
+  let w = 0;
+  for (const p of q.predicates) w += q.nocase && p.kind === 'match' ? Math.max(1, Math.ceil(Buffer.from(bytesFromBin(p.value)).length / 4)) : 1;
+  return Math.max(1, w);
+}
+
+/**
+ * The most elements one search request may visit (review v0.4 r1 H1): ARRAY_SCAN_MAX_ELEMENTS, and no more than
+ * `maxBytes` of element data divided by the search weight, using the array's average element size (MEMORY USAGE /
+ * ARCOUNT). At least one element, so a search always makes progress.
+ */
+async function searchElementCap(scope: DbScope, conn: Conn, key: Buffer, q: SearchRequest, timeout: number, maxElements: number, maxBytes: number): Promise<number> {
+  const memory = Number(intText(await arrayRead(scope, conn, ['MEMORY', 'USAGE', key, 'SAMPLES', '5'], { key, timeout, maxBytes: 64 })));
+  const count = Number(intText(await arrayRead(scope, conn, ['ARCOUNT', key], { key, timeout, maxBytes: 64 })));
+  if (!(count > 0) || !(memory > 0)) return maxElements;
+  const perElement = memory / count;
+  return Math.max(1, Math.min(maxElements, Math.floor(maxBytes / searchWeight(q) / perElement)));
+}
+
+/** ARGREP over at most the search's element cap of the range (searchElementCap); `next` continues it. */
+export async function searchArray(scope: DbScope, conn: Conn, key: Buffer, q: SearchRequest, preview: Preview, timeout: number, maxElements = ARRAY_SCAN_MAX_ELEMENTS, maxBytes = ARRAY_SEARCH_MAX_BYTES): Promise<ArraySearchResult> {
+  for (const p of q.predicates) predicateBytes(p.value, p.kind, q.nocase);
   const down = BigInt(q.start) > BigInt(q.end);
-  const w = await windowEnd(scope, conn, key, q.start, q.end, maxElements, timeout);
+  const cap = await searchElementCap(scope, conn, key, q, timeout, maxElements, maxBytes);
+  const w = await windowEnd(scope, conn, key, q.start, q.end, cap, timeout);
   const raw = await arrayRead<unknown[]>(scope, conn, searchArgv(key, q, w.to), { key, timeout });
   const items: ArraySearchResult['items'] = q.values
     ? pairs(raw).map(([index, value]) => element(index, value, preview))

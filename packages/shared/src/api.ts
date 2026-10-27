@@ -359,7 +359,15 @@ export const ARRAY_PAGE_MAX = 1000;
 export const ARRAY_SCAN_MAX_ELEMENTS = 1_000_000;
 /** At most this many predicates per search, each value at most ARRAY_PREDICATE_MAX_BYTES bytes. */
 export const ARRAY_PREDICATES_MAX = 8;
-export const ARRAY_PREDICATE_MAX_BYTES = 16 * 1024;
+/** 1 KiB, and 64 bytes for a MATCH with NOCASE (the console's limits: `ARGREP_VALUE_MAX_BYTES`, `ARGREP_NOCASE_MATCH_MAX_BYTES`). */
+export const ARRAY_PREDICATE_MAX_BYTES = 1024;
+export const ARRAY_NOCASE_MATCH_MAX_BYTES = 64;
+/**
+ * Element bytes one search request makes Redis read (review v0.4 r1 H1). The server estimates the array's average
+ * element size (MEMORY USAGE / ARCOUNT) and searches at most this many bytes' worth of elements, divided by the cost
+ * weight of the predicates (a NOCASE MATCH weighs its pattern length / 4), then says where to continue (`next`).
+ */
+export const ARRAY_SEARCH_MAX_BYTES = 64 * 1024 * 1024;
 /**
  * ARGREP predicates the search offers: EXACT (whole value), MATCH (substring), GLOB (glob pattern, at most 8 `*`).
  * RE (regular expressions) is not offered and is blocked in the console: Redis evaluates it on every element of the

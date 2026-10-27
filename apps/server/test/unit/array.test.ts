@@ -4,14 +4,14 @@
  * server sends (AROP … USED, ARGREP, AROP SUM), with a small bound.
  */
 import { describe, expect, it } from 'vitest';
-import { ARRAY_MAX_INDEX, binFromString, zArrayAggregate, zArraySearch } from '@rconsole/shared';
+import { ARRAY_MAX_INDEX, ARRAY_SEARCH_MAX_BYTES, binFromString, zArrayAggregate, zArraySearch } from '@rconsole/shared';
 import type { DbScope } from '../../src/context.ts';
 import { HttpError } from '../../src/http/errors.ts';
 import type { Conn } from '../../src/redis/manager.ts';
 import { aggregateArray, planArrayOp, searchArgv, searchArray, stepIndex, windowEnd } from '../../src/redis/array.ts';
 
 /** A sparse in-memory array and the commands the server sends, recorded. */
-function fakeArray(indices: bigint[]) {
+function fakeArray(indices: bigint[], memoryBytes = indices.length * 64) {
   const sorted = [...indices].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
   const sent: string[][] = [];
   const between = (a: string, b: string) => {
@@ -24,10 +24,18 @@ function fakeArray(indices: bigint[]) {
       sent.push(argv);
       const [cmd, , a, b] = argv as [string, string, string, string];
       if (cmd === 'AROP' && argv[4] === 'USED') return String(between(a, b).length);
+      if (cmd === 'MEMORY') return String(memoryBytes);
+      if (cmd === 'ARCOUNT') return String(sorted.length);
       if (cmd === 'AROP' && argv[4] === 'SUM') return Buffer.from(String(between(a, b).length));
       if (cmd === 'ARGREP') {
         const limit = Number(argv[argv.indexOf('LIMIT') + 1]);
-        let hits = between(a, b);
+        // Predicates over the value `v<index>`: EXACT, MATCH (substring) and GLOB `*` only; OR semantics.
+        const preds: [string, string][] = [];
+        for (let i = 4; i + 1 < argv.length && ['EXACT', 'MATCH', 'GLOB'].includes(argv[i]!); i += 2) preds.push([argv[i]!, argv[i + 1]!]);
+        const nocase = argv.includes('NOCASE');
+        const fold = (t: string) => (nocase ? t.toLowerCase() : t);
+        const hit = (v: string) => preds.some(([k, p]) => (k === 'GLOB' ? p === '*' : k === 'EXACT' ? fold(v) === fold(p) : fold(v).includes(fold(p))));
+        let hits = between(a, b).filter((i) => hit(`v${i}`));
         if (BigInt(a) > BigInt(b)) hits = hits.reverse();
         hits = hits.slice(0, limit);
         return argv.includes('WITHVALUES') ? hits.map((i) => [String(i), Buffer.from(`v${i}`)]) : hits.map(String);
@@ -121,3 +129,33 @@ describe('array helpers', () => {
     expect(range.summary).toBe('Delete every array element from index 2 to 9');
   });
 });
+
+describe('array search work bound (review v0.4 r1 H1)', () => {
+  const many = Array.from({ length: 5000 }, (_, i) => BigInt(i));
+
+  it('a search reads at most ARRAY_SEARCH_MAX_BYTES of element data per request, weighted for NOCASE MATCH', async () => {
+    // 5,000 elements of about 5 KiB each (MEMORY USAGE / ARCOUNT): 25 MB.
+    const { conn, scope, sent } = fakeArray(many, 5000 * 5130);
+    const plain = await searchArray(scope, conn, key, search({ predicates: [{ kind: 'match', value: binFromString('b') }], limit: 10 }), preview, 1000);
+    expect(plain.elements).toBe(5000); // 25 MB is within the plain budget
+    const pattern = binFromString('a'.repeat(32) + 'b');
+    const r = await searchArray(scope, conn, key, search({ predicates: [{ kind: 'match', value: pattern }], nocase: true, limit: 10 }), preview, 1000);
+    // NOCASE MATCH costs about pattern-length / 4 plain scans: 33 bytes -> weight 9 -> 64 MiB / 9 / 5,130 B elements.
+    expect(r.elements).toBe(Math.floor(ARRAY_SEARCH_MAX_BYTES / 9 / 5130));
+    expect(r.next).toBe(String(r.elements));
+    const grep = sent.filter((c) => c[0] === 'ARGREP').at(-1)!;
+    expect(BigInt(grep[3]!)).toBe(BigInt(r.elements - 1));
+    expect(sent.some((c) => c[0] === 'MEMORY' && c[1] === 'USAGE')).toBe(true);
+  });
+
+  it('refuses a search value over 1 KiB and a NOCASE MATCH over 64 bytes before sending ARGREP', async () => {
+    const { conn, scope, sent } = fakeArray(many);
+    const nocase = await searchArray(scope, conn, key, search({ predicates: [{ kind: 'match', value: binFromString('a'.repeat(65)) }], nocase: true }), preview, 1000).catch((e: unknown) => e);
+    expect(nocase).toBeInstanceOf(HttpError);
+    expect((nocase as HttpError).message).toMatch(/64 bytes/);
+    const long = await searchArray(scope, conn, key, search({ predicates: [{ kind: 'exact', value: binFromString('a'.repeat(1025)) }] }), preview, 1000).catch((e: unknown) => e);
+    expect(long).toBeInstanceOf(HttpError);
+    expect(sent.some((c) => c[0] === 'ARGREP')).toBe(false);
+  });
+});
+

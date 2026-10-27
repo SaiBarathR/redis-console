@@ -207,9 +207,13 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
   transport within the request's reply budget. Pages (`key/read`, `array/range`: ARSCAN … LIMIT) and searches return
   at most 1,000 elements, each value previewed to 64 KiB within `maxReplyBytes`, with a reference whose full read
   (`key/element`, ARGET) is capped at `maxValueBytes`. A search (ARGREP) visits at most 1,000,000 existing elements per
-  request: when a range holds more, the server bisects on `AROP … USED` (answered from per-slice counters; at most 65
-  small reads) to cut it, and the response says where to continue. At most 8 predicates of 16 KiB each; GLOB patterns
-  have at most 8 `*`. Aggregates (AROP) over ranges holding more than 1,000,000 elements are refused with 400 and the
+  request, and at most `ARRAY_SEARCH_MAX_BYTES` (64 MiB) of element data divided by its weight: 1 per predicate, and
+  pattern bytes / 4 for a case-insensitive MATCH, which Redis evaluates byte by byte for each pattern byte (measured on
+  5,000 × 4 KiB elements: a 9-byte NOCASE MATCH 103 ms, 33 bytes 330 ms, 257 bytes 2.4 s; case-sensitive 24–66 ms).
+  The average element size is `MEMORY USAGE … SAMPLES 5` / ARCOUNT. When a range holds more, the server bisects on
+  `AROP … USED` (answered from per-slice counters; at most 65 small reads) to cut it, and the response says where to
+  continue. At most 8 predicates of 1 KiB each, a NOCASE MATCH at most 64 bytes (the console's `argumentRule` refuses
+  longer ARGREP values too); GLOB patterns have at most 8 `*`. Aggregates (AROP) over ranges holding more than 1,000,000 elements are refused with 400 and the
   count. Measured on Redis 8.10 with 6,000,000 elements: USED 10 ms, SUM 40 ms, MATCH over all of them 80 ms. Regular
   expressions (`RE`) are not offered and `ARGREP … RE …` is blocked in the console: Redis evaluates them in its main
   thread with no time limit and no way to stop them, at a cost of pattern states × value bytes, so no range, LIMIT or

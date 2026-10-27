@@ -116,8 +116,10 @@ between. The inspector shows:
   **Jump to index** opens the page at any index (indices go up to 18446744073709551614, so they are shown in full),
   and **Page size** picks 25 to 1,000 elements.
 - **Search values (ARGREP)**: elements in a range that equal a value, contain it, or match a glob pattern (`*`, `?`,
-  `[a-z]`), with several conditions combined by any/all and an **Ignore case** option. A search looks at up to
-  1,000,000 elements at a time and then offers to **Continue**; click an index in the results to open its page.
+  `[a-z]`), with several conditions combined by any/all and an **Ignore case** option. Values are at most 1 KiB, and
+  a "contains" value with **Ignore case** at most 64 bytes. A search looks at up to 1,000,000 elements at a time
+  (fewer when elements are large or the search ignores case, so one request stays short) and then offers to
+  **Continue**; click an index in the results to open its page.
   Regular expressions are not offered: Redis runs them without a time limit, and one pattern can stall the server.
 - **Aggregate a range (AROP)**: the sum, minimum or maximum of the numeric values in a range, bitwise AND/OR/XOR, the
   number of existing elements, or how many equal a value. Ranges with more than 1,000,000 elements are refused; narrow
@@ -254,6 +256,7 @@ Some commands are blocked for **everyone** because they are dangerous in a share
 | `MULTI`/`EXEC`/`WATCH` | Commands run one at a time here. | Individual commands. |
 | `SELECT`, `MOVE`, `SWAPDB`, `COPY … DB` | The logical database is fixed per entry. | The database switcher. |
 | `ARGREP … RE …` | Redis runs the regular expression on every element of the range with no time limit; one pattern can stall the server for minutes. | `ARGREP` with `EXACT`, `MATCH` (substring) or `GLOB`, or the array inspector's search. |
+| `ARGREP` with a value over 1 KiB, or a `MATCH` over 64 bytes with `NOCASE` | Case-insensitive substring search costs the pattern length times a plain scan of the range. | Shorter values, a case-sensitive `MATCH`, or the array inspector's search (it continues in steps). |
 | `FT.DROPINDEX … DD` | It deletes every indexed key as well. | Admins: drop the index without `DD` (the keys stay), from Diagnostics → Search → Indexes or the console. |
 | `AUTH`, `HELLO`, `CLIENT SETNAME`, `ACL SETUSER` | The server manages connections and users. | — |
 | `SUBSCRIBE`, `MONITOR` | Need a live stream. | Diagnostics → Pub/Sub or Profiler. |

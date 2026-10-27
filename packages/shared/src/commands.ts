@@ -253,8 +253,45 @@ export function argumentRule(argv: readonly string[]): CommandRule | undefined {
     return B('FT.DROPINDEX ... DD also deletes every indexed key and is disabled here. Drop the index without DD to keep the documents.');
   }
   // v0.4 arrays
-  if (name === 'ARGREP' && argrepPredicates(argv).includes('RE')) return B(ARGREP_RE_HINT);
+  if (name === 'ARGREP') {
+    const parts = argrepParts(argv);
+    if (parts.predicates.some((p) => p.kind === 'RE')) return B(ARGREP_RE_HINT);
+    if (parts.predicates.some((p) => utf8Length(p.value) > ARGREP_VALUE_MAX_BYTES)) return B(ARGREP_VALUE_HINT);
+    if (parts.nocase && parts.predicates.some((p) => p.kind === 'MATCH' && utf8Length(p.value) > ARGREP_NOCASE_MATCH_MAX_BYTES)) return B(ARGREP_NOCASE_HINT);
+  }
   return undefined;
+}
+
+/**
+ * v0.4 arrays (review v0.4 r1 H1): ARGREP search values are at most this many bytes, and with NOCASE a MATCH pattern at
+ * most ARGREP_NOCASE_MATCH_MAX_BYTES. Redis compares case-insensitive substrings naively, so the work is the value
+ * bytes times the pattern bytes on its main thread: on Redis 8.10, 5,000 elements of 4 KiB took 103 ms with a 9-byte
+ * NOCASE pattern, 330 ms with 33 bytes and 2.4 s with 257 bytes (case-sensitive MATCH stayed at 24–66 ms).
+ */
+export const ARGREP_VALUE_MAX_BYTES = 1024;
+export const ARGREP_NOCASE_MATCH_MAX_BYTES = 64;
+export const ARGREP_VALUE_HINT = `ARGREP search values are limited to ${ARGREP_VALUE_MAX_BYTES} bytes here. Search for a shorter, distinctive part of the value.`;
+export const ARGREP_NOCASE_HINT = `ARGREP with NOCASE limits MATCH patterns to ${ARGREP_NOCASE_MATCH_MAX_BYTES} bytes: Redis compares case-insensitive substrings byte by byte, so a long pattern can block the server on large values. Shorten the pattern or drop NOCASE.`;
+
+const utf8Length = (s: string) => new TextEncoder().encode(s).length;
+
+/**
+ * The predicates of an `ARGREP key start end <predicate>… [option]…` argv with their values (kinds upper-cased) and
+ * whether NOCASE is set, read the way Redis reads them: a predicate keyword and LIMIT take the next argument as their
+ * value, so a value that reads "NOCASE" or "RE" is not an option or a predicate.
+ */
+export function argrepParts(argv: readonly string[]): { predicates: { kind: string; value: string }[]; nocase: boolean } {
+  const predicates: { kind: string; value: string }[] = [];
+  let nocase = false;
+  for (let i = 4; i < argv.length; i++) {
+    const t = (argv[i] ?? '').toUpperCase();
+    if (t === 'EXACT' || t === 'MATCH' || t === 'GLOB' || t === 'RE') {
+      predicates.push({ kind: t, value: argv[i + 1] ?? '' });
+      i++;
+    } else if (t === 'LIMIT') i++;
+    else if (t === 'NOCASE') nocase = true;
+  }
+  return { predicates, nocase };
 }
 
 /**
@@ -271,15 +308,7 @@ export const ARGREP_RE_HINT = 'ARGREP with RE is disabled: Redis runs the regula
  * that happens to be "RE" (`EXACT RE`) is not a predicate.
  */
 export function argrepPredicates(argv: readonly string[]): string[] {
-  const out: string[] = [];
-  for (let i = 4; i < argv.length; i++) {
-    const t = (argv[i] ?? '').toUpperCase();
-    if (t === 'EXACT' || t === 'MATCH' || t === 'GLOB' || t === 'RE') {
-      out.push(t);
-      i++;
-    } else if (t === 'LIMIT') i++;
-  }
-  return out;
+  return argrepParts(argv).predicates.map((p) => p.kind);
 }
 
 /** Static lookup only (no COMMAND INFO). Returns undefined when the server must classify from flags. */
