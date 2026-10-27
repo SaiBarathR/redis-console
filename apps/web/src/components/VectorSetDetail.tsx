@@ -280,7 +280,8 @@ function SimilaritySearch({ keyName, dim, initialMember, onOpen }: { keyName: Bi
   const db = useDatabase();
   const [mode, setMode] = useState<"element" | "values">("element");
   const [member, setMember] = useState(initialMember ? (initialMember.enc === "utf8" ? initialMember.data : "") : "");
-  const [memberBin, setMemberBin] = useState<Bin | undefined>(initialMember?.enc === "base64" ? initialMember : undefined);
+  // A chosen member that cannot be typed (binary, or the empty name, which is legal) stays a fixed selection (review v0.4 r2 L1).
+  const [memberBin, setMemberBin] = useState<Bin | undefined>(initialMember && (initialMember.enc === "base64" || initialMember.data === "") ? initialMember : undefined);
   const [vector, setVector] = useState("");
   const [count, setCount] = useState("10");
   const [ef, setEf] = useState("");
@@ -313,7 +314,7 @@ function SimilaritySearch({ keyName, dim, initialMember, onOpen }: { keyName: Bi
   } catch (e) {
     invalid = (e as Error).message;
   }
-  const ready = !!built && !invalid && (mode === "element" ? !!(memberBin ?? member) : vector.trim().length > 0);
+  const ready = !!built && !invalid && (mode === "element" ? memberBin !== undefined || member !== "" : vector.trim().length > 0);
   const run = () => {
     if (!built || !ready || busy) return;
     const body = built;
@@ -339,7 +340,7 @@ function SimilaritySearch({ keyName, dim, initialMember, onOpen }: { keyName: Bi
             <span>Member</span>
             {memberBin ? (
               <span className="vset-binary-member">
-                <code className="data">{displayBin(memberBin, 200)}</code>
+                {memberBin.enc === "utf8" && memberBin.data === "" ? <em data-testid="vset-search-member-empty">(the empty name)</em> : <code className="data">{displayBin(memberBin, 200)}</code>}
                 <button type="button" onClick={() => { setMemberBin(undefined); setMember(""); }}>Type another member</button>
               </span>
             ) : (

@@ -130,6 +130,34 @@ describe("vector-set inspector (v0.4 F23)", () => {
     await userEvent.click(screen.getByTestId("vset-prefix-apply"));
     await waitFor(() => expect(screen.getByTestId("vset-page-note")).toHaveTextContent("Members 1–2 starting with the prefix (the set has 306), in byte order (VRANGE)."));
   });
+  it("Find similar works for a member whose name is empty (review v0.4 r2 L1)", async () => {
+    const sent = server((path) =>
+      path === "/vectorset/element"
+        ? json({ member: bin(""), attributes: null, embedding: { values: ["1", "0", "0"], dim: 3, truncated: false } })
+        : path === "/vectorset/search"
+          ? json({ results: [{ member: bin(""), score: "1" }] })
+          : json({ attributes: [null, null, null] }),
+    );
+    const d = details();
+    d.value.page.members = [{ member: bin("") }, { member: bin("a") }];
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter>
+          <MemoryProvider>
+            <DatabaseContext value={viewer}>
+              <VectorSetDetail details={d.details} value={d.value} refresh={async () => {}} />
+            </DatabaseContext>
+          </MemoryProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await userEvent.click(screen.getAllByTestId("vset-member-open")[0]!);
+    await userEvent.click(await screen.findByTestId("vset-find-similar"));
+    expect(screen.getByTestId("vset-search-member-empty")).toHaveTextContent("(the empty name)");
+    expect(screen.getByTestId("vset-search-submit")).toBeEnabled();
+    await userEvent.click(screen.getByTestId("vset-search-submit"));
+    await waitFor(() => expect(sent.find((x) => x.path === "/vectorset/search")?.body.query).toEqual({ element: bin("") }));
+  });
   it("refuses a vector whose length does not match the set's dimensions before sending", async () => {
     const sent = server(() => json({ attributes: [null, null, null] }));
     mount(operator);

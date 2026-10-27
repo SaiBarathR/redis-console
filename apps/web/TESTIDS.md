@@ -212,7 +212,7 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
 - Vector-set inspector (v0.4): `vset-detail`, `vset-summary`, `vset-tabs`; members: `vset-prefix`, `vset-prefix-apply`,
   `vset-prefix-clear`, `vset-show-attributes`, `vset-members`, `vset-member-open`, `vset-attr-cell`, `vset-remove`
   (operator+), `vset-first-page`, `vset-prev-page`, `vset-next-page`, `vset-page-note`; similarity search:
-  `vset-search-form`, `vset-search-by-member`, `vset-search-by-vector`, `vset-search-member`, `vset-search-vector`,
+  `vset-search-form`, `vset-search-by-member`, `vset-search-by-vector`, `vset-search-member` (`vset-search-member-empty` when the chosen member is the empty name), `vset-search-vector`,
   `vset-search-count`, `vset-search-ef`, `vset-search-filter`, `vset-search-filter-ef`, `vset-search-attributes`,
   `vset-search-command`, `vset-search-submit`, `vset-search-results`, `vset-result-open`; member panel
   `vset-element-dialog`: `vset-element-name`, `vset-find-similar`, `vset-element-remove` (operator+), `vset-attributes`,
