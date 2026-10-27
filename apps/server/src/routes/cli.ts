@@ -78,8 +78,9 @@ export const MAX_BLOCKING_PER_USER = 1;
  * v0.4 graph (review v0.4 r2 graph H2): FalkorDB checks a query's TIMEOUT between steps, so one expression (a `reduce`
  * over a long `range`) can run for seconds or minutes after the console has answered, and closing the socket does not
  * stop it. The console cannot cancel it, so it stops adding work: a graph query holds one slot per user and one of
- * GRAPH_ENGINE_SLOTS_PER_DB per database until the engine answers (its socket stays open, at most
- * GRAPH_ENGINE_HOLD_MS). Two per database, below the default pool of four connections per database and tier.
+ * GRAPH_ENGINE_SLOTS_PER_DB per database entry until the engine answers (its socket stays open, at most
+ * GRAPH_ENGINE_HOLD_MS). A held query keeps a pooled connection, so never more than `poolSize - 1` of them, and none on a
+ * pool of one (review v0.4 r3 graph L2): one long query must not take every connection of a tier.
  */
 export const GRAPH_ENGINE_SLOTS_PER_DB = 2;
 export const GRAPH_ENGINE_HOLD_MS = 15 * 60_000;
@@ -109,10 +110,15 @@ async function executeGraph(ctx: AppContext, scope: DbScope, p: Prepared): Promi
   const uid = scope.session.userId;
   const mine = ctx.slots.acquire(`graph-engine:${scope.db.id}:${uid}`, 1);
   if (!mine) throw new HttpError('rate_limited', 'Your previous graph query is still running in FalkorDB; run the next one when it has finished.');
-  const db = ctx.slots.acquire(`graph-engine:${scope.db.id}`, GRAPH_ENGINE_SLOTS_PER_DB);
+  const perDb = Math.min(GRAPH_ENGINE_SLOTS_PER_DB, scope.db.poolSize - 1);
+  if (perDb < 1) {
+    mine();
+    throw new HttpError('validation', 'Graph queries need a connection pool of at least 2 on this database (poolSize), so that a long-running query cannot hold every connection.');
+  }
+  const db = ctx.slots.acquire(`graph-engine:${scope.db.id}`, perDb);
   if (!db) {
     mine();
-    throw new HttpError('rate_limited', `FalkorDB is still running ${GRAPH_ENGINE_SLOTS_PER_DB} console queries on this database; try again when one has finished.`);
+    throw new HttpError('rate_limited', `FalkorDB is still running ${perDb} console ${perDb === 1 ? 'query' : 'queries'} on this database; try again when one has finished.`);
   }
   // No abort signal and a long transport timeout: the socket stays open until the engine answers, so the slots
   // free when the work does. The request itself is answered within the console timeout.

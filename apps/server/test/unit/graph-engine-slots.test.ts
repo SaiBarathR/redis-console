@@ -22,7 +22,7 @@ function engine() {
   return { conn, pending, sent };
 }
 const ctx = (slots: Slots) => ({ slots, config: { policy: { maxReplyBytes: 1 << 20, commandTimeoutMs: 40 } } }) as unknown as AppContext;
-const scope = (userId: string, conn: unknown, db = 'graph') => ({ session: { userId }, db: { id: db }, role: 'viewer', conn: async () => conn }) as unknown as DbScope;
+const scope = (userId: string, conn: unknown, db = 'graph', poolSize = 4) => ({ session: { userId }, db: { id: db, poolSize }, role: 'viewer', conn: async () => conn }) as unknown as DbScope;
 const prepared = (argv: string[]): Prepared => ({ argv: argv.map((a) => Buffer.from(a)), c: classify(argv, undefined), confirmSpec: null });
 const query = prepared(['GRAPH.RO_QUERY', 'g', 'RETURN 1', 'TIMEOUT', '1000']);
 
@@ -75,4 +75,22 @@ describe('graph queries hold their slots until FalkorDB answers (review v0.4 r2 
     expect((await get).reply).toBeDefined();
     expect(Number(pending[0]!.opts.timeout)).toBe(40);
   });
+
+  it('never holds every connection of a pool: at most poolSize - 1 graph queries, none on a pool of one (review v0.4 r3 graph L2)', async () => {
+    const slots = new Slots();
+    const { conn, pending, sent } = engine();
+    // poolSize 2: one held query at a time.
+    await execute(ctx(slots), scope('a', conn, 'g2', 2), query).catch(() => undefined);
+    const second = await execute(ctx(slots), scope('b', conn, 'g2', 2), query).catch((e: unknown) => e);
+    expect((second as HttpError).code).toBe('rate_limited');
+    // poolSize 1: refused before anything is sent.
+    const before = pending.length;
+    const one = await execute(ctx(slots), scope('c', conn, 'g1', 1), query).catch((e: unknown) => e);
+    expect((one as HttpError).code).toBe('validation');
+    expect((one as HttpError).message).toMatch(/poolSize/);
+    expect(pending.length).toBe(before);
+    await sent(1);
+    pending[0]!.answer([[], [], []]);
+  });
 });
+
