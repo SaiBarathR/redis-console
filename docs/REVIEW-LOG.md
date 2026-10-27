@@ -1302,4 +1302,5 @@ handling partial (L1 below). **No finding at Medium or above**: the review loop 
 
 ### Final gates (release/v0.4 @ 603fbf9)
 - `pnpm -r typecheck` clean; shared 73, web 544 passed; server with the cluster, Sentinel and mutual-TLS topology up
-  1,109 passed, 8 skipped (the optional external read-only remote).
+  1,109 passed, 8 skipped (the optional external read-only remote); full Playwright suite 701 passed, 0 failed,
+  0 flaky, 2 skipped by design.
