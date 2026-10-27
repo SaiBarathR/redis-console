@@ -202,6 +202,9 @@ function matches(state: State, expect: EditExpect): boolean {
   return state.sha === expect.sha256;
 }
 
+/** A Redis type name with its article ("a hash", "an array"). */
+const withArticle = (type: string) => `${/^[aeiou]/i.test(type) ? 'an' : 'a'} ${type}`;
+
 /** Whether "overwrite anyway" may target this state: a type the op can write (never across types). */
 function overwritable(probe: Probe, type: string): boolean {
   if (probe.kind === 'key') return type !== 'none';
@@ -232,7 +235,9 @@ export function conflictOf(plan: CheckedPlan, state: State): HttpError {
     : reason === 'type'
     ? state.type === 'none'
       ? 'This key no longer exists; nothing was written.'
-      : `This key changed since you opened it: it is now a ${state.type} (you opened ${/^[A-Za-z0-9_-]{1,32}$/.test(plan.expect.type) ? `a ${plan.expect.type}` : 'a different type'}); nothing was written.`
+      : plan.expect.type === 'none'
+      ? `This key was created since you opened it (it is now ${withArticle(state.type)}); nothing was written.`
+      : `This key changed since you opened it: it is now ${withArticle(state.type)} (you opened ${/^[A-Za-z0-9_-]{1,32}$/.test(plan.expect.type) ? withArticle(plan.expect.type) : 'a different type'}); nothing was written.`
     : plan.probe.kind === 'vmember'
       ? 'This member already exists in the vector set; nothing was written (adding it again would replace its vector).'
       : plan.probe.kind === 'vattr' && state.sha === null

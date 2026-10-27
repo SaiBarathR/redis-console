@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { binFromString, type DatabaseSummary, type KeyDetails } from "@rconsole/shared";
 import { DatabaseContext } from "../lib/context.tsx";
 import { MemoryProvider } from "../lib/memory.tsx";
+import { ConflictNotice } from "./Conflict.tsx";
 import { inspectCommands, readCommand } from "./KeyInspector.tsx";
 import { parseVector, quantizationLabel, VectorSetDetail, vsimPreview } from "./VectorSetDetail.tsx";
 
@@ -73,6 +74,12 @@ describe("vector-set inspector helpers (v0.4 F23)", () => {
     expect(inspectCommands(d.key, d)).toContain('VCARD "v"\nVDIM "v"\nVINFO "v"\nVRANGE "v" - + 101');
     expect(inspectCommands(d.key)).toContain("VRANGE");
   });
+  it("a type conflict reads naturally for a key created meanwhile and for an array (review v0.4 r1 L5)", () => {
+    const { rerender } = render(<ConflictNotice conflict={{ reason: "type", expected: { type: "none" }, current: { type: "vectorset" } } as never} onReload={() => {}} />);
+    expect(document.body).toHaveTextContent("The key was created since you opened it (it is now a vectorset).");
+    rerender(<ConflictNotice conflict={{ reason: "type", expected: { type: "string" }, current: { type: "array" } } as never} onReload={() => {}} />);
+    expect(document.body).toHaveTextContent("It is now an array (you opened a string).");
+  });
   it("names quantisation as VADD does", () => {
     expect(quantizationLabel("f32")).toContain("NOQUANT");
     expect(quantizationLabel("int8")).toContain("Q8");
@@ -110,6 +117,18 @@ describe("vector-set inspector (v0.4 F23)", () => {
     await userEvent.click(screen.getByTestId("vset-search-submit"));
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("syntax error"));
     expect(screen.queryByTestId("vset-search-results")).toBeNull();
+  });
+  it("with a prefix, the page note does not present the set's size as the number of matches (review v0.4 r1 L5)", async () => {
+    server((path) =>
+      path === "/vectorset/members"
+        ? json({ page: { members: [{ member: bin("m1") }, { member: bin("m2") }], prefix: bin("m") }, total: 306 })
+        : json({ attributes: [null, null, null] }),
+    );
+    mount(viewer);
+    expect(screen.getByTestId("vset-page-note")).toHaveTextContent("Members 1–3 of 3, in byte order");
+    await userEvent.type(screen.getByTestId("vset-prefix"), "m");
+    await userEvent.click(screen.getByTestId("vset-prefix-apply"));
+    await waitFor(() => expect(screen.getByTestId("vset-page-note")).toHaveTextContent("Members 1–2 starting with the prefix (the set has 306), in byte order (VRANGE)."));
   });
   it("refuses a vector whose length does not match the set's dimensions before sending", async () => {
     const sent = server(() => json({ attributes: [null, null, null] }));

@@ -172,6 +172,7 @@ function Members({ keyName, first, total, writable, onOpen, reload }: { keyName:
     queryFn: ({ signal }) => request<VsetMembersResponse>(dbPath(db.id, "/vectorset/members"), { method: "POST", body: { key: keyName, prefix, after, count: VSET_PAGE_DEFAULT }, signal }),
   });
   const page = own ? members.data?.page : first;
+  const setSize = own ? members.data?.total ?? total : total;
   const visible = (page?.members ?? []).filter((m) => !m.truncated).slice(0, VSET_ATTR_ROWS_MAX).map((m) => m.member);
   const attributes = useQuery({
     queryKey: ["vset", db.id, keyName.enc, keyName.data, "attributes", visible.map((m) => `${m.enc}:${m.data}`).join("\n")],
@@ -263,7 +264,10 @@ function Members({ keyName, first, total, writable, onOpen, reload }: { keyName:
         <button type="button" disabled={!page?.next} onClick={() => go(page?.next)} data-testid="vset-next-page">Next page</button>
         <span className="page-note" data-testid="vset-page-note">
           {page?.members.length
-            ? `Members ${(firstIndex + 1).toLocaleString()}–${(firstIndex + page.members.length).toLocaleString()}${prefix ? " starting with the prefix" : ""} of ${(own ? members.data?.total ?? total : total).toLocaleString()}, in byte order (VRANGE).`
+            ? `Members ${(firstIndex + 1).toLocaleString()}–${(firstIndex + page.members.length).toLocaleString()}${
+                // With a prefix the total is the whole set's size, not the number of matches (review v0.4 r1 L5).
+                prefix ? ` starting with the prefix (the set has ${setSize.toLocaleString()})` : ` of ${setSize.toLocaleString()}`
+              }, in byte order (VRANGE).`
             : ""}
           {page?.nextUnavailable ? " The last name on this page is too long to page from; use the console." : ""}
         </span>

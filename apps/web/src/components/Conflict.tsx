@@ -43,10 +43,13 @@ export function lineDiff(opened: Bin, current: Bin): string | undefined {
 
 function reasonText(conflict: EditConflict) {
   const { expected, current } = conflict;
+  const withArticle = (type: string) => `${/^[aeiou]/i.test(type) ? "an" : "a"} ${type}`;
   if (conflict.reason === "type")
     return current.type === "none"
       ? "The key no longer exists."
-      : `It is now a ${current.type} (you opened a ${expected.type}). Reload to edit it as it is now.`;
+      : expected.type === "none"
+        ? `The key was created since you opened it (it is now ${withArticle(current.type)}). Reload to edit it as it is now.`
+        : `It is now ${withArticle(current.type)} (you opened ${withArticle(expected.type)}). Reload to edit it as it is now.`;
   if (current.value === undefined && current.type === expected.type && current.totalBytes === undefined)
     return "What you opened is no longer there.";
   if (expected.sha256 === null) return "It has a value now that you have not seen.";
