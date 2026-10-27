@@ -54,4 +54,12 @@ describe('v0.4 graph policy', () => {
     for (const q of ['RETURN lib.fn(1)', 'RETURN a.b.fn(1)', 'RETURN `lib`.fn(1)', 'RETURN a . fn (1)', 'RETURN `fn`(1)', 'RETURN $p.fn(1)'])
       expect(graphQueryRefusal(q), q).toMatch(/Namespaced and quoted function calls/);
   });
+
+  it('names why a query is refused (review v0.4 r3 graph L4)', () => {
+    expect(graphQueryRefusal("RETURN 'open")).toMatch(/balanced strings, identifiers and comments/);
+    expect(graphQueryRefusal('RETURN 1 //x\r, 2')).toMatch(/line comment/);
+    expect(graphQueryRefusal('RETURN\u00a01')).toMatch(/printable ASCII/);
+    expect(graphQueryRefusal('RETURN\u00001')).toMatch(/printable ASCII/);
+  });
 });
+

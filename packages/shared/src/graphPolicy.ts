@@ -12,7 +12,11 @@ const READ_PROCEDURES = new Set(['DB.LABELS', 'DB.RELATIONSHIPTYPES', 'DB.PROPER
  * space, tab, CR and LF are whitespace and every other control or non-ASCII character is refused, so the browser (a JS
  * string) and the server (the argument's bytes as latin1) read a query the same way (graph L2).
  */
-function tokens(query: string): string[] | undefined {
+const UNBALANCED = 'Graph queries must have balanced strings, identifiers and comments.';
+const LONE_CR = 'A line comment (//) must end with a line feed; a lone carriage return is not allowed in it.';
+const CHARACTERS = 'Outside strings and `quoted` names, graph queries may use only printable ASCII, spaces, tabs and line breaks.';
+
+function tokens(query: string): string[] | { refused: string } {
   const out: string[] = [];
   for (let i = 0; i < query.length;) {
     const c = query[i]!;
@@ -23,12 +27,13 @@ function tokens(query: string): string[] | undefined {
         const code = query.charCodeAt(i);
         if (code === 13 && query[i + 1] === '\n') { i++; continue; }
         // A lone CR, other control characters and unfamiliar line separators: refuse rather than guess the end.
-        if (code > 126 || (code < 32 && code !== 9)) return undefined;
+        if (code === 13) return { refused: LONE_CR };
+        if (code > 126 || (code < 32 && code !== 9)) return { refused: CHARACTERS };
         i++;
       }
       continue;
     }
-    if (query.startsWith('/*', i)) { const end = query.indexOf('*/', i + 2); if (end < 0) return undefined; i = end + 2; continue; }
+    if (query.startsWith('/*', i)) { const end = query.indexOf('*/', i + 2); if (end < 0) return { refused: UNBALANCED }; i = end + 2; continue; }
     if (c === "'" || c === '"' || c === '`') {
       const quote = c;
       i++;
@@ -41,11 +46,11 @@ function tokens(query: string): string[] | undefined {
           closed = true; break;
         }
       }
-      if (!closed) return undefined;
+      if (!closed) return { refused: UNBALANCED };
       out.push(quote === '`' ? '#identifier' : '#literal');
       continue;
     }
-    if (c.charCodeAt(0) > 126 || c.charCodeAt(0) < 32) return undefined;
+    if (c.charCodeAt(0) > 126 || c.charCodeAt(0) < 32) return { refused: CHARACTERS };
     const word = /^[a-zA-Z_][a-zA-Z_0-9]*/.exec(query.slice(i))?.[0];
     if (word) { out.push(word.toUpperCase()); i += word.length; }
     else { out.push(c); i++; }
@@ -57,7 +62,7 @@ function tokens(query: string): string[] | undefined {
 export function graphQueryRefusal(query: string): string | undefined {
   if (query.length > 65_536) return 'Graph queries are limited to 64 KiB.';
   const ts = tokens(query);
-  if (!ts) return 'Graph queries must have balanced strings, identifiers and comments.';
+  if (!Array.isArray(ts)) return ts.refused;
   const allowedCalls = new Set<number>();
   for (let i = 0; i < ts.length; i++) {
     if (ts[i] === 'LOAD') return 'LOAD CSV is disabled: it can read files or fetch URLs from the Redis host.';
