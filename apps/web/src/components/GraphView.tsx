@@ -1,20 +1,38 @@
 /** Offline, deterministic graph diagram. Redis supplies text and IDs, never HTML, URLs, styles or SVG paths. */
-import { useId, useMemo, useState, type KeyboardEvent } from 'react';
+import { useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { graphLayout, type GraphViewData } from '../lib/graphReply.ts';
 import { visibleText } from '../lib/format.ts';
 import { compactReply } from './RichReply.tsx';
 import '../styles/graph.css';
 
 const caption = (id: string, labels: string[]) => `#${id}${labels.length ? ` :${labels.join(' :')}` : ''}`;
+/** Edges listed for a selected node; the diagram draws at most MAX_GRAPH_EDGES, so this only guards hub nodes. */
+const MAX_LISTED_EDGES = 50;
 export function GraphView({ view }: { view: GraphViewData }) {
   const arrow = useId();
   const [selected, setSelected] = useState<string>();
+  const [focused, setFocused] = useState<string>();
+  const [edgeId, setEdgeId] = useState<string>();
+  const circles = useRef(new Map<string, SVGCircleElement>());
   const positions = useMemo(() => graphLayout(view.nodes), [view.nodes]);
   const chosen = view.nodes.find((n) => n.id === selected);
-  const select = (id: string) => setSelected((old) => old === id ? undefined : id);
+  const select = (id: string) => { setSelected((old) => old === id ? undefined : id); setEdgeId(undefined); };
+  // Roving tabindex: the diagram is one tab stop (the focused node, else the selected one, else the first).
+  const ids = view.nodes.map((n) => n.id);
+  const active = ids.includes(focused ?? '') ? focused! : ids.includes(selected ?? '') ? selected! : ids[0];
   const key = (id: string) => (e: KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(id); }
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(id); return; }
+    const at = ids.indexOf(id);
+    const to = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? Math.min(at + 1, ids.length - 1)
+      : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? Math.max(at - 1, 0)
+      : e.key === 'Home' ? 0 : e.key === 'End' ? ids.length - 1 : undefined;
+    if (to === undefined) return;
+    e.preventDefault();
+    setFocused(ids[to]);
+    circles.current.get(ids[to]!)?.focus();
   };
+  const edges = chosen ? view.edges.filter((e) => e.source === chosen.id || e.target === chosen.id) : [];
+  const chosenEdge = edges.find((e) => e.id === edgeId);
   return <section className="graph-view" data-testid="graph-view" aria-label="Graph results">
     <p className="rich-meta" data-testid="graph-count">
       {view.nodes.length} nodes · {view.edges.length} edges drawn
@@ -45,7 +63,9 @@ export function GraphView({ view }: { view: GraphViewData }) {
         const name = visibleText(caption(n.id, n.labels));
         return <g key={n.id}>
           <circle cx={p.x} cy={p.y} r={n.id === selected ? 12 : 9} className={`graph-node${n.id === selected ? ' selected' : ''}${n.placeholder ? ' placeholder' : ''}`}
-            tabIndex={0} role="button" aria-pressed={n.id === selected} aria-label={name} data-testid="graph-node" onClick={() => select(n.id)} onKeyDown={key(n.id)}>
+            ref={(el) => { if (el) circles.current.set(n.id, el); else circles.current.delete(n.id); }}
+            tabIndex={n.id === active ? 0 : -1} role="button" aria-pressed={n.id === selected} aria-label={name} data-testid="graph-node"
+            onClick={() => { setFocused(n.id); select(n.id); }} onFocus={() => setFocused(n.id)} onKeyDown={key(n.id)}>
             <title>{name}</title>
           </circle>
           {(view.nodes.length <= 30 || n.id === selected) && <text className="graph-label" x={p.x + 14} y={p.y + 4}>{name.slice(0, 80)}</text>}
@@ -55,6 +75,23 @@ export function GraphView({ view }: { view: GraphViewData }) {
     {chosen && <div className="graph-selection" data-testid="graph-selection" aria-live="polite">
       <strong>{visibleText(caption(chosen.id, chosen.labels))}</strong>
       <pre className="data">{chosen.placeholder ? 'Endpoint only; return this node to see its properties.' : visibleText(compactReply(chosen.properties, 4000))}</pre>
+      {edges.length === 0 ? <p className="muted">No relationships drawn for this node.</p> : <>
+        <p className="muted">Relationships ({edges.length}{edges.length > MAX_LISTED_EDGES ? `, first ${MAX_LISTED_EDGES} listed` : ''})</p>
+        <ul className="graph-edge-list" aria-label="Relationships of the selected node" data-testid="graph-edges">
+          {edges.slice(0, MAX_LISTED_EDGES).map((e) => {
+            const outgoing = e.source === chosen.id;
+            const other = outgoing ? e.target : e.source;
+            return <li key={e.id}><button type="button" className="graph-edge-item" data-testid="graph-edge-item" aria-pressed={e.id === edgeId}
+              onClick={() => setEdgeId((old) => old === e.id ? undefined : e.id)}>
+              {visibleText(`:${e.type.slice(0, 80)} ${outgoing ? 'outgoing to' : 'incoming from'} #${other}${e.source === e.target ? ' (itself)' : ''}`)}
+            </button></li>;
+          })}
+        </ul>
+        {chosenEdge && <div className="graph-edge-detail" data-testid="graph-edge-detail">
+          <strong>{visibleText(`#${chosenEdge.id} :${chosenEdge.type.slice(0, 80)} (#${chosenEdge.source} → #${chosenEdge.target})`)}</strong>
+          <pre className="data">{visibleText(compactReply(chosenEdge.properties, 4000))}</pre>
+        </div>}
+      </>}
     </div>}
     <ul className="graph-statistics" aria-label="Graph statistics" data-testid="graph-statistics">{view.statistics.map((s, i) => <li key={i} className="data">{visibleText(s)}</li>)}</ul>
   </section>;

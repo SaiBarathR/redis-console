@@ -255,9 +255,10 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
 
 - `result-rich[data-kind="graph"]`: verbose FalkorDB result table, SVG diagram and statistics.
 - `graph-view`, `graph-count`: bounded diagram and received/omitted entity counts.
-- `graph-node`: focusable SVG node button (`aria-pressed`); Enter/Space selects its details.
+- `graph-node`: SVG node button (`aria-pressed`). The diagram is one tab stop (roving `tabindex`: the focused/selected node is 0, the others -1); arrow keys, Home and End move between nodes, Enter/Space selects its details.
 - `graph-edge`: directed SVG edge (text title includes ID, relationship type and endpoints).
 - `graph-selection`: selected node labels, ID and text properties (or endpoint-placeholder explanation).
+- `graph-edges`, `graph-edge-item`: relationships of the selected node (type, other endpoint, direction); each item is a button (`aria-pressed`) that opens `graph-edge-detail`, the edge's ID, endpoints and properties as text.
 - `graph-statistics`: execution statistics as inert text.
 - `result-rich[data-kind="graphPlan"]` with existing `plan-tree`: GRAPH.EXPLAIN/PROFILE indentation plan.
 - Existing `rich-table` contains the table labelled `Graph result table`; terminal/raw toggles use existing IDs.
