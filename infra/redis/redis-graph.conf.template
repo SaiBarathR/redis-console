@@ -1,0 +1,14 @@
+bind 0.0.0.0
+port 6379
+protected-mode yes
+aclfile /usr/local/etc/redis/users.acl
+dir /data
+appendonly no
+save ""
+slowlog-log-slower-than 1000
+latency-monitor-threshold 25
+enable-debug-command no
+enable-module-command no
+
+# Keep graph execution and result production bounded in Redis, including after a client disconnect.
+loadmodule /var/lib/falkordb/bin/falkordb.so TIMEOUT_DEFAULT 1000 TIMEOUT_MAX 1000 RESULTSET_SIZE 10000 MAX_QUEUED_QUERIES 25

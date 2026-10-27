@@ -47,5 +47,7 @@ if [[ "${1:-}" == "--reset-data" || ! -f "$GEN/data-snapshot/dump.rdb" ]]; then
 fi
 chmod 777 "$GEN/data-snapshot"
 
+bash "$ROOT/scripts/graph-sandbox-config.sh"
+
 docker compose -f "$ROOT/infra/docker-compose.yml" --env-file "$ENV_FILE" up -d --force-recreate
-echo "Sandbox up: redis-main 127.0.0.1:6410, redis-e2e 127.0.0.1:6411, redis-snapshot 127.0.0.1:6412, keycloak http://localhost:8089"
+echo "Sandbox up: redis-main 127.0.0.1:6410, redis-e2e 127.0.0.1:6411, redis-snapshot 127.0.0.1:6412, redis-graph 127.0.0.1:6413, keycloak http://localhost:8089"
