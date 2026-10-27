@@ -71,7 +71,11 @@ function editorTitle(details?: KeyDetails) {
 }
 export function inputBin(text: string, encoding: "utf8" | "base64"): Bin {
   const value: Bin = { enc: encoding, data: text };
-  bytesFromBin(value);
+  try {
+    bytesFromBin(value);
+  } catch {
+    throw new Error(`"${text.length > 40 ? `${text.slice(0, 40)}…` : text}" is not valid base64.`);
+  }
   return value;
 }
 /**

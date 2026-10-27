@@ -492,7 +492,9 @@ export function ActionForm({
     setDone(false);
     setError(undefined);
     const submittedKey = resetKey;
-    void onSubmit()
+    // A handler that throws while building its request (a validation error) rejects like an async one, so the error
+    // is shown and the button re-enables (review v0.4 r1 M1).
+    void new Promise<unknown>((resolve) => resolve(onSubmit()))
       .then(() => { if (latestResetKey.current === submittedKey) setDone(true); })
       // A quiet error was already shown by the form's own content (e.g. a conflict notice).
       .catch(error => { if (latestResetKey.current === submittedKey && !(error as { quiet?: boolean } | undefined)?.quiet) setError(error); })

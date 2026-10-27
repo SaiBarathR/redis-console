@@ -130,6 +130,29 @@ describe("array inspector: search and aggregates", () => {
     expect(screen.queryByTestId("array-search-continue")).toBeNull();
   });
 
+  it("an invalid index or base64 value is reported and the search can be corrected and run (review v0.4 r1 M1)", async () => {
+    const sent = mockServer((_path, body) => json({ items: [], start: body.start, searchedTo: body.end, elements: 6 }));
+    show();
+    await userEvent.click(screen.getByText("Search values (ARGREP)"));
+    await userEvent.type(screen.getByTestId("array-search-value"), "apple");
+    await userEvent.clear(screen.getByTestId("array-search-end"));
+    await userEvent.type(screen.getByTestId("array-search-end"), "abc");
+    await userEvent.click(screen.getByTestId("array-search-submit"));
+    expect(await within(screen.getByTestId("array-search")).findByRole("alert")).toHaveTextContent("To index: enter a whole index");
+    expect(screen.getByTestId("array-search-submit")).toBeEnabled();
+    expect(screen.getByTestId("array-search-submit")).toHaveTextContent("Search");
+    await userEvent.selectOptions(screen.getByLabelText("Condition 1 encoding"), "base64");
+    await userEvent.clear(screen.getByTestId("array-search-end"));
+    await userEvent.type(screen.getByTestId("array-search-end"), "9");
+    await userEvent.click(screen.getByTestId("array-search-submit"));
+    expect(await within(screen.getByTestId("array-search")).findByRole("alert")).toHaveTextContent(/base64/i);
+    expect(sent.some((s) => s.path === "/array/search")).toBe(false);
+    await userEvent.selectOptions(screen.getByLabelText("Condition 1 encoding"), "utf8");
+    await userEvent.click(screen.getByTestId("array-search-submit"));
+    await waitFor(() => expect(sent.at(-1)?.body).toMatchObject({ start: "0", end: "9", predicates: [{ kind: "match", value: bin("apple") }] }));
+    expect(await screen.findByTestId("array-search-summary")).toHaveTextContent("The whole range was searched.");
+  });
+
   it("computes an aggregate over a range and shows Redis's text", async () => {
     const sent = mockServer(() => json({ op: "sum", result: "45.5", elements: 10 }));
     show();
