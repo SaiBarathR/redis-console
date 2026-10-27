@@ -84,6 +84,14 @@ describe.skipIf(!up)('v0.4 FalkorDB security and measured execution', () => {
     const argv = ['GRAPH.QUERY', k, 'MATCH (n:Person) WHERE n.id = 299 DETACH DELETE n'];
     const first = await clients.operator.req('POST', endpoint(), { argv });
     expect(first.status).toBe(428);
+    // The person confirming reads the whole Cypher, not a 16-byte prefix (review v0.4 r2 graph M1).
+    const shown = first.json.error.confirmation.preview.commands[0].argv[2];
+    expect(shown.v.data).toBe(argv[2]);
+    expect(shown.bytes).toBeUndefined();
+    const long = 'MATCH (n:Person) WHERE ' + 'n.id = 1 OR '.repeat(400) + 'n.id = 2 DETACH DELETE n';
+    const cut = (await clients.operator.req('POST', endpoint(), { argv: ['GRAPH.QUERY', k, long] })).json.error.confirmation.preview.commands[0].argv[2];
+    expect(Buffer.from(cut.v.data).length).toBe(4096);
+    expect(cut.bytes).toBe(long.length);
     const count = async () => (await fixture.sendCommand(['GRAPH.RO_QUERY', k, 'MATCH (n) RETURN count(n)']) as any)[1][0][0];
     expect(await count()).toBe(300);
     const swapped = await clients.operator.req('POST', endpoint(), { argv: ['GRAPH.QUERY', k, 'MATCH (n) DETACH DELETE n'], confirmation: { token: first.json.error.confirmation.token } });

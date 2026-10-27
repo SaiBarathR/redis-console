@@ -93,6 +93,8 @@ export const PREVIEW_MAX_ARGS = 20;
 /** Value arguments up to this size are shown whole; longer ones are cut to `PREVIEW_VALUE_PREFIX_BYTES`. */
 export const PREVIEW_VALUE_FULL_BYTES = 32;
 export const PREVIEW_VALUE_PREFIX_BYTES = 16;
+/** A graph query's Cypher is what a confirmation is about: shown up to this size (review v0.4 r2 graph M1). */
+export const PREVIEW_QUERY_MAX_BYTES = 4096;
 /** Key names and patterns are shown in full up to this size (then cut, with `bytes`). */
 export const PREVIEW_KEY_MAX_BYTES = 1024;
 

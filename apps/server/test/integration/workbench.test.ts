@@ -74,7 +74,7 @@ describe.skipIf(!sandboxUp)('POST /workbench', () => {
     const first = await c.req('POST', WB, body);
     expect(first.status).toBe(428);
     expect(first.json.error.confirmation.level).toBe('confirm');
-    expect(first.json.error.confirmation.summary).toMatch(/2 destructive/);
+    expect(first.json.error.confirmation.summary).toMatch(/2 commands that need confirmation/);
     expect(await r.exists(`${P}y`)).toBe(0); // nothing ran
     const second = await c.req('POST', WB, { ...body, confirmation: { token: first.json.error.confirmation.token } });
     expect(second.status).toBe(200);

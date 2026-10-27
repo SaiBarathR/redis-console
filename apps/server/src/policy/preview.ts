@@ -11,6 +11,7 @@ import {
   PREVIEW_KEY_MAX_BYTES,
   PREVIEW_MAX_ARGS,
   PREVIEW_MAX_COMMANDS,
+  PREVIEW_QUERY_MAX_BYTES,
   PREVIEW_VALUE_FULL_BYTES,
   PREVIEW_VALUE_PREFIX_BYTES,
   binFromBytes,
@@ -34,26 +35,31 @@ export function utf8Prefix(b: Uint8Array, max: number): Uint8Array {
   return b.subarray(0, n || max);
 }
 
-/** Names, keys and patterns are shown in full (up to PREVIEW_KEY_MAX_BYTES); other arguments as a short prefix. */
-export function previewArg(a: Arg, kind: PreviewArg['kind']): PreviewArg {
+/**
+ * Names, keys and patterns are shown in full (up to PREVIEW_KEY_MAX_BYTES); other arguments as a short prefix, except
+ * a query (`full`, a graph command's Cypher), which is what is being confirmed: up to PREVIEW_QUERY_MAX_BYTES.
+ */
+export function previewArg(a: Arg, kind: PreviewArg['kind'], full = false): PreviewArg {
   const b = bytesOf(a);
-  const value = kind === 'arg';
-  if (b.length <= (value ? PREVIEW_VALUE_FULL_BYTES : PREVIEW_KEY_MAX_BYTES)) return { kind, v: binFromBytes(b) };
-  return { kind, v: binFromBytes(utf8Prefix(b, value ? PREVIEW_VALUE_PREFIX_BYTES : PREVIEW_KEY_MAX_BYTES)), bytes: b.length };
+  const max = full ? PREVIEW_QUERY_MAX_BYTES : kind === 'arg' ? PREVIEW_VALUE_FULL_BYTES : PREVIEW_KEY_MAX_BYTES;
+  const prefix = full ? PREVIEW_QUERY_MAX_BYTES : kind === 'arg' ? PREVIEW_VALUE_PREFIX_BYTES : PREVIEW_KEY_MAX_BYTES;
+  if (b.length <= max) return { kind, v: binFromBytes(b) };
+  return { kind, v: binFromBytes(utf8Prefix(b, prefix)), bytes: b.length };
 }
 
 /**
  * Preview one command. `keep` leading tokens are command/subcommand names; `keyIndexes` hold keys;
- * `patternIndexes` hold glob patterns.
+ * `patternIndexes` hold glob patterns; `queryIndexes` hold queries shown up to PREVIEW_QUERY_MAX_BYTES.
  */
-export function previewCommand(argv: readonly Arg[], keep: number, keyIndexes: Iterable<number> = [], patternIndexes: Iterable<number> = []): PreviewCommand {
+export function previewCommand(argv: readonly Arg[], keep: number, keyIndexes: Iterable<number> = [], patternIndexes: Iterable<number> = [], queryIndexes: Iterable<number> = []): PreviewCommand {
   const keys = new Set(keyIndexes);
   const patterns = new Set(patternIndexes);
+  const queries = new Set(queryIndexes);
   const names = Math.max(keep, 1);
   const shown = Math.min(argv.length, names + PREVIEW_MAX_ARGS);
   const out: PreviewArg[] = [];
   for (let i = 0; i < shown; i++) {
-    out.push(previewArg(argv[i]!, i < names ? 'command' : keys.has(i) ? 'key' : patterns.has(i) ? 'pattern' : 'arg'));
+    out.push(previewArg(argv[i]!, i < names ? 'command' : keys.has(i) ? 'key' : patterns.has(i) ? 'pattern' : 'arg', queries.has(i)));
   }
   return argv.length > shown ? { argv: out, moreArgs: argv.length - shown } : { argv: out };
 }

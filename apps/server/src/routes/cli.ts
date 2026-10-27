@@ -58,7 +58,8 @@ export function prepare(argv: Buffer[], table: CommandTable | undefined, scope: 
   authorize(c, scope);
   const capped = applyCaps(argv).map((a) => (typeof a === 'string' ? Buffer.from(a) : a));
   // The preview is built from the capped argv: exactly what will be sent to Redis.
-  const preview = buildPreview([previewCommand(capped, c.keep, c.keyIndexes)]);
+  // A graph query's Cypher (argv[2]) is shown whole up to PREVIEW_QUERY_MAX_BYTES (review v0.4 r2 graph M1).
+  const preview = buildPreview([previewCommand(capped, c.keep, c.keyIndexes, [], GRAPH_QUERY_COMMANDS.has(c.command) ? [2] : [])]);
   const confirmSpec = confirmationFor(c.confirm, isMutating(c), scope.db, ctx.config.policy.prodRequiresReason, `${c.name} on ${scope.db.name}`, preview);
   return { argv: capped, c, confirmSpec };
 }
@@ -290,7 +291,7 @@ export function registerCliRoutes(app: FastifyInstance, ctx: AppContext) {
     if (spec) {
       // Every line that needs confirmation, in execution order (the token covers the whole script).
       const confirmed = items.filter((i) => i.p?.confirmSpec).flatMap((i) => i.p!.confirmSpec!.preview.commands);
-      spec.summary = `Run a workbench script with ${confirmed.length} destructive command(s) on ${scope.db.name}`;
+      spec.summary = `Run a workbench script on ${scope.db.name} with ${confirmed.length === 1 ? '1 command that needs' : `${confirmed.length} commands that need`} confirmation`;
       spec.preview = buildPreview(confirmed);
     }
     const { reason } = confirmOrThrow(ctx, req, scope, 'workbench', req.body, body.confirmation, spec, {
