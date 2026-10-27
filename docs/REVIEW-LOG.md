@@ -1141,3 +1141,26 @@ Report: `docs/research/27-v04-review-r1.md` (snapshot `release/v0.4` @ `89a15cf`
   reads stay proven through the read-only proxy.
 - Server 1025 passed, 44 skipped (fix branch); 1044 passed, 44 skipped after the graph merge. Live QA as viewer,
   operator and admin: [qa/v04-review-r1-fixes.md](qa/v04-review-r1-fixes.md).
+
+## v0.4 Round 2 – arrays, vector sets, geo, search fields (GPT-6.1 Sol reviewer)
+
+Report: `docs/research/29-v04-review-r2-data.md` (snapshot `release/v0.4` @ `79663bb`). Fixer branch:
+`fix/v04-review-r2` (Claude Opus 5.5). The reviewer also verified every round-1 fix: M1, M2, L1–L5, the VLINKS
+layer order and the console catalog fixes were confirmed; round-1 H1 was found partial (this round's H1 and H2).
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| H2 | fixed | Reproduced by the reviewer live: with 50,000 one-byte values after 5,000 values of 4 KiB, the identical request searched all 5,000 (20 MiB, 4.9 times its weighted budget) in 606 ms, eight predicates 1,102 elements in 1,054 ms, and one 8 MiB value was always admitted; the cap came from the whole array's average element size (MEMORY USAGE / ARCOUNT), and Redis reports no byte size for a range. The search no longer runs ARGREP (D22): it reads ARSCAN batches through the measured transport from one 16 MiB budget, each read at most half, matches on the server with ARGREP's meanings (`glob.ts` ports Redis's `stringmatchlen`), and skips by index a value over half the budget. | `c6afbf9` | server `integration/array.test.ts` › "EXACT, MATCH and GLOB … agree with ARGREP on Redis…" (checked to catch a broken range swap and Latin-1 folding), "clustered large values with many small ones elsewhere…", "an element over half the budget is skipped…"; `unit/array.test.ts` › "array search byte bound (review v0.4 r2 H2)" |
+| H1 | fixed | Reproduced by the reviewer: a viewer's console `ARGREP … MATCH <64 bytes> NOCASE LIMIT 1` scanned the whole range (619 ms) where the inspector stopped at its cap; LIMIT does not bound work when nothing matches. No argument check can bound ARGREP (no per-range size in Redis), so it is blocked in the console and the Workbench with a hint to the inspector, and the per-argument ARGREP rules are removed. | `31b2c8e` | shared `array.test.ts` › "blocks ARGREP in every form…"; server `integration/array.test.ts` › "ARGREP is blocked in the console and the Workbench for every role…" (failed before: 200) |
+| M1 | fixed | Reproduced: Redis repeats the rest of an unparsable filter ("near: …") and the 400 built from it was stored verbatim in the audit detail (canary found in the JSON line and the audit store). The message now names the character position, computed from that suffix's length; Redis usually repeats the whole filter, so it is often "character 1". | `913e6bf` | server `unit/vectorset.test.ts` › "maps request-shaped Redis errors…"; `integration/vectorset.test.ts` › "search: VSIM by member…" (canary absent from response, audit lines and store) |
+| M2 | fixed | Reproduced: a 600,000-character attribute made the member panel 413 ("combined 1104-byte read budget"). The measured transport zeroed the request's whole budget on any reply failure; a reply over its own per-reply cap now keeps the bytes it charged, while a spent budget and every other failure still end the request. | `76e4555` | server `unit/capped.test.ts` › "a reply over its own cap keeps the bytes it read charged…"; `integration/vectorset.test.ts` › "element: attributes over maxValueBytes are flagged and the embedding and neighbours still read" (failed before: 413) |
+| L1 | fixed | Reproduced in a component test: Find similar on the empty member name left Search disabled. A chosen member that cannot be typed (binary or empty) stays a fixed selection, shown as "(the empty name)". | `f8ad201` | web `vectorset.test.tsx` › "Find similar works for a member whose name is empty" |
+| L2 | fixed | Reproduced: an append at cursor 18446744073709551614 with two values was a 502 `insert index overflow`. The insert probe refuses it with 400 before anything is written; one value still fits. | `12ea2d9` | server `integration/array.test.ts` › "array.insert past the last index is a 400…" (failed before: 502) |
+| E2E | fixed | Found by the full e2e on the merged tree (not in the report): with the catalog verdict fix (`dfde937`), a viewer's refused `GRAPH.QUERY` read "unavailable for your role or database" and `ui/graph.spec.ts` failed; the browser now words role and production refusals as the server's `authorize` does. | `111d600` | web `lib/policy.test.ts` › "names the role a command needs and the role you have…" |
+
+### Validation
+- Each regression test failed before its fix and passes after it, except H2's integration tests, which assert the new
+  byte bound (the old code made no such promise; the reviewer's live reproduction is the evidence against it).
+- The reviewer's worst case on the new search (Redis 8.10.2, 5,000 values of 4 KiB `a…`, through the route): a 64-byte
+  NOCASE MATCH covered the 20 MiB range in 2 requests, the worst 162 ms; eight such predicates 168 ms; GLOB
+  `a*a*a*a*a*a*a*b` 105 ms. Redis only copies bounded batches (ARGREP held its main thread 589–1,054 ms on this range).
