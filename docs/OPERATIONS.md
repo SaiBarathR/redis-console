@@ -174,7 +174,7 @@ The server refuses to start when:
 - an `environment: "prod"` database lacks its own ACL user for a tier reachable under `maxRole` (it would connect as
   `default`), a reachable tier is configured with `"username": "default"` (Redis's built-in user, not an ACL user of
   its own), or two reachable tiers share one user, unless `acceptRisks` has `"default-credentials"`.
-  **Upgrade note (after 0.4.0):** the `"username": "default"` rule is new, so a prod config that started on 0.4.0 with
+  **Upgrade note (0.4.1):** the `"username": "default"` rule is new, so a prod config that started on 0.4.0 with
   such a tier now stops at startup and names it. Give that tier its own ACL user (for `admin`, the restricted
   `rc-admin` of INSTALL 5: `default` usually has every permission, including FLUSHALL, CONFIG SET and scripting), or
   add the exception.
