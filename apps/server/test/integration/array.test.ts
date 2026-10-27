@@ -3,6 +3,7 @@
  * sandbox (keys under this file's own prefix, deleted afterwards). Bisection of the search window and the aggregate
  * bound are covered with a fake connection in unit/array.test.ts (they need more than a million elements here).
  */
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ARGREP_HINT, ARRAY_MAX_INDEX, ARRAY_SEARCH_MAX_BYTES } from '@rconsole/shared';
@@ -157,6 +158,40 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       // The rest of the range is searched on the next request.
       const next = await operator.req('POST', `${DB}/array/search`, { key: utf8(k('cpu')), start: '1', end: '1', predicates: [{ kind: 'glob', value: utf8('need*') }], values: false });
       expect(next.json.items.map((i: { index: string }) => i.index)).toEqual(['1']);
+    });
+
+    it('long native scans yield to other requests: a health client in another process is answered promptly (review v0.4 r4 M1)', async () => {
+      // The reproduction: two near-cap values of `a`, eight NOCASE MATCH `ab` (each a slow native scan of 8 MiB).
+      const v = 'a'.repeat(8 * 1024 * 1024 - 64);
+      await ar('ARSET', k('latency'), '0', v, v, 'b');
+      await t.app.listen({ port: 0, host: '127.0.0.1' });
+      const port = (t.app.server.address() as { port: number }).port;
+      // An independent client: its timer does not share the server's event loop.
+      const probe = spawn(process.execPath, ['-e', `
+        let worst = 0, stop = false;
+        process.stdin.on('data', () => { stop = true; });
+        (async () => {
+          process.stdout.write('ready\\n');
+          while (!stop) {
+            const t0 = performance.now();
+            await fetch('http://127.0.0.1:${port}/healthz').then((r) => r.arrayBuffer());
+            worst = Math.max(worst, performance.now() - t0);
+            await new Promise((r) => setTimeout(r, 2));
+          }
+          process.stdout.write(JSON.stringify({ worst }) + '\\n');
+          process.exit(0);
+        })();`], { stdio: ['pipe', 'pipe', 'inherit'] });
+      const lines: string[] = [];
+      probe.stdout.setEncoding('utf8').on('data', (d: string) => lines.push(...d.split('\n').filter(Boolean)));
+      while (!lines.includes('ready')) await new Promise((r) => setTimeout(r, 10));
+      await new Promise((r) => setTimeout(r, 100));
+      const res = await operator.req('POST', `${DB}/array/search`, { key: utf8(k('latency')), start: '0', end: '2', values: false, nocase: true, predicates: Array.from({ length: 8 }, () => ({ kind: 'match', value: utf8('ab') })) });
+      probe.stdin.write('stop');
+      while (!lines.some((l) => l.startsWith('{'))) await new Promise((r) => setTimeout(r, 10));
+      const { worst } = JSON.parse(lines.find((l) => l.startsWith('{'))!) as { worst: number };
+      expect(res.status, res.body.slice(0, 200)).toBe(200);
+      expect(res.json.skipped).toBeUndefined();
+      expect(worst, `the health client waited ${worst.toFixed(0)} ms`).toBeLessThan(120);
     });
 
     it('an element over half the budget is skipped by index; the search continues after it', async () => {

@@ -8,7 +8,7 @@ import { ARRAY_MAX_INDEX, binFromString, zArrayAggregate, zArraySearch } from '@
 import type { DbScope } from '../../src/context.ts';
 import { HttpError } from '../../src/http/errors.ts';
 import type { Conn, SendOpts } from '../../src/redis/manager.ts';
-import { aggregateArray, planArrayOp, searchArray, searchMatcher, stepIndex, windowEnd } from '../../src/redis/array.ts';
+import { aggregateArray, planArrayOp, SEARCH_SCAN_CHUNK, searchArray, searchMatcher, searchMatcherInPieces, stepIndex, windowEnd } from '../../src/redis/array.ts';
 
 /** A sparse in-memory array (index -> value, or indices holding `v<index>`) and the commands the server sends. */
 function fakeArray(content: bigint[] | Map<bigint, Buffer>) {
@@ -280,6 +280,29 @@ describe('array search matching allowance (review v0.4 r3 H1)', () => {
     // The fold and one scan: about 1,000 steps each.
     expect(1_000_000 - st.left).toBeGreaterThan(1900);
     expect(1_000_000 - st.left).toBeLessThan(2100);
+  });
+});
+
+describe('large values are matched in pieces with the same results (review v0.4 r4 M1)', () => {
+  const q = (predicates: [string, string][], o: Record<string, unknown> = {}) =>
+    zArraySearch.parse({ key: binFromString('k'), predicates: predicates.map(([kind, data]) => ({ kind, value: binFromString(data) })), ...o });
+  it('substrings across piece boundaries, NOCASE, EXACT, AND/OR: in pieces equals in one go', async () => {
+    const big = Buffer.alloc(SEARCH_SCAN_CHUNK * 3 + 17, 0x61);
+    // A needle across the first boundary, one at the very end, and mixed case for NOCASE.
+    Buffer.from('XYZ').copy(big, SEARCH_SCAN_CHUNK - 1);
+    Buffer.from('Tail').copy(big, big.length - 4);
+    const cases: [ReturnType<typeof q>, Buffer][] = [];
+    for (const nocase of [false, true])
+      for (const combine of ['or', 'and'])
+        for (const preds of [[['match', 'XYZ']], [['match', 'xyz']], [['match', 'tail']], [['match', 'zzz']], [['exact', 'a']], [['match', 'XYZ'], ['match', 'Tail']], [['match', 'XYZ'], ['match', 'nope']], [['glob', '*XYZ*']]] as [string, string][][])
+          cases.push([q(preds, { nocase, combine }), big]);
+    let pauses = 0;
+    for (const [query, value] of cases) {
+      const now = searchMatcher(query)(value);
+      const piecewise = await searchMatcherInPieces(query)(value, { left: Infinity }, async () => { pauses++; });
+      expect(piecewise, JSON.stringify(query.predicates.map((p) => [p.kind, p.value.data])) + (query.nocase ? ' NOCASE' : '') + ' ' + query.combine).toBe(now);
+    }
+    expect(pauses).toBeGreaterThan(0);
   });
 });
 

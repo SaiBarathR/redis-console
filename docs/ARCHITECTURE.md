@@ -214,7 +214,8 @@ Closing a socket bounds the server's memory; it does not undo a mutation or stop
   at most 1,000,000 elements and that many bytes, however the values are sized or spread, then says where to continue;
   a value over half the budget is located by `AROP … USED` bisection (no value read) and listed in `skipped`. Matching
   runs on the event loop with an allowance of `ARRAY_SEARCH_MATCH_STEPS` (16 million glob steps or 8-byte scan steps,
-  about 40 ms) and yields every 10 ms; a value costlier than a whole allowance is skipped too. The first element of a
+  about 40 ms) and yields every 10 ms, also between the 256 KiB pieces in which a larger value's substring scans and
+  case folding run (review v0.4 r4 M1); a value costlier than a whole allowance is skipped too. The first element of a
   request is read alone, so each request tests or skips at least one (review v0.4 r3 H1, M1). Before
   (review v0.4 r2 H1/H2), ARGREP ran inside Redis with a work cap estimated from the whole array's average element
   size, which small values elsewhere in the array or one huge value defeated; nothing bounds ARGREP's own work, so the
