@@ -209,3 +209,14 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
   group, confirmed), and the create form `stream-new-group-name`, `stream-new-group-start` (`$` | `0` | `id`),
   `stream-new-group-id`, `stream-new-group-mkstream`, `stream-new-group-create`, `stream-new-group-command` (the exact
   XGROUP CREATE). Results land in `stream-lifecycle-outcome`.
+
+### v0.4 graph result view
+
+- `result-rich[data-kind="graph"]`: verbose FalkorDB result table, SVG diagram and statistics.
+- `graph-view`, `graph-count`: bounded diagram and received/omitted entity counts.
+- `graph-node`: focusable SVG node button (`aria-pressed`); Enter/Space selects its details.
+- `graph-edge`: directed SVG edge (text title includes ID, relationship type and endpoints).
+- `graph-selection`: selected node labels, ID and text properties (or endpoint-placeholder explanation).
+- `graph-statistics`: execution statistics as inert text.
+- `result-rich[data-kind="graphPlan"]` with existing `plan-tree`: GRAPH.EXPLAIN/PROFILE indentation plan.
+- Existing `rich-table` contains the table labelled `Graph result table`; terminal/raw toggles use existing IDs.

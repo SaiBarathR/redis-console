@@ -649,6 +649,7 @@ export function keyReadDetail(d: KeyDetails): string {
 
 function hintFor(type: string): string {
   if (type.startsWith('MBbloom')) return 'BF.INFO / CF.INFO';
+  if (type === 'graphdata') return 'GRAPH.RO_QUERY in the Workbench, which shows graph results';
   if (type === 'vectorset') return 'VCARD / VINFO / VSIM';
   return 'TYPE / OBJECT ENCODING';
 }

@@ -332,3 +332,18 @@ account, and every Redis command they send goes through the same execute path as
 - Image: multi-stage, `node:24-slim`, no npm/corepack/yarn, uid 1000, read-only root filesystem, only `/data` writable.
   Deployment examples in `deploy/` (Compose, Kubernetes with restricted Pod Security and a NetworkPolicy). See
   [INSTALL.md](INSTALL.md).
+
+### v0.4 graph results and execution
+
+Graph command rules live in the `v0.4 graph` block of `commands.ts`; `graphPolicy.ts` guards Cypher host I/O and
+user code before authorization. `policy.ts` normalizes the reviewed graph option grammar and adds TIMEOUT <=1000 ms
+before building the exact-command confirmation preview. Every graph reply uses measured transport and existing
+byte/element/depth/time limits. Graph writes use the caller's actor-checked ACL tier and are never replayed after an
+ambiguous failure. The separate FalkorDB sandbox config supplies engine time, row and queue caps (D21).
+
+`graphReply.ts` recognizes verbose results and indentation plans. `GraphView.tsx` draws at most 200 unique nodes and
+400 edges in a stable offline SVG layout; absent endpoints are labelled placeholders, omissions are counted, and
+incomplete server replies explicitly limit what those counts mean. The result table uses the common 1000-row,
+40-column cap. Plans use 1000 lines/40 levels. IDs remain decimal strings, including values beyond JS integer
+precision. All properties, labels and stats render as text. There are no runtime assets, tiles, workers or physics
+loops. `graphdata` key reads give a Workbench/GRAPH.RO_QUERY hint rather than attempting a collection read.
