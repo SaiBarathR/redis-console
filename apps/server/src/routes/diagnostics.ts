@@ -18,7 +18,7 @@ import { HttpError } from '../http/errors.ts';
 import { auditDenied, auditedRead, confirmOrThrow } from '../policy/enforce.ts';
 import { allowedFor, authorize, classify, confirmationFor } from '../policy/policy.ts';
 import { buildPreview, previewCommand } from '../policy/preview.ts';
-import { HIDDEN } from '../policy/redactReply.ts';
+import { HIDDEN, slowlogArgv } from '../policy/redactReply.ts';
 import { run, toHttpError } from '../redis/exec.ts';
 import { TM_STR, type Conn, type Target } from '../redis/manager.ts';
 import { asNum, asStr } from '../redis/reply.ts';
@@ -65,13 +65,16 @@ export function registerDiagnosticsRoutes(app: FastifyInstance, ctx: AppContext)
       const conn = await scope.conn();
       const nodes = await conn.primaries();
       const entries: SlowlogEntry[] = [];
+      // Non-admins see command names and keys; other arguments are other users' data (review v0.4 r2 graph M2).
+      const table = scope.role === 'admin' ? undefined : await scope.table().catch(() => undefined);
       let len = 0;
       for (const t of nodes) {
         const raw = await run<unknown[][]>(t, ['SLOWLOG', 'GET', String(q.count)], { typeMapping: TM_STR });
         // SLOWLOG LEN may be denied by the viewer ACL; fall back to the number of entries returned.
         len += await t.send(['SLOWLOG', 'LEN']).then(asNum, () => (raw ?? []).length);
         for (const e of raw ?? []) {
-          const argv = (Array.isArray(e[3]) ? e[3] : []).slice(0, 32).map((a) => clip(asStr(a), 200));
+          const logged = (Array.isArray(e[3]) ? e[3] : []).slice(0, 32).map((a) => asStr(a));
+          const argv = (scope.role === 'admin' ? logged : slowlogArgv(logged, classify(logged, table))).map((a) => clip(a, 200)!);
           const entry: SlowlogEntry = { id: asNum(e[0]), timestamp: asNum(e[1]), durationMicros: asNum(e[2]), argv };
           // Client "ip:port": hidden from non-admins like every other network address.
           if (e[4] !== undefined) entry.client = scope.role === 'admin' ? asStr(e[4]) : HIDDEN;

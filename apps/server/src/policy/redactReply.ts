@@ -88,11 +88,22 @@ function maskTree(r: Reply, depth = 0): Reply {
 }
 
 /** SLOWLOG GET entries are [id, time, micros, argv, client "ip:port", client name]: the client address is hidden. */
-function maskSlowlogClients(reply: Reply): Reply {
+function maskSlowlogClients(reply: Reply, args?: (argv: string[]) => string[]): Reply {
   if (reply.t !== 'arr') return reply;
   return {
     ...reply,
-    v: reply.v.map((e) => (e.t === 'arr' && e.v.length > 4 ? { ...e, v: e.v.map((x, i) => (i === 4 ? hiddenStr() : x)) } : e)),
+    v: reply.v.map((e) => {
+      if (e.t !== 'arr' || e.v.length <= 4) return e;
+      return {
+        ...e,
+        v: e.v.map((x, i) => {
+          if (i === 4) return hiddenStr();
+          if (i !== 3 || !args || x.t !== 'arr') return x;
+          const shown = args(x.v.map((a) => strOf(a) ?? ''));
+          return { ...x, v: shown.map((data): Reply => ({ t: 'str', v: { enc: 'utf8', data } })) };
+        }),
+      };
+    }),
   };
 }
 const hiddenStr = (): Reply => ({ t: 'str', v: { enc: 'utf8', data: HIDDEN } });
@@ -102,13 +113,15 @@ const mapStr = (r: Reply, f: (s: string) => string): Reply => (r.t === 'str' && 
 export interface RedactOptions {
   /** Hide network addresses (non-admin callers). */
   hideAddresses?: boolean;
+  /** Non-admin callers: the slow log's command arguments as `slowlogArgv` shows them. */
+  slowlogArgs?: (argv: string[]) => string[];
 }
 
 export function redactReply(command: string, subcommand: string | undefined, reply: Reply, opts: RedactOptions = {}): Reply {
   if (opts.hideAddresses) {
     if (command === 'CLIENT' && (subcommand === 'LIST' || subcommand === 'INFO')) return mapStr(reply, maskClientAddrs);
     if (command === 'CLUSTER' && subcommand === 'NODES') return mapStr(reply, maskClusterNodes);
-    if (command === 'SLOWLOG' && subcommand === 'GET') return maskSlowlogClients(reply);
+    if (command === 'SLOWLOG' && subcommand === 'GET') return maskSlowlogClients(reply, opts.slowlogArgs);
     if ((command === 'CLUSTER' && (subcommand === 'SLOTS' || subcommand === 'SHARDS' || subcommand === 'REPLICAS' || subcommand === 'SLAVES')) || command === 'ROLE') return maskTree(reply);
   }
   if (command === 'CONFIG' && subcommand === 'GET') {
@@ -122,4 +135,18 @@ export function redactReply(command: string, subcommand: string | undefined, rep
     return { t: 'str', v: { enc: 'utf8', data: sanitizeInfoText(reply.v.data, !!opts.hideAddresses) } };
   }
   return reply;
+}
+
+/**
+ * A slow-log entry's arguments for a non-admin (review v0.4 r2 graph M2): command names and keys as Redis logged them,
+ * every other argument as `<n bytes>`, like the audit log. Slow entries carry other users' values, Cypher literals and
+ * search filters; admins see them whole. Redis's own markers for cut entries ("... (n more arguments)") are kept.
+ */
+export function slowlogArgv(argv: string[], classified: { keep: number; keyIndexes: readonly number[] }): string[] {
+  const keys = new Set(classified.keyIndexes);
+  return argv.map((a, i) => {
+    if (i < classified.keep || keys.has(i) || /^\.\.\. \(\d+ more (arguments|bytes)\)$/.test(a)) return a;
+    const more = /^(.*)\.\.\. \((\d+) more bytes\)$/s.exec(a);
+    return `<${more ? Buffer.byteLength(more[1]!) + Number(more[2]) : Buffer.byteLength(a)} bytes>`;
+  });
 }

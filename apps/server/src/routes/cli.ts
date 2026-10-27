@@ -25,7 +25,7 @@ import { auditDenied, confirmOrThrow } from '../policy/enforce.ts';
 import { allowedFor, applyCaps, auditName, authorize, classify, confirmationFor, isMutating, timeoutFor, type Classified, type ConfirmSpec } from '../policy/policy.ts';
 import type { CommandTable } from '../policy/commandTable.ts';
 import { buildPreview, previewCommand } from '../policy/preview.ts';
-import { redactReply } from '../policy/redactReply.ts';
+import { redactReply, slowlogArgv } from '../policy/redactReply.ts';
 import { isErrorReply, toHttpError } from '../redis/exec.ts';
 import { METADATA_REPLY_BYTES, TM_STR, sanitizeRedisError, type Arg } from '../redis/manager.ts';
 import { PAIR_MAP_COMMANDS, TM_REPLY, TM_REPLY_PAIRS, asStr, toReply } from '../redis/reply.ts';
@@ -146,8 +146,11 @@ async function executeNow(ctx: AppContext, scope: DbScope, p: Prepared, signal?:
     }
     durationMs = Math.round((performance.now() - start) * 1000) / 1000;
   }
+  // Slow-log arguments are other users' data: non-admins see command names and keys only (review v0.4 r2 graph M2).
+  const table = p.c.command === 'SLOWLOG' && scope.role !== 'admin' ? await scope.table().catch(() => undefined) : undefined;
   const reply = redactReply(p.c.command, p.c.subcommand, toReply(raw, { maxBytes: ctx.config.policy.maxReplyBytes, maxElements: 10_000 }, { pairs }), {
     hideAddresses: scope.role !== 'admin',
+    ...(scope.role !== 'admin' ? { slowlogArgs: (argv: string[]) => slowlogArgv(argv, classify(argv, table)) } : {}),
   });
   return { argv: echo(p.argv), commandClass: p.c.class, durationMs, reply };
 }

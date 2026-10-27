@@ -136,7 +136,9 @@ The end-to-end suite (`tests/e2e`, Playwright) runs against the real server with
   exact-request confirmation binding, measured transport and late actor checks apply normally.
 - Cypher LOAD (server file/URL loaders), unreviewed CALL procedures and namespaced/quoted function calls (including
   preloaded JS UDFs) are refused server-side for QUERY, RO_QUERY, EXPLAIN and PROFILE. UDF, binary BULK/RESTORE,
-  internal commands and CONFIG SET are disabled. INFO exposes only ObjectPool; query logs/config reads require admin.
+  internal commands and CONFIG SET are disabled. INFO exposes only ObjectPool; GRAPH.SLOWLOG and config reads require
+  admin. The core slow log (console `SLOWLOG GET` and Diagnostics) shows non-admins command names and keys only, other
+  arguments as their size, so other users' Cypher and values stay with admins (review v0.4 r2 graph M2).
 - The app adds TIMEOUT <=1000 ms and the sandbox sets TIMEOUT_DEFAULT/MAX 1000, RESULTSET_SIZE 10000 and
   MAX_QUEUED_QUERIES 25, but FalkorDB checks the timeout **between steps**: one expression (a `reduce` over a long
   `range`) ran 13–16 s, and closing the socket does not stop it (review v0.4 r2 graph H2). The console therefore holds a

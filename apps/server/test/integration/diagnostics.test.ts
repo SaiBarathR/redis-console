@@ -54,6 +54,25 @@ describe.skipIf(!sandboxUp)('diagnostics routes', () => {
     expect(JSON.stringify(cli.json)).not.toMatch(/127\.0\.0\.1:\d+|172\.\d+\.\d+\.\d+:\d+/);
   });
 
+  it('slow-log arguments other than command names and keys are shown to admins only (review v0.4 r2 graph M2)', async () => {
+    // A slow SADD whose first member is a canary: Redis keeps the arguments in the slow log.
+    const members = ['R2SLOW_CANARY', ...Array.from({ length: 60_000 }, (_, j) => `x${j}`)];
+    await r.sendCommand(['SADD', `${P}slow-canary`, ...members]);
+    await r.del(`${P}slow-canary`);
+    const v = await userSession(t, 'viewer');
+    const viewer = await v.req('GET', '/api/v1/databases/e2e/slowlog?count=200');
+    const mine = viewer.json.entries.find((e: { argv: string[] }) => e.argv[0] === 'SADD' && e.argv[1] === `${P}slow-canary`);
+    expect(mine, 'the SADD is in the slow log, key shown').toBeDefined();
+    expect(mine.argv[2]).toBe('<13 bytes>');
+    expect(JSON.stringify(viewer.json)).not.toContain('R2SLOW_CANARY');
+    const cli = await v.req('POST', '/api/v1/databases/e2e/cli', { argv: ['SLOWLOG', 'GET', '200'] });
+    expect(cli.status).toBe(200);
+    expect(JSON.stringify(cli.json)).not.toContain('R2SLOW_CANARY');
+    const adm = await userSession(t, 'admin');
+    expect(JSON.stringify((await adm.req('GET', '/api/v1/databases/e2e/slowlog?count=200')).json)).toContain('R2SLOW_CANARY');
+    expect(JSON.stringify((await adm.req('POST', '/api/v1/databases/e2e/cli', { argv: ['SLOWLOG', 'GET', '200'] })).json)).toContain('R2SLOW_CANARY');
+  });
+
   it('POST /slowlog/reset: admin only, confirmation, read-only refused', async () => {
     const op = await userSession(t, 'operator');
     expect((await op.req('POST', '/api/v1/databases/e2e/slowlog/reset', {})).status).toBe(403);
