@@ -76,7 +76,9 @@ test.describe('as viewer', () => {
       // Redis filter booleans are truthy values (`.even`); `== true` is a syntax error the form reports.
       await detail.getByTestId('vset-search-filter').fill('.even == true');
       await detail.getByTestId('vset-search-submit').click();
-      await expect(detail.getByRole('alert')).toContainText('syntax error in FILTER expression');
+      // The filter's text is not repeated in the message (it would reach the audit log; review v0.4 r2 M1).
+      await expect(detail.getByRole('alert')).toContainText('Invalid filter expression: Redis could not read it');
+      await expect(detail.getByRole('alert')).not.toContainText('even == true');
       await expect(results).toHaveCount(0);
       await detail.getByTestId('vset-search-filter').fill('.even');
       await detail.getByTestId('vset-search-submit').click();
