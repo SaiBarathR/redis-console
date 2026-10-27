@@ -149,3 +149,14 @@ describe("admin reads on read-only databases (review v0.4 r2 graph L1)", () => {
     expect(commandPolicy("FLUSHDB", [], ro)).toMatchObject({ allowed: false, hint: "This database is read-only. Writes are refused for every role." });
   });
 });
+
+describe("argument rules see the bytes the server sees (review v0.4 r3 graph L5)", () => {
+  it("the graph query size limit counts UTF-8 bytes in the browser too", () => {
+    const viewer: DatabaseSummary = { ...database, effectiveRole: "viewer" };
+    // 40,000 é: 80,000 bytes, over the 64 KiB limit; 40,000 a: under it.
+    expect(commandPolicy(`GRAPH.RO_QUERY g "RETURN '${"é".repeat(40_000)}'"`, [], viewer)).toMatchObject({ class: "blocked", allowed: false });
+    expect(commandPolicy(`GRAPH.RO_QUERY g "RETURN '${"a".repeat(40_000)}'"`, [], viewer)).toMatchObject({ class: "read", allowed: true });
+    // Non-ASCII inside a string stays allowed.
+    expect(commandPolicy(`GRAPH.RO_QUERY g "RETURN 'Zoë'"`, [], viewer)).toMatchObject({ allowed: true });
+  });
+});
