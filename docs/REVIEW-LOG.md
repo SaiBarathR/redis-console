@@ -1232,3 +1232,25 @@ for the console and the Workbench but not for Import (this round's M1, M2). No H
 
 ### Validation
 - Each regression test failed before its fix and passes after it.
+
+## v0.4 Round 4 – graph fix verification (Claude Sonnet 5.5 reviewer)
+
+Report: `docs/research/33-v04-review-r4-graph.md` (snapshot `release/v0.4` @ `acbffbe`). Fixer branch:
+`fix/v04-review-r4` (Claude Opus 5.5). All round-3 graph fixes (M1, M2, L1–L5) verified: three cancelled Import cycles
+never put more than one query in the engine, Import's cancel still aborts other commands at once (BLPOP: 810 ms),
+previews agree across console, Workbench and Import, the slot counts follow `min(2, poolSize - 1)`, and 300,000 random
+queries show no change in the refused set. **No finding at Medium or above**: the graph review loop is complete.
+
+| ID | Verdict | Reason | Commit | Regression tests |
+|---|---|---|---|---|
+| L1 | fixed | Reproduced: cancelling an import while its only graph line ran ended the job as `done` (a graph query is never aborted). It now ends `cancelled`, saying the line finished and is counted. | `be44e41` | server `integration/graph.test.ts` › "Import cancel with graph lines: ends cancelled…" (failed before) |
+| L2 | fixed | Reproduced: a line waiting for a graph slot (refused before sending) and cancelled was reported and audited as "may have run". Every `rate_limited` refusal now counts as not sent. | `be44e41` | same test (failed with only this change reverted) |
+| L3 | fixed | A pool of one refused graph queries only after the confirmation, and Import's plan accepted them. `prepare` refuses them first; the console answers 400 and Import lists the line as blocked. | `c81048d` | server `integration/graph.test.ts` › "a pool of one refuses graph queries at the policy step…" (failed before: 428) |
+| L4 | fixed | The browser counted a `\xHH` escape of 0x80 or more as two bytes. It now builds the rules' input with the shared byte tokenizer. | `55959e3` | web `lib/policy.test.ts` › "a \xHH escape is one byte…" (failed before) |
+| L5 | fixed | The shared VSIM FILTER limit re-encoded the server's latin1 argument as UTF-8 (300 × é refused). Arguments reach the rules as bytes in latin1, so the limit counts their length; `argumentRule` documents the representation. | `55959e3` | web `lib/policy.test.ts` › "the VSIM FILTER limit counts UTF-8 bytes once" (failed before) |
+| L6 | fixed (docs) | OPERATIONS now says a FalkorDB database needs `poolSize` 2 or more. | `8843618` | |
+| L7 | fixed (test) | A test now pins that Import's cancel aborts a non-graph command in flight; it fails when the job's signal is dropped. | `1468c8c` | server `integration/insight.test.ts` › "cancel aborts a non-graph command in flight at once" |
+
+### Validation
+- Each regression test failed before its fix and passes after it (L7 pins existing behaviour and was checked to fail
+  when the signal is removed).
