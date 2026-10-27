@@ -27,9 +27,11 @@ describe.skipIf(!sandboxUp)('round 3 measured reply regressions',()=>{
  it('H1: thirty alias-doubling APPLY steps do no local expansion, including FT.PROFILE',async()=>{
   for(const cmd of ['FT.AGGREGATE','FT.PROFILE']){
    const argv=cmd==='FT.AGGREGATE'?[cmd,'noidx','*','LOAD','1','@x']:[cmd,'noidx','AGGREGATE','QUERY','*','LOAD','1','@x'];
+   // Warm the same path with one step, then collect: the first request's one-time work (code loading, the connection
+   // pool) and garbage from the fixtures grew the heap by 10-49 MB on loaded runs. No collection after the request, so
+   // a local expansion (the H1 bug grew with 2^steps) still shows.
+   const warm=[...argv,'APPLY','@x+@x','AS','x'];expect((await v.req('POST',CLI,{argv:warm})).status).toBe(200);
    for(let i=0;i<30;i++)argv.push('APPLY','@x+@x','AS','x');
-   // Collect first: garbage left from the fixtures and the sign-in counted as "growth" (49 MB once in CI). No collection
-   // after the request, so a transient local expansion (the H1 bug allocated far more than the bound) still shows.
    setFlagsFromString('--expose-gc');const gc=runInNewContext('gc') as ()=>void;gc();gc();
    const before=process.memoryUsage().heapUsed,start=performance.now();
    const out=await v.req('POST',CLI,{argv});expect(out.status).toBe(200);expect(out.json.reply.t).toBe('err');
