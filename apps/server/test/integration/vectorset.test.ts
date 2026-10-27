@@ -182,6 +182,18 @@ describe.skipIf(!aclReady)('vector-set inspector (v0.4 F23)', () => {
     expect((await post(viewer, 'vectorset/element', { key: utf8(k('str')), member: utf8('x') })).status).toBe(400);
   });
 
+  it('element: attributes over maxValueBytes are flagged and the embedding and neighbours still read (review v0.4 r2 M2)', async () => {
+    await vadd(k('bigattr'), [1, 0], 'm', 'NOQUANT', 'SETATTR', JSON.stringify({ text: 'x'.repeat(600_000) }));
+    await vadd(k('bigattr'), [0, 1], 'n', 'NOQUANT');
+    const res = await post(viewer, 'vectorset/element', { key: utf8(k('bigattr')), member: utf8('m') });
+    expect(res.status, res.body.slice(0, 300)).toBe(200);
+    expect(res.json.attributesTooLarge).toBe(true);
+    expect(res.json.attributes).toBeNull();
+    expect(res.json.embedding).toMatchObject({ dim: 2, truncated: false });
+    expect(res.json.embedding.values).toHaveLength(2);
+    expect(res.json.links[0].neighbours.map((n: { member: { data: string } }) => n.member.data)).toEqual(['n']);
+  });
+
   it('element: embeddings above VSET_EMBED_PREVIEW_VALUES are cut and flagged', async () => {
     const dim = VSET_EMBED_PREVIEW_VALUES + 4;
     await vadd(k('wide'), Array.from({ length: dim }, (_, i) => (i % 7) / 7), 'w', 'NOQUANT');

@@ -69,6 +69,16 @@ describe('exclusive capped socket transport',()=>{
   const budget={remaining:20};expect(await p.send(['VALUE'],s.endpoint,{replyBudget:budget})).toBe('abcdef');expect(budget.remaining).toBe(8);
   await expect(p.send(['VALUE'],s.endpoint,{replyBudget:budget})).rejects.toMatchObject({code:'too_large'});expect(budget.remaining).toBe(0);
  });
+ it('a reply over its own cap keeps the bytes it read charged, not the whole request budget (review v0.4 r2 M2)',async()=>{
+  // The vector-set member panel reads attributes with a per-reply cap, then VEMB and VLINKS on the same budget.
+  const s=await server(([cmd],sock)=>sock.write(cmd==='HUGE'?'$5000\r\n'+'x'.repeat(5000)+'\r\n':'$6\r\nabcdef\r\n'));
+  const p=pool(s.endpoint.port);
+  const budget={remaining:100_000};
+  await expect(p.send(['HUGE'],s.endpoint,{replyBudget:budget})).rejects.toMatchObject({code:'too_large'});
+  expect(budget.remaining).toBeGreaterThan(100_000-1100);
+  expect(budget.remaining).toBeLessThan(100_000);
+  expect(await p.send(['VALUE'],s.endpoint,{replyBudget:budget})).toBe('abcdef');
+ });
  it('closes a dedicated stream when one event would retain more than the event limit',async()=>{
   // A single long string arrives cut (review v0.2 r4 M4); an event whose kept parts exceed 256 KiB still fails closed.
   const big='$70000\r\n'+'x'.repeat(70000)+'\r\n';

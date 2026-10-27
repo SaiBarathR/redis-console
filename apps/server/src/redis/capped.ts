@@ -78,7 +78,7 @@ class CommandSocket {
   idle: NodeJS.Timeout | undefined;
   ready = false;
   #stream: { reader: RespReader; receive(v: unknown): void; fail(e: unknown): void } | undefined;
-  #pending: { reader: RespReader; resolve(v: unknown): void; reject(e: unknown): void; cleanup(): void; budget?: { remaining: number } | undefined } | undefined;
+  #pending: { reader: RespReader; resolve(v: unknown): void; reject(e: unknown): void; cleanup(): void; budget?: { remaining: number } | undefined; capBound?: boolean } | undefined;
   #pipe: PipeState | undefined;
   constructor(db: DatabaseConfig, endpoint: Endpoint) {
     this.endpoint = endpoint;
@@ -118,7 +118,13 @@ class CommandSocket {
           if (v instanceof RespPush) { this.destroy(); p.reject(new HttpError('redis_error', 'Unexpected Redis push on a command connection.')); return; }
           if (v instanceof ErrorReply) p.reject(v); else p.resolve(v);
         }
-      } catch (e) { if (p.budget) p.budget.remaining = 0; this.#fail(e); }
+      } catch (e) {
+        // The bytes read are already charged. A reply that overflowed its own per-reply cap leaves the rest of the
+        // request's budget to later reads (a too-large optional part is not the request's end; review v0.4 r2 M2);
+        // any other failure, including a spent budget, ends it.
+        if (p.budget && !(p.capBound && e instanceof HttpError && e.code === 'too_large')) p.budget.remaining = 0;
+        this.#fail(e);
+      }
     });
     this.socket.on('error', (e) => this.#fail(e));
     this.socket.on('close', () => this.#fail(new HttpError('unavailable', 'Redis connection closed.')));
@@ -232,7 +238,7 @@ class CommandSocket {
       const cleanup = () => { clearTimeout(timer); o.signal?.removeEventListener('abort', abort); };
       // The limit is the per-reply cap, or less when a cumulative request budget is nearly spent; errors name the cap.
       const limit = Math.min(cap, o.replyBudget?.remaining ?? cap);
-      this.#pending = { reader: new RespReader(limit, o.typeMapping, undefined, undefined, { cap }), resolve, reject, cleanup, budget: o.replyBudget };
+      this.#pending = { reader: new RespReader(limit, o.typeMapping, undefined, undefined, { cap }), resolve, reject, cleanup, budget: o.replyBudget, capBound: limit === cap && (o.replyBudget === undefined || o.replyBudget.remaining > cap) };
       o.signal?.addEventListener('abort', abort, { once: true });
       this.write(args);
     });
