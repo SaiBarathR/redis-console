@@ -213,9 +213,9 @@ inspect it, add it **read-only with its existing login** instead:
 
 Add `"password": { "file": "/run/secrets/app_redis_password" }` when the server has one (copy it from that
 application's configuration into its own secret file). The console then refuses writes itself (policy, `readOnly`
-and `maxRole`), but Redis cannot refuse them a second time: `default` usually may do everything. That is why a prod
-database needs both exceptions, and why a tier whose `username` is `"default"` counts as Redis's `default` user, not
-as an ACL user of its own. The server logs each accepted risk at every start, for example
+and `maxRole`), but Redis cannot refuse them a second time: `default` usually may do everything. So a prod database
+needs `"default-credentials"`, and a tier whose `username` is `"default"` counts as Redis's `default` user, not as an
+ACL user of its own; `"plaintext"` is needed as well because the URL is `redis://` (no TLS). The server logs each accepted risk at every start, for example
 `database app-queue: viewer connects as Redis's "default" user … (accepted risk "default-credentials")`. Remove an
 exception once the gap is closed; the log also names an exception that is no longer needed.
 
@@ -482,9 +482,9 @@ console to that project's network and use the Redis container's name as the host
 
 ```yaml
 services:
-  redis-console:
+  rconsole:                         # the service of deploy/docker-compose.example.yml
     networks:
-      default: { gw_priority: 1 }   # its own network first: default route and published port
+      default: { gw_priority: 1 }   # its own network first (Compose 2.33.1+, Docker Engine 28+)
       app: {}
 networks:
   default:
@@ -775,11 +775,14 @@ SQLite, and exits within 10 seconds.
    Node's:
    ```bash
    docker exec redis-console node -e "require('node:sqlite').backup(new (require('node:sqlite').DatabaseSync)('/data/rconsole.sqlite',{readOnly:true}),'/data/backup.sqlite').then(()=>console.log('ok'))"
-   (umask 077; docker cp redis-console:/data/backup.sqlite ./rconsole-$(date +%F).sqlite) && docker exec redis-console rm /data/backup.sqlite
+   f=./rconsole-$(date +%F).sqlite
+   docker cp redis-console:/data/backup.sqlite "$f" && chmod 600 "$f" && docker exec redis-console rm /data/backup.sqlite
    ```
-   `docker cp` keeps the file's mode inside the container (0644); restrict the copy yourself (`chmod 600`). If you
-   already run a nightly dump job, add the console's volume to it: an SQLite `.backup` from a helper container that
-   mounts the `/data` volume read-write as uid 1000 is just as consistent.
+   `docker cp` gives the copy the file's mode inside the container (0644) whatever your `umask`, hence the `chmod`;
+   keep backups in a directory only you can read. With Compose, use the service's container
+   (`docker compose exec rconsole …` and `docker compose cp rconsole:/data/backup.sqlite "$f"`). If you already run a
+   nightly dump job, add the console's volume to it: an SQLite `.backup` from a helper container that mounts the
+   `/data` volume read-write as uid 1000 is just as consistent.
    On a plain host: `sqlite3 /var/lib/redis-console/rconsole.sqlite ".backup '/backup/rconsole-$(date +%F).sqlite'"`.
    Encrypt backups: they contain password hashes and the audit trail.
 2. The **keys**: `totp_encryption_key` (without it, enrolled users must re-enroll) and your other secrets, in your
@@ -863,7 +866,6 @@ Redis 8 on port 6411 that has the three ACL users above. Ports 4900 (app) and 49
 | Backups (12) | The `node:sqlite` online backup inside the read-only container produced a copy that passes `PRAGMA integrity_check`. |
 | Health (12) | `/healthz` → `{"status":"ok"}`, `/readyz` → `{"status":"ready",…}`; the container `HEALTHCHECK` reports healthy. |
 | Development quick start (README) | Server on the generic sandbox config (port overridden to 4900): SPA served, Keycloak `viewer1` and `operator1` get their roles on all sandbox databases, `nogroup1` is refused. |
-
 | Deployment trial (sections 3, 5, 6, 7.2, 7.5, 8, 11, 12) | 2026-10-27, `0.4.0` image pinned by digest on Ubuntu 24.04 (Docker 29, Compose 5), behind a Cloudflare Tunnel, local accounts only. Six Redis-compatible servers: two Redis 8.10 (one installed on the host, one in another Compose project), Redis 7.2 and two Redis 7.4 in other projects, one Valkey 8.1. The config started on the first try; through the tunnel: bootstrap sign-in, forced password change, TOTP enrollment, ten recovery codes, every database connected with the expected role. Reads and the key inspector worked on all six; writes were refused on the read-only ones without reaching Redis; a write round trip with confirmation on a writable one. Live metrics (Server-Sent Events) arrived every 2 s and a Pub/Sub message in 2 s through the tunnel. `trustProxy` set to the console network's gateway recorded the real client address, also when the client sent its own `X-Forwarded-For`. The online backup passed `integrity_check`. What it changed in this guide: sections 3, 5 (servers without ACL users), 7.2, 7.5, 8 (Cloudflare Tunnel), 12 and 14; in the code, the `default`-user production check and the accepted-risk log lines (G1, G2), the Valkey version label and the `/login` redirect after sign-in ([qa/v041-deployment-trial.md](qa/v041-deployment-trial.md)). |
 
 **Not verified here:** OIDC in production mode (the sandbox Keycloak is plain HTTP, which production refuses; OIDC is

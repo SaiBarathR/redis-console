@@ -53,7 +53,7 @@ it after `docker.service`.
 | F9 | `gh attestation` is missing from older packaged GitHub CLIs. | INSTALL 3: version note and how to compare the digest instead. |
 | F10 | Joining other projects' networks makes the example's `trustProxy: 1` unsafe (their containers reach port 4000 directly). | INSTALL 7.5 and 8: a fixed subnet, trust its gateway address. |
 | F11 | Cloudflare injects a script (JavaScript Detections); the CSP blocks it and the browser console shows an error on every page. | INSTALL 8 and troubleshooting: expected, how to turn it off, never relax the CSP. |
-| F12 | `docker cp` leaves the backup copy world-readable. | INSTALL 12: `umask 077`, and how to fold the backup into an existing dump job. |
+| F12 | `docker cp` leaves the backup copy world-readable. | INSTALL 12: `chmod 600` after the copy (`docker cp` ignores the `umask`, review M2), and how to fold the backup into an existing dump job. |
 | G1 | A tier configured as `{ "username": "default" }` counted as a per-tier ACL user: a prod database passed the production check without `acceptRisks`, and nothing was logged. | `tierUserProblems()` (server config): such a tier now needs `"default-credentials"`, and the warning says the app enforces the policy alone. Unit tests in `config.test.ts`. |
 | G2 | Accepted risks were not logged, although OPERATIONS.md said each is logged at every start. | Each accepted risk is logged, and an exception that is no longer needed is named. |
 | G3 | Suspected: the "without TLS" warning ignored `rediss://`. | Not a bug: warnings run on the resolved config, where `rediss://` sets `tls`. No change. |
