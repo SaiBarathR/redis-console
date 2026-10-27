@@ -137,3 +137,15 @@ describe("refusals by the shared rule say why, as the server does", () => {
     expect(commandPolicy("FLUSHDB", docs, { ...database, environment: "prod", effectiveRole: "admin" }).hint).toMatch(/not allowed on production databases/);
   });
 });
+
+describe("admin reads on read-only databases (review v0.4 r2 graph L1)", () => {
+  it("allows the reads the server exempts and still refuses admin writes, with the server's reason", () => {
+    const ro: DatabaseSummary = { ...database, effectiveRole: "admin", readOnly: true };
+    for (const line of ["GRAPH.SLOWLOG g", "GRAPH.CONFIG GET TIMEOUT_MAX", "CONFIG GET maxmemory"]) {
+      const p = commandPolicy(line, [], ro);
+      expect(p, line).toMatchObject({ class: "admin", allowed: true });
+      expect(p.hint, line).not.toMatch(/read-only/);
+    }
+    expect(commandPolicy("FLUSHDB", [], ro)).toMatchObject({ allowed: false, hint: "This database is read-only. Writes are refused for every role." });
+  });
+});

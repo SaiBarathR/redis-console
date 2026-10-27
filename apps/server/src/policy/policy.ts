@@ -7,6 +7,7 @@
  * confirm:   destructive rules + every write on prod (typed database name + reason).
  */
 import {
+  ADMIN_READS,
   CLASS_MIN_ROLE,
   GRAPH_QUERY_COMMANDS,
   GRAPH_TIMEOUT_MS,
@@ -48,7 +49,6 @@ export interface Classified {
 }
 
 /** Admin-class commands that do not change server state (allowed on readOnly databases for admins). */
-const ADMIN_READS = new Set(['CONFIG GET', 'CLIENT LIST', 'MEMORY MALLOC-STATS', 'GRAPH.CONFIG', 'GRAPH.SLOWLOG']);
 
 /** Blocking commands whose timeout we know how to cap. Value: how to find the timeout argument. */
 const BLOCKING: Record<string, 'last' | 'second' | 'block-option'> = {

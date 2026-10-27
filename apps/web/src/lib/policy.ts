@@ -1,4 +1,5 @@
 import {
+  ADMIN_READS,
   argumentRule,
   lookupRule,
   roleAtLeast,
@@ -61,6 +62,8 @@ export function commandPolicy(
       ? { class: "loading", allowed: false, pending: true, hint: LOADING_HINT }
       : { class: "unknown", allowed: false, pending: true, hint: CATALOG_ERROR_HINT };
   const commandClass = rule?.class ?? doc?.class ?? "blocked";
+  // Admin-class reads (CONFIG GET, GRAPH.SLOWLOG) run on read-only databases, as the server allows (isMutating).
+  const mutating = commandClass === "write" || (commandClass === "admin" && !ADMIN_READS.has(pair) && !ADMIN_READS.has(name));
   const required =
     commandClass === "read" ||
     commandClass === "write" ||
@@ -70,17 +73,17 @@ export function commandPolicy(
   const allowed =
     required !== undefined &&
     roleAtLeast(database.effectiveRole, required) &&
-    !(database.readOnly && commandClass !== "read") &&
+    !(database.readOnly && mutating) &&
     verdict?.allowed !== false &&
     !(rule?.nonProdOnly && database.environment === "prod");
   const destructive = !!rule?.confirm && rule.confirm !== "none";
   const hint =
-    (database.readOnly && (commandClass === "write" || commandClass === "admin")
+    (database.readOnly && mutating
       ? "This database is read-only. Writes are refused for every role."
       : undefined) ??
     rule?.hint ??
     verdict?.hint ??
-    (database.readOnly && commandClass !== "read"
+    (database.readOnly && mutating
       ? "This database is read-only."
       : !allowed
         ? // The server's authorize words, from the shared rule (the catalog's hint applies only without one).

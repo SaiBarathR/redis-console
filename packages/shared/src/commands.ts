@@ -32,6 +32,12 @@ export interface CommandRule {
 const B = (hint: string): CommandRule => ({ class: 'blocked', hint });
 
 /**
+ * Admin-class commands that only read (allowed on read-only databases). The server's `isMutating` and the browser's
+ * hint use this one list (review v0.4 r2 graph L1). Names as the server classifies them: `CONFIG GET`, `GRAPH.CONFIG`.
+ */
+export const ADMIN_READS: ReadonlySet<string> = new Set(['CONFIG GET', 'CLIENT LIST', 'MEMORY MALLOC-STATS', 'GRAPH.CONFIG', 'GRAPH.SLOWLOG']);
+
+/**
  * v0.4 arrays (review v0.4 r2 H1, D22): ARGREP evaluates its predicates over the whole range inside Redis's main thread
  * with no time limit, and Redis reports no byte size for a range, so no check of its arguments bounds the work (a
  * case-insensitive MATCH costs value bytes × pattern bytes; RE more). The array inspector searches with bounded reads.
