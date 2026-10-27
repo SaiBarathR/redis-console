@@ -114,6 +114,13 @@ describe.skipIf(!aclReady)('vector-set inspector (v0.4 F23)', () => {
     expect(res.json.page.members.map((m: { member: { data: string } }) => m.member.data)).toEqual(Array.from({ length: 10 }, (_, i) => `m29${i}`));
     expect(res.json.page.next).toBeUndefined();
     expect(res.json.page.prefix).toEqual(utf8('m29'));
+    // A page that is exactly full but the last one has no next page (review v0.4 r1 L1).
+    res = await post(viewer, 'vectorset/members', { key: utf8(k('v3')), prefix: utf8('m29'), count: 10 });
+    expect(res.json.page.members).toHaveLength(10);
+    expect(res.json.page.next).toBeUndefined();
+    res = await post(viewer, 'vectorset/members', { key: utf8(k('v3')), prefix: utf8('m29'), count: 9 });
+    expect(res.json.page.members).toHaveLength(9);
+    expect(res.json.page.next).toEqual(utf8('m298'));
     // Prefix and paging together: start after m295 inside the prefix.
     res = await post(viewer, 'vectorset/members', { key: utf8(k('v3')), prefix: utf8('m29'), after: utf8('m295'), count: 50 });
     expect(res.json.page.members.map((m: { member: { data: string } }) => m.member.data)).toEqual(['m296', 'm297', 'm298', 'm299']);

@@ -85,6 +85,14 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       res = await page({ start: '200', count: 100 });
       expect(res.json.items).toHaveLength(50);
       expect(res.json.next).toBeUndefined();
+      // A last page that is exactly full has no next page either, in both directions (review v0.4 r1 L1).
+      res = await page({ start: '150', count: 100 });
+      expect(res.json.items).toHaveLength(100);
+      expect(res.json.next).toBeUndefined();
+      res = await page({ start: '99', reverse: true, count: 100 });
+      expect(res.json.items).toHaveLength(100);
+      expect(res.json.next).toBeUndefined();
+      expect((await viewer.req('POST', `${DB}/key/read`, { key: utf8(k('dense')), count: 250 })).json.value.next).toBeUndefined();
       res = await page({ start: '10', end: '14', count: 5 });
       expect(res.json.items.map((i: any) => i.index)).toEqual(['10', '11', '12', '13', '14']);
       expect(res.json.next).toBeUndefined();

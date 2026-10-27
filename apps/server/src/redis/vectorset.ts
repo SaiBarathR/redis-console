@@ -68,7 +68,8 @@ export function prefixEnd(prefix: Buffer): Buffer | undefined {
 
 /**
  * `VRANGE key start end count` for one page: after `after` (exclusive), within `prefix` (start `[prefix`, end
- * `(prefixEnd`), at most `count` members. `null` when the range is empty (the start is past the prefix's end).
+ * `(prefixEnd`), `count` members and one more, which only tells pageOf whether another page follows. `null` when the
+ * range is empty (the start is past the prefix's end).
  */
 export function vrangeArgs(key: Buffer, o: { after?: Buffer | undefined; prefix?: Buffer | undefined; count: number }): Arg[] | null {
   const prefix = o.prefix?.length ? o.prefix : undefined;
@@ -77,17 +78,20 @@ export function vrangeArgs(key: Buffer, o: { after?: Buffer | undefined; prefix?
   if (prefix && (!o.after || Buffer.compare(o.after, prefix) < 0)) start = Buffer.concat([Buffer.from('['), prefix]);
   else if (o.after) start = Buffer.concat([Buffer.from('('), o.after]);
   if (end && o.after && Buffer.compare(o.after, end) >= 0) return null;
-  return ['VRANGE', key, start, end ? Buffer.concat([Buffer.from('('), end]) : '+', String(o.count)];
+  return ['VRANGE', key, start, end ? Buffer.concat([Buffer.from('('), end]) : '+', String(o.count + 1)];
 }
 
 /**
  * A page from VRANGE's reply. Members longer than KEY_ELEMENT_PREVIEW_BYTES, or past the page's display budget
- * (`budget` bytes for all names together; later names are cut to 64 bytes), are cut and flagged. `next` is the last
- * member in full when the page is full, so the following page starts after it exactly.
+ * (`budget` bytes for all names together; later names are cut to 64 bytes), are cut and flagged. VRANGE is asked for
+ * `count + 1` members (vrangeArgs): when the extra one came back, the page is cut to `count` and `next` is its last
+ * member in full, so the following page starts after it exactly and a full last page offers no next (review v0.4 r1 L1).
  */
 export function pageOf(raw: unknown[], count: number, budget: number, prefix?: Buffer): VectorSetPage {
   let left = budget;
-  const members: VectorSetMember[] = raw.map((m) => {
+  const more = raw.length > count;
+  const shown = more ? raw.slice(0, count) : raw;
+  const members: VectorSetMember[] = shown.map((m) => {
     const b = buf(m);
     const max = Math.min(KEY_ELEMENT_PREVIEW_BYTES, Math.max(64, left));
     const n = Math.min(b.length, max);
@@ -96,8 +100,8 @@ export function pageOf(raw: unknown[], count: number, budget: number, prefix?: B
   });
   const page: VectorSetPage = { members };
   if (prefix?.length) page.prefix = binFromBytes(prefix);
-  if (raw.length >= count && raw.length) {
-    const last = buf(raw[raw.length - 1]);
+  if (more && shown.length) {
+    const last = buf(shown[shown.length - 1]);
     if (last.length <= VSET_MEMBER_MAX_BYTES) page.next = binFromBytes(last);
     else page.nextUnavailable = true;
   }

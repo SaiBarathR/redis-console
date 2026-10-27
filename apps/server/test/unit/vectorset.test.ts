@@ -26,28 +26,30 @@ describe('VRANGE paging and prefix bounds', () => {
   });
 
   it('builds - + for the first page, (after for later pages, [prefix (end for a prefix', () => {
-    expect(text(vrangeArgs(B('k'), { count: 100 })!)).toEqual(['VRANGE', 'k', '-', '+', '100']);
-    expect(text(vrangeArgs(B('k'), { after: B('m009'), count: 5 })!)).toEqual(['VRANGE', 'k', '(m009', '+', '5']);
-    expect(text(vrangeArgs(B('k'), { prefix: B('m29'), count: 5 })!)).toEqual(['VRANGE', 'k', '[m29', '(m2:', '5']);
+    expect(text(vrangeArgs(B('k'), { count: 100 })!)).toEqual(['VRANGE', 'k', '-', '+', '101']);
+    expect(text(vrangeArgs(B('k'), { after: B('m009'), count: 5 })!)).toEqual(['VRANGE', 'k', '(m009', '+', '6']);
+    expect(text(vrangeArgs(B('k'), { prefix: B('m29'), count: 5 })!)).toEqual(['VRANGE', 'k', '[m29', '(m2:', '6']);
     // An `after` before the prefix starts at the prefix; inside it, after it.
-    expect(text(vrangeArgs(B('k'), { prefix: B('m29'), after: B('a'), count: 5 })!)).toEqual(['VRANGE', 'k', '[m29', '(m2:', '5']);
-    expect(text(vrangeArgs(B('k'), { prefix: B('m29'), after: B('m295'), count: 5 })!)).toEqual(['VRANGE', 'k', '(m295', '(m2:', '5']);
+    expect(text(vrangeArgs(B('k'), { prefix: B('m29'), after: B('a'), count: 5 })!)).toEqual(['VRANGE', 'k', '[m29', '(m2:', '6']);
+    expect(text(vrangeArgs(B('k'), { prefix: B('m29'), after: B('m295'), count: 5 })!)).toEqual(['VRANGE', 'k', '(m295', '(m2:', '6']);
     // At or past the prefix's end there is nothing to read.
     expect(vrangeArgs(B('k'), { prefix: B('m29'), after: B('m2:'), count: 5 })).toBeNull();
     // A 0xff prefix runs to +.
-    expect(text(vrangeArgs(B('k'), { prefix: B([0xff]), count: 5 })!)).toEqual(['VRANGE', 'k', '[\xff', '+', '5']);
+    expect(text(vrangeArgs(B('k'), { prefix: B([0xff]), count: 5 })!)).toEqual(['VRANGE', 'k', '[\xff', '+', '6']);
   });
 
-  it('pageOf names the next start only on a full page, in full bytes, and cuts long names', () => {
+  it('pageOf names the next start only when VRANGE returned more than a page, in full bytes, and cuts long names', () => {
     expect(pageOf([B('a'), B('b')], 3, 1e6)).toEqual({ members: [{ member: utf8('a') }, { member: utf8('b') }] });
-    expect(pageOf([B('a'), B('b')], 2, 1e6).next).toEqual(utf8('b'));
+    // Exactly full: the last page (review v0.4 r1 L1); one more member: cut to the page and continue after its last.
+    expect(pageOf([B('a'), B('b')], 2, 1e6).next).toBeUndefined();
+    expect(pageOf([B('a'), B('b'), B('c')], 2, 1e6)).toEqual({ members: [{ member: utf8('a') }, { member: utf8('b') }], next: utf8('b') });
     const long = Buffer.alloc(KEY_ELEMENT_PREVIEW_BYTES + 1, 0x61);
-    const page = pageOf([long], 1, 1e9);
+    const page = pageOf([long, B('z')], 1, 1e9);
     expect(page.members[0]!.truncated).toBe(true);
     expect(page.next).toBeUndefined();
     expect(page.nextUnavailable).toBe(true);
     // Past the display budget, names are cut to 64 bytes but `next` stays exact.
-    const names = [Buffer.alloc(100, 0x62), Buffer.alloc(100, 0x63)];
+    const names = [Buffer.alloc(100, 0x62), Buffer.alloc(100, 0x63), B('d')];
     const cut = pageOf(names, 2, 100);
     expect(cut.members[1]).toMatchObject({ truncated: true });
     expect(Buffer.from(cut.next!.data).length).toBe(100);

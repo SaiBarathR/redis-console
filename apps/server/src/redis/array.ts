@@ -110,7 +110,9 @@ export async function readArrayPage(
   const last = items.at(-1)?.index;
   if (items.length === q.count && last !== undefined && last !== end) {
     const next = stepIndex(last, q.reverse);
-    if (next !== undefined) page.next = next;
+    // A full page can be the last one: name `next` only when an element remains (AROP USED from the per-slice
+    // counters, not another value read; review v0.4 r1 L1).
+    if (next !== undefined && (await used(scope, conn, key, next, end, timeout)) > 0) page.next = next;
   }
   return page;
 }
