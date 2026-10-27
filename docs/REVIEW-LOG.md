@@ -1135,3 +1135,9 @@ Report: `docs/research/27-v04-review-r1.md` (snapshot `release/v0.4` @ `89a15cf`
 - H1 measured on the sandbox (Redis 8.10.2), 5,000 elements of 4 KiB `a…` against `a…ab` patterns (the worst case):
   NOCASE 9 / 33 / 64 bytes over all 5,000 took 107 / 314 / 589 ms; one capped request (4,360 / 1,453 / 817 elements)
   76 / 92 / 97 ms; case-sensitive 22–32 ms; the now-refused 257-byte pattern 2,442 ms.
+- Full e2e on the fix branch: 694 passed, 1 failed, 2 skipped. The failure was ours: the L3 change made array reads
+  of a missing key 404, a breaking change logged in CONTRACT-CHANGES, but `specs/api/array.spec.ts` still expected the
+  old empty page. Updated in `c78d49a`, which also seeds a small array in the disposable read-only fixture so the array
+  reads stay proven through the read-only proxy.
+- Server 1025 passed, 44 skipped (fix branch); 1044 passed, 44 skipped after the graph merge. Live QA as viewer,
+  operator and admin: [qa/v04-review-r1-fixes.md](qa/v04-review-r1-fixes.md).
