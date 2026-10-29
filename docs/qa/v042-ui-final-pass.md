@@ -95,3 +95,73 @@ column.
 Scratch keys under this pass's prefix and the temporary search index were deleted from the scratch database. The
 disposable instance (own port and data directory) was stopped by its process IDs and its data directory removed.
 Screenshots and scripts stay outside the repository.
+
+## Automated layout sweep follow-up
+
+An independent follow-up used the prior tour with five geometry checks: visible sibling box intersections,
+text range and scroll-width overflow without an owned scroller or ellipsis, page horizontal scrolling, identifiers
+breaking within a segment, and text line boxes within four pixels of a bordered edge. Identifier character checks
+are bounded to 512 characters per token so large values do not turn the probe into an unbounded workload.
+
+Coverage: 84 tour states at each of 1024 and 1280 px in light and dark, plus six onboarding/MFA states and two
+supplemental states (sampled index schema and a larger bounded string read) per combination: **368 final captures**.
+The tour includes every scratch key type, expanded collections, inspector dialogs, populated Search, analysis,
+streams and time series, the shell overlays, user dialogs and failed sign-in. Supplemental onboarding, authenticator
+QR, recovery-code and MFA sign-in layouts used synthetic browser-only API responses; these captures qualify layout
+only and did not change account security settings. Graph-result rendering and unusually long configured database
+labels were not requalified by this follow-up.
+
+The initial attempt was discarded because the pre-existing development watcher continuously restarted. With owner
+authorization it was replaced by a non-watching process. A complete stable baseline was then captured with only the
+two fix-specific CSS classes disabled in the browser. The same states were captured with both fixes active.
+
+### Additional defects fixed
+
+- **Diagnostics consumer groups:** fixed-layout equal columns let a long group button paint into Consumers and split
+  the timestamp portion of a last-delivered ID. The group table now uses natural numeric/ID widths and wraps the
+  group name within its own cell. An automated geometry regression fails with the class removed and passes with it
+  at both widths in both themes (four combinations).
+- **Sorted-set scores:** a long numeric score could paint outside its selected column at the narrow width. Scores
+  now ellipsize inside that column; the existing title and edit control retain the complete score. A second geometry
+  regression verifies containment or deliberate ellipsis plus the intact full-score title at all four combinations.
+  The old presentation reproduces overflow at the narrow width.
+
+No shared style, UI primitive, API, policy, persistence, or contract files were changed.
+
+### Sweep disposition
+
+The comparable full tours produced **3,398 raw flags before and 3,375 after**; the final supplemental captures add
+78 flags, for **3,453 remaining raw flags**. These counts include repeated shell chrome on every page and are
+heuristic observations, not defect counts. Confirmed concerns: **2 before, 0 after**. There are no page horizontal
+scroll flags, navigation failures, unexplained flags or unexpected page errors. The confirmation flow's expected
+HTTP 428 is retained in the external evidence.
+
+Remaining flags, reviewed against screenshots:
+
+- Non-painting table column groups share geometry with table headers and bodies.
+- Multiline inline spans have intersecting enclosing rectangles even though their painted fragments do not overlap.
+- Long opaque data values and binary/hex identifiers intentionally wrap within data surfaces.
+- Compact badges, keycaps, buttons, status labels, highlights and list headers have line-box clearances below four
+  pixels; their glyphs remain separated from borders. These retain the existing compact control density.
+- Native fieldset legends deliberately sit across the top rule.
+- A partially visible text line at a scrollable value's bottom edge is viewport clipping with an owned scrollbar.
+- One pre-wrapped audit argument range includes three pixels of trailing whitespace beyond its box; painted text
+  stays inside the cell and away from the adjacent column.
+
+The five named previous fixes were also inspected at **1024 dark and 1440 light**: audit columns, collection lookup
+row, compact consumer actions, slow-log client address/port, and chart tick spacing. The later time-series sample
+timestamp-width fix was checked as well. Screenshots, reproducible scripts, per-state flags and individual
+justifications are retained in the external sweep artifacts; no screenshots or private runtime data are committed.
+
+### Follow-up validation and cleanup
+
+- Workspace typecheck: all packages pass.
+- Web unit tests: **43 files, 559 passed**, zero failures.
+- Full UI E2E folder under the machine-wide lock: **255 passed, 2 skipped**, zero failures, no retries.
+- Focused browser geometry regressions: **8 width/theme cases pass**, with the original failures reproduced by
+  removing each fix's CSS class.
+- Concurrent tours reached request/stream limits in some populated states; those final states were recaptured
+  sequentially. Raw counts are sensitive to changing live content and error-state timing; the focused regressions
+  establish the before/after result for the two confirmed defects.
+- Scratch fixtures and the temporary search index are removed after capture. The replacement non-watching server
+  is stopped by its own process ID. The E2E lock is released. No push.
