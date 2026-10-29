@@ -686,7 +686,7 @@ export function Keys() {
     );
   };
 
-  const keyColumns = `14px var(--indent) ${columns.type ? "30px " : ""}minmax(0, 1fr)${columns.ttl ? " 96px" : ""}${columns.size ? " 56px" : ""}`;
+  const keyColumns = `14px var(--indent) ${columns.type ? "var(--type-glyph-width) " : ""}minmax(0, 1fr)${columns.ttl ? " 96px" : ""}${columns.size ? " 56px" : ""}`;
   const folderColumns = `var(--indent) 14px minmax(0, 1fr) auto 44px 40px${columns.size ? " 64px" : ""}`;
 
   const renderFolder = (row: FolderRow, at: number, style: Record<string, string | number>) => {
