@@ -29,6 +29,13 @@ describe("graph keys in the key browser (L4)", () => {
     render(wrap(<KeyContent details={other} refresh={async () => {}} />));
     expect(document.body).toHaveTextContent("does not read this type yet");
   });
+  it("names probabilistic module types for people and gives the describing command", () => {
+    const bloom: KeyDetails = { ...graph(), type: "MBbloom--", value: { type: "unsupported", message: "Values of type MBbloom-- are not shown in the browser. Use the console (e.g. BF.INFO / CF.INFO)." } };
+    render(wrap(<KeyContent details={bloom} refresh={async () => {}} />));
+    expect(document.body).toHaveTextContent("Bloom filter values are not shown in the key browser.");
+    expect(document.body).toHaveTextContent("BF.INFO");
+    expect(document.body).not.toHaveTextContent("MBbloom--");
+  });
   it("labels the size of a graph key 'not measured' in the inspector, never a byte count", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(graph()), { status: 200, headers: { "Content-Type": "application/json" } })));
     render(wrap(<KeyInspector selected={binFromString("g")} delimiter=":" onDeleted={() => {}} />));

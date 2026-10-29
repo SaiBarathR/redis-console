@@ -37,6 +37,13 @@ const elementId = (bin: Bin, ref?: ElementRef) =>
 
 /** The element an edit panel is bound to, as the current page shows it (a score as its text). */
 /** Types whose unsupported-value message already names the command to use (see the server's hintFor). */
+const UNSUPPORTED_TYPES: Record<string, { name: string; hint: string }> = {
+  "MBbloom--": { name: "Bloom filter", hint: "BF.INFO" },
+  MBbloomCF: { name: "Cuckoo filter", hint: "CF.INFO" },
+  "CMSk-TYPE": { name: "Count-min sketch", hint: "CMS.INFO" },
+  "TopK-TYPE": { name: "Top-K", hint: "TOPK.INFO or TOPK.LIST" },
+  "TDIS-TYPE": { name: "t-digest", hint: "TDIGEST.INFO" },
+};
 const hasTypeHint = (type: string) => type === "graphdata" || type.startsWith("MBbloom");
 
 function elementOf(value: KeyValue, id: string): { value: Bin; truncated?: boolean } | undefined {
@@ -582,18 +589,26 @@ export function KeyContent({
     case "array":
       result = <ArrayDetail details={details} value={value} refresh={refresh} cell={(bin, cut, ref) => cell(bin, cut, ref, "value", true)} />;
       break;
-    case "unsupported":
-      result = (
+    case "unsupported": {
+      // Module types are named for people, with the read-only commands that describe them; others keep the
+      // server's message.
+      const known = UNSUPPORTED_TYPES[details.type];
+      result = known ? (
+        <Empty title={`${known.name} values are not shown in the key browser.`}>
+          <span>Use the console to describe it, for example <code>{known.hint}</code>.</span>
+        </Empty>
+      ) : (
         <Empty title={value.message}>
           {!hasTypeHint(details.type) && (
             <span>
               The key browser does not read this type yet. Use the console for the
-              commands your role allows (for example BF.INFO or CF.INFO).
+              commands your role allows.
             </span>
           )}
         </Empty>
       );
       break;
+    }
   }
   const truncated =
     value.type === "hash"

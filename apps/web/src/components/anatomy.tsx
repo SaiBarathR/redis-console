@@ -98,6 +98,9 @@ const TYPE_INFO: Record<string, { code: string; family: string; label: string }>
     timeseries: { code: "ts", family: "timeseries", label: "timeseries" },
     "MBbloom--": { code: "bf", family: "probabilistic", label: "MBbloom--" },
     MBbloomCF: { code: "cf", family: "probabilistic", label: "MBbloomCF" },
+    "CMSk-TYPE": { code: "cms", family: "probabilistic", label: "CMSk-TYPE" },
+    "TopK-TYPE": { code: "tk", family: "probabilistic", label: "TopK-TYPE" },
+    "TDIS-TYPE": { code: "td", family: "probabilistic", label: "TDIS-TYPE" },
     vectorset: { code: "vec", family: "vector", label: "vectorset" },
     array: { code: "arr", family: "array", label: "array" },
   };
