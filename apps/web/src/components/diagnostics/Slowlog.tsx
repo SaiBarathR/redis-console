@@ -170,7 +170,7 @@ export function Slowlog() {
           <Loading label="Reading the slow log…" />
         ) : (
           <DataTable
-            className="dense"
+            className="dense slowlog-table"
             columns={[
               <span className="num">ID</span>,
               "Time",

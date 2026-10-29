@@ -96,3 +96,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.overview, .overview .grid-2 > *, .overview .chart, .diag-pane .chart { min-width: 0; }
+.overview .section > header { flex-wrap: wrap; }
+.info-all table { table-layout: fixed; }
+.info-all th:nth-child(1) { width: 18%; }
+.info-all th:nth-child(2) { width: 32%; }
+.info-all td code { white-space: pre-wrap; overflow-wrap: anywhere; }

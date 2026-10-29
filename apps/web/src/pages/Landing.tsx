@@ -166,6 +166,7 @@ function DatabaseRow({
         <Link
           to={href}
           className="db-link"
+          title={visibleText(db.name)}
           data-row={index}
           aria-describedby={`db-${index}-meta`}
         >

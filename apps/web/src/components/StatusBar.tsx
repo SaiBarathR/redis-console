@@ -60,7 +60,7 @@ export function StatusBar({
     ? `${m.source === "live" ? "Live sample from the Overview stream" : "INFO read"} at ${formatDateTime(m.readAt)}`
     : "";
   return (
-    <footer className="statusbar" aria-label="Status">
+    <footer className="statusbar" aria-label="Status" tabIndex={0}>
       {db ? (
         <>
           <span className="connection" title={db.statusMessage ?? db.status}>
