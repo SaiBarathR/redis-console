@@ -47,6 +47,8 @@ export function Chart({
     const axis = token("--graphite", "#555e59");
     const grid = token("--rule", "#d2d8d2");
     const font = `11px ${token("--font-ui", "system-ui")}`;
+    // Ticks are spaced from the plot width by the widest label plus a clear gap, so labels never touch.
+    const tickSpace = labelWidth("00:00:00", font) + 28;
     const instance = new uPlot(
       {
         width: contentWidth(),
@@ -69,6 +71,7 @@ export function Chart({
             ticks: { stroke: grid, width: 1 },
             font,
             size: 28,
+            space: tickSpace,
             values: (_, ticks) =>
               ticks.map((t) =>
                 new Date(t * 1000).toLocaleTimeString([], {
@@ -145,4 +148,12 @@ export function Chart({
       )}
     </div>
   );
+}
+
+/** Width of a label in the axis font (canvas text metrics; falls back to an estimate where canvas is unavailable). */
+function labelWidth(text: string, font: string) {
+  const context = typeof document === "undefined" ? null : document.createElement("canvas").getContext("2d");
+  if (!context) return text.length * 7;
+  context.font = font;
+  return Math.ceil(context.measureText(text).width);
 }
