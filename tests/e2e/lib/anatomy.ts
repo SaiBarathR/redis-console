@@ -92,7 +92,7 @@ function measurePage({ limits, allowlist }: { limits: typeof LIMITS; allowlist: 
   };
   const filled = (e: Element, s: CSSStyleDeclaration) => alpha(s.backgroundColor) > 0.05 && s.backgroundColor !== bgBehind(e.parentElement);
   const shadowRing = (s: CSSStyleDeclaration) => s.boxShadow !== 'none' && !/^rgba\(0, 0, 0, 0\)/.test(s.boxShadow);
-  const CONTROL = 'button,a.button,a[href]:has(> svg),input:not([type="hidden"]),select,textarea,[role="tab"],[role="switch"],'
+  const CONTROL = 'button,summary,a.button,a[href]:has(> svg),input:not([type="hidden"]),select,textarea,[role="tab"],[role="switch"],'
     + '[role="checkbox"],.badge,.chip,.tag,kbd,.env-badge,.toggle,.type-glyph,.topic-chip,.db-tag,.role-tag,.policy-tag,.outcome-tag';
   const isControl = (e: Element) => e.matches(CONTROL);
   const scrolls = (s: CSSStyleDeclaration) => ['auto', 'scroll'].includes(s.overflowX) || ['auto', 'scroll'].includes(s.overflowY);
@@ -202,14 +202,21 @@ function measurePage({ limits, allowlist }: { limits: typeof LIMITS; allowlist: 
       if (s.position === 'fixed' || anc.matches('dialog:modal')) break;
       if (!clips(s)) continue;
       const p = paddingBox(anc);
-      const overX = raw.some(r => r.right > p.r + 1 || r.left < p.l - 1);
-      const overY = raw.some(r => r.bottom > p.b + 2 || r.top < p.t - 2);
+      const out = (list: DOMRect[]) => [list.some(r => r.right > p.r + 1 || r.left < p.l - 1), list.some(r => r.bottom > p.b + 2 || r.top < p.t - 2)];
+      if (!out(raw).some(Boolean)) continue;
+      // Preserved spaces hang past a wrap point invisibly (pre-wrap): only ink, word by word, counts as clipped.
+      const words: DOMRect[] = [];
+      for (const m of text.matchAll(/\S+/g)) {
+        const w = document.createRange(); w.setStart(n, m.index!); w.setEnd(n, m.index! + m[0].length);
+        words.push(...Array.from(w.getClientRects()).filter(r => r.width > 0.5));
+      }
+      const [overX, overY] = out(words);
       if (!overX && !overY) continue;
       const visible = raw.some(r => r.right > p.l && r.left < p.r && r.bottom > p.t && r.top < p.b);
       const sc = scrolls(s);
       if (visible && !sc && !legend && fullyVisible(anc)) {
-        if (overX && s.textOverflow !== 'ellipsis' && s.overflowX !== 'visible') add(anc, 'clipped-text', `text runs ${f(Math.max(...raw.map(r => r.right)) - p.r)}px past the clip edge without an ellipsis`);
-        if (overY && s.getPropertyValue('-webkit-line-clamp') === 'none' && s.overflowY !== 'visible' && s.textOverflow !== 'ellipsis') add(anc, 'clipped-text', `text cut ${f(Math.max(...raw.map(r => r.bottom)) - p.b)}px at the bottom without an ellipsis or line clamp`);
+        if (overX && s.textOverflow !== 'ellipsis' && s.overflowX !== 'visible') add(anc, 'clipped-text', `text runs ${f(Math.max(...words.map(r => r.right)) - p.r)}px past the clip edge without an ellipsis`);
+        if (overY && s.getPropertyValue('-webkit-line-clamp') === 'none' && s.overflowY !== 'visible' && s.textOverflow !== 'ellipsis') add(anc, 'clipped-text', `text cut ${f(Math.max(...words.map(r => r.bottom)) - p.b)}px at the bottom without an ellipsis or line clamp`);
       }
       break;
     }
@@ -247,6 +254,11 @@ function measurePage({ limits, allowlist }: { limits: typeof LIMITS; allowlist: 
     if (t) {
       for (const b of t.rects.filter(textOk)) {
         const ins = [b.l - r.left, r.right - b.r, b.t - r.top, r.bottom - b.b];
+        // Scrolled content meets the scrollport edge by design on the axis it scrolls; padding applies at rest only.
+        if (isScroller && e.scrollHeight > e.clientHeight + 1 && e.scrollTop > 0) ins[2] = Infinity;
+        if (isScroller && e.scrollHeight > e.clientHeight + 1 && e.scrollTop + e.clientHeight < e.scrollHeight - 1) ins[3] = Infinity;
+        if (isScroller && e.scrollWidth > e.clientWidth + 1 && e.scrollLeft > 0) ins[0] = Infinity;
+        if (isScroller && e.scrollWidth > e.clientWidth + 1 && e.scrollLeft + e.clientWidth < e.scrollWidth - 1) ins[1] = Infinity;
         const txt = `left ${f(ins[0]!)}, right ${f(ins[1]!)}, top ${f(ins[2]!)}, bottom ${f(ins[3]!)}`;
         if (k.boxed) {
           if (ins[0]! < limits.insetX - T || ins[1]! < limits.insetX - T || ins[2]! < limits.insetY - T || ins[3]! < limits.insetY - T) add(e, 'text-inset', txt);
