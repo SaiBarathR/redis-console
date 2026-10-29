@@ -12,6 +12,13 @@ import { setConfirmHandler, type ConfirmContext } from "../lib/api.ts";
 import { displayBin, visibleText } from "../lib/format.ts";
 import { plural, previewArgText } from "../lib/preview.ts";
 import { Badge, Field, Modal } from "./ui.tsx";
+
+/** The user dismissed the confirmation: not a failure, so ErrorState shows it as a neutral status. */
+function cancelled(message: string) {
+  const error = new Error(message);
+  error.name = "ActionCancelled";
+  return error;
+}
 type Pending = {
   challenge: ConfirmationChallenge;
   database?: DatabaseSummary;
@@ -199,12 +206,12 @@ export function ConfirmationProvider({ children }: { children: ReactNode }) {
     );
     return () => {
       setConfirmHandler(undefined);
-      current.current?.reject(new Error("Confirmation cancelled."));
+      current.current?.reject(cancelled("Confirmation cancelled."));
       current.current = undefined;
     };
   }, []);
   const close = () => {
-    pending?.reject(new Error("Action cancelled. No changes were made."));
+    pending?.reject(cancelled("Action cancelled. No changes were made."));
     current.current = undefined;
     setPending(undefined);
   };

@@ -7,7 +7,7 @@ import {
   type ReactNode,
   type FormEvent,
 } from "react";
-import { AlertCircle, Check, Copy, LoaderCircle, X } from "lucide-react";
+import { AlertCircle, Check, Copy, Info, LoaderCircle, X } from "lucide-react";
 import { visibleText } from "../lib/format.ts";
 export function ErrorState({
   error,
@@ -19,6 +19,14 @@ export function ErrorState({
   onRetry?: () => void;
   retryLabel?: string;
 }) {
+  // A dismissed confirmation (Confirmation.tsx) is the user's choice, not an error: quiet status, no alert.
+  if (error instanceof Error && error.name === "ActionCancelled")
+    return (
+      <div className="notice" role="status">
+        <Info size={15} aria-hidden="true" />
+        <span>{visibleText(error.message)}</span>
+      </div>
+    );
   return error ? (
     <div className="notice error" role="alert">
       <AlertCircle size={15} aria-hidden="true" />

@@ -11,6 +11,7 @@ import {
 import { post, setConfirmHandler, setCsrfToken } from "../lib/api.ts";
 import { previewArgText, previewCommandText } from "../lib/preview.ts";
 import { ChallengeDetails, ConfirmationProvider } from "./Confirmation.tsx";
+import { ErrorState } from "./ui.tsx";
 
 const s = binFromString;
 const response = (data: unknown, status = 200) =>
@@ -195,5 +196,16 @@ describe("confirmation dialog", () => {
     expect(await screen.findByTestId("confirmation-target")).toHaveTextContent("elsewhere");
     await userEvent.click(screen.getByText("Cancel"));
     expect(await result).toBeInstanceOf(Error);
+  });
+  it("shows a dismissed confirmation as a neutral status, not an error alert", async () => {
+    stub428(challengeFor({}));
+    renderProvider();
+    const error = await new Promise<unknown>((done) => {
+      post("/databases/elsewhere/cli", { line: "DEL a" }).catch(done);
+      void screen.findByTestId("confirmation-target").then(() => userEvent.click(screen.getByText("Cancel")));
+    });
+    render(<ErrorState error={error} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Action cancelled. No changes were made.");
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
