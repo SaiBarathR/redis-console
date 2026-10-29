@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Ident } from "../Ident.tsx";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Pause, Play, Trash2 } from "lucide-react";
 import type { ClientInfo, ProfilerEvent } from "@rconsole/shared";
@@ -234,7 +235,7 @@ export function Profiler({ compact = false }: { compact?: boolean }) {
                   {formatTime(event.t, prefs)}
                 </span>,
                 <span className="num tabular">{event.db}</span>,
-                <code>{visibleText(event.client)}</code>,
+                <Ident text={event.client} />,
                 <CommandLine argv={event.argv} />,
               ])}
             empty={

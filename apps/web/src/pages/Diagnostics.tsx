@@ -453,7 +453,7 @@ function Streams() {
                     <span className="num tabular">{row.consumers.length}</span>,
                     <span className="num tabular">{row.pending}</span>,
                     <span className="num tabular">{row.lag ?? "—"}</span>,
-                    <code>{row.lastDeliveredId}</code>,
+                    <Ident text={row.lastDeliveredId} />,
                     canWrite(db) && (
                       <InlineAction
                         label="Destroy"
