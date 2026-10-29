@@ -631,7 +631,8 @@
 .workbench-snippets select {
   width: auto;
   min-height: 24px;
-  padding: 1px 6px;
+  padding: 1px 22px 1px 6px;
+  background-position: right 6px center;
   font-size: var(--text-micro);
 }
 .workbench-snippets button {

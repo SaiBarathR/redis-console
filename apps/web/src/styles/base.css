@@ -238,8 +238,21 @@ textarea {
   resize: vertical;
   line-height: var(--lh-data);
 }
+/* One chevron for every select, inset from the border like the text: the native arrow sat on the right border. */
 select {
   cursor: pointer;
+  appearance: none;
+  padding-right: 28px;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 12px 12px;
+  text-overflow: ellipsis;
+}
+select[multiple],
+select[size]:not([size="1"]) {
+  padding-right: 8px;
+  background-image: none;
 }
 input[type="checkbox"],
 input[type="radio"] {

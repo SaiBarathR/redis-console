@@ -399,7 +399,8 @@
 .list-head select.auto-refresh {
   width: auto;
   min-height: 22px;
-  padding: 0 4px;
+  padding: 0 22px 0 6px;
+  background-position: right 6px center;
   font-size: var(--text-micro);
 }
 .key-pane > .scan-progress,
@@ -495,7 +496,8 @@
 .scan-foot .scan-count select {
   width: auto;
   min-height: 24px;
-  padding: 0 4px;
+  padding: 0 22px 0 6px;
+  background-position: right 6px center;
 }
 .scan-foot small {
   margin-left: auto;
@@ -590,7 +592,8 @@
 .refresh-select select {
   width: auto;
   min-height: 26px;
-  padding: 0 6px;
+  padding: 0 22px 0 6px;
+  background-position: right 6px center;
   font-size: var(--text-meta);
 }
 .inspector-head .notice {
