@@ -62,3 +62,19 @@
 .stream-inspector td button { white-space: normal; text-align: left; max-width: 100%; }
 .stream-inspector td.num, .stream-inspector th.num { white-space: nowrap; }
 .stream-inspector td button > code { white-space: nowrap; }
+
+/* Tables without a shared detail row (arrays) expand in place; their toggle looks like every other collection's. */
+.collection-cell details { font-size: var(--text-meta); }
+.collection-cell details > summary {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+  color: var(--graphite);
+  font-weight: 550;
+}
+.collection-cell details > summary::-webkit-details-marker { display: none; }
+.collection-cell details > summary:hover { background: var(--hover); color: var(--ink); }
+.collection-cell details[open] > summary { color: var(--signal); background: var(--signal-tint); }
