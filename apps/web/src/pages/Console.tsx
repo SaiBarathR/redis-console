@@ -137,7 +137,7 @@ export function PolicyBadge({
           ? "Ready"
           : policy.pending
             ? policy.class
-            : `${policy.class}${policy.destructive ? " · destructive" : ""}${!policy.allowed ? " · blocked" : confirmation ? " · needs confirmation" : ""}`}
+            : `${policy.class}${policy.destructive ? " · destructive" : ""}${!policy.allowed && policy.class !== "blocked" ? " · blocked" : confirmation ? " · needs confirmation" : ""}`}
       </Badge>
       <span title={policy.hint}>
         {policy.pending && held && policy.class === "loading"

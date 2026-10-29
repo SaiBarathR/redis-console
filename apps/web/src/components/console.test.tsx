@@ -397,6 +397,11 @@ describe("prompt and policy per environment", () => {
     expect(prompt).toHaveTextContent("viewer");
     expect(screen.getByTestId("policy-badge")).toHaveTextContent("blocked");
   });
+  it("says blocked once for a command that is blocked outright", () => {
+    show(db, "NOPE x");
+    expect(screen.getByTestId("policy-badge")).toHaveTextContent(/^blocked/);
+    expect(screen.getByTestId("policy-badge")).not.toHaveTextContent("blocked · blocked");
+  });
 });
 
 describe("console review round 1", () => {
