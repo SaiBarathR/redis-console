@@ -78,3 +78,8 @@
 .collection-cell details > summary::-webkit-details-marker { display: none; }
 .collection-cell details > summary:hover { background: var(--hover); color: var(--ink); }
 .collection-cell details[open] > summary { color: var(--signal); background: var(--signal-tint); }
+
+/* Lookup row: inputs share the line with a sensible minimum, and Apply/Reset move together when they wrap. */
+.collection-lookup > input { flex: 1 1 9rem; min-width: 8rem; }
+.collection-lookup > label { flex: 0 0 auto; }
+.collection-lookup-actions { display: inline-flex; gap: var(--space-2); margin-left: auto; flex: 0 0 auto; }

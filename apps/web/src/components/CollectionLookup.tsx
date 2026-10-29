@@ -34,11 +34,13 @@ export function CollectionLookup({ type, initial = {}, offset = 0, apply }: { ty
       </>}
     </select></label>
     <input aria-label={mode === "index" ? "List index" : mode === "score" ? "Minimum score" : mode === "range" ? "Start entry ID" : "Collection lookup"} value={text} onChange={e => setText(e.target.value)} placeholder={mode === "match" ? "Field/member glob, e.g. user:*" : mode === "range" ? "- or 123-0" : mode === "score" ? "-inf" : ""} />
-    {(mode === "score" || mode === "range") && <input aria-label={mode === "score" ? "Maximum score" : "End entry ID"} value={end} onChange={e => setEnd(e.target.value)} placeholder={mode === "score" ? "+inf" : "+ (same ID for exact lookup)"} />}
+    {(mode === "score" || mode === "range") && <input aria-label={mode === "score" ? "Maximum score" : "End entry ID"} value={end} onChange={e => setEnd(e.target.value)} placeholder={mode === "score" ? "+inf" : "+ or same ID"} title={mode === "range" ? "End entry ID: + for the newest entry, or the start ID again for an exact lookup" : undefined} />}
     {mode === "exact" && <select aria-label="Lookup encoding" value={encoding} onChange={e => setEncoding(e.target.value as typeof encoding)}><option value="utf8">UTF-8</option><option value="base64">Base64</option></select>}
     {type === "zset" && <label><input type="checkbox" checked={reverse} onChange={e => setReverse(e.target.checked)} /> Highest score first (range reads)</label>}
-    <button type="submit">Apply lookup</button>
-    <button type="button" className="ghost" onClick={() => { setText(""); setEnd(""); setReverse(false); apply({}); }}>Reset lookup</button>
+    <span className="collection-lookup-actions">
+      <button type="submit">Apply lookup</button>
+      <button type="button" className="ghost" onClick={() => { setText(""); setEnd(""); setReverse(false); apply({}); }}>Reset lookup</button>
+    </span>
     <ErrorState error={error} />
   </form>;
 }
