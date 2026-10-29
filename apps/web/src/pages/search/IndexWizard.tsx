@@ -284,7 +284,7 @@ export function IndexWizard({ onCreated }: { onCreated: (index: string) => void 
                     </td>
                     <td className="num tabular">{r.seen !== undefined ? `${r.seen}/${sample.sampled}` : "added"}</td>
                     <td>
-                      <span className="data rich-cell">{(r.examples ?? []).map(visibleText).join("  ·  ")}</span>
+                      <span className="data rich-cell" title={(r.examples ?? []).map(visibleText).join("  ·  ")}>{(r.examples ?? []).map(visibleText).join("  ·  ")}</span>
                     </td>
                   </tr>
                 ))}
@@ -415,8 +415,7 @@ function FieldOptions({ spec, onChange }: { spec: SearchFieldSpec; onChange: (p:
         <label className="checkbox" title="SEPARATOR: one character splitting several tags in one value (default ,)">
           Separator
           <input
-            className="data"
-            style={{ width: "3ch" }}
+            className="data tag-separator"
             maxLength={1}
             value={spec.separator ?? ""}
             onChange={(e) => onChange({ separator: e.target.value || undefined })}

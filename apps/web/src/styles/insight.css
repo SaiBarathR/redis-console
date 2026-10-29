@@ -526,17 +526,33 @@
 }
 
 /* Preserve usable schema controls; the wizard's table wrapper owns horizontal overflow. */
+/* Fixed columns sized to their controls; Examples take the rest and show three lines. A 900 px minimum hid Seen
+   and Examples off to the right at 1024 px, and an unbounded Examples cell made a row hundreds of pixels tall. */
 .schema-table {
-  min-width: 900px;
+  table-layout: fixed;
+  width: 100%;
+  min-width: 720px;
 }
-.schema-table td:nth-child(3) {
-  min-width: 120px;
+.schema-table th:nth-child(1) { width: 4.5rem; }
+.schema-table th:nth-child(2) { width: 18%; }
+.schema-table th:nth-child(3) { width: 9rem; }
+.schema-table th:nth-child(4) { width: 9.5rem; }
+.schema-table th:nth-child(5) { width: 11.5rem; }
+.schema-table th:nth-child(6) { width: 4.5rem; }
+.schema-table td { overflow-wrap: anywhere; }
+.schema-table th { white-space: nowrap; }
+.schema-table .rich-cell {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
-.schema-table td:nth-child(4) {
-  min-width: 110px;
-}
-.schema-table td:nth-child(5) {
-  min-width: 150px;
+.schema-table .tag-separator {
+  width: 3.5em;
+  min-height: 24px;
+  padding: 1px 4px;
+  text-align: center;
 }
 .schema-table .checkbox {
   white-space: nowrap;
@@ -546,3 +562,21 @@
 .import-pane > .pane-body { display: flex; flex-direction: column; gap: var(--space-3); }
 .import-pane > .pane-body > * { margin-top: 0; margin-bottom: 0; }
 .import-pane > .pane-body > .muted { margin-top: calc(var(--space-2) - var(--space-3)); }
+
+/* Wizard step 1: the key-type radios and the prefix field start on one line (a bottom-aligned row pushed the
+   taller radio group's legend below the prefix label), and the sample action has room above its note. */
+.wizard-step .query-options {
+  align-items: flex-start;
+}
+.wizard-step fieldset.field > legend {
+  padding: 0;
+  margin-bottom: var(--space-1);
+  font-weight: 550;
+}
+.wizard-step fieldset.field {
+  gap: var(--space-1);
+}
+.wizard-step > .actions + .muted {
+  margin-top: var(--space-2);
+  max-width: 76ch;
+}
