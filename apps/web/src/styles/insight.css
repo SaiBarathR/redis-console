@@ -549,9 +549,9 @@
   overflow: hidden;
 }
 .schema-table .tag-separator {
-  width: 3.5em;
+  width: 4em;
   min-height: 24px;
-  padding: 1px 4px;
+  padding: 1px 6px;
   text-align: center;
 }
 .schema-table .checkbox {

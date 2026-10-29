@@ -649,6 +649,11 @@ export function Editor({
               fontStyle: "normal",
               marginLeft: "1em",
             },
+            // CodeMirror's 1px 3px option padding put the label against the highlighted row's edges.
+            ".cm-tooltip.cm-tooltip-autocomplete > ul > li": {
+              padding: "2px 8px 2px 6px",
+              lineHeight: "18px",
+            },
             ".cm-tooltip-autocomplete ul li[aria-selected]": {
               backgroundColor: "var(--accent-soft)",
               color: "var(--text)",

@@ -771,6 +771,11 @@ td.row-actions {
   padding: 3px;
   opacity: 0.8;
 }
+/* 12 px glyphs keep 6 px of the 24 px button around them, visible once it is filled (pressed). */
+.row-button svg {
+  width: 12px;
+  height: 12px;
+}
 tr:hover .row-button,
 .row-button:focus-visible,
 .row-button[aria-pressed="true"] {

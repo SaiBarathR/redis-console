@@ -738,6 +738,9 @@
 }
 
 /* Workbench gutter: policy before a run, status after it. */
+.console-policy-gutter {
+  padding-right: 2px;
+}
 .console-line-marker {
   display: inline-block;
   width: 16px;
