@@ -89,3 +89,12 @@
   padding-left: var(--space-4);
   columns: 2 22rem;
 }
+
+/* Fixed columns: a long member name (nowrap, ellipsis) otherwise took the whole auto-layout width, squeezed
+   Attributes to one letter per line and pushed the remove button out of the table. */
+.vset-members table[data-testid="vset-members"] { table-layout: fixed; width: 100%; }
+.vset-members table[data-testid="vset-members"] th:first-child { width: 3.5rem; }
+.vset-members table[data-testid="vset-members"] th.vset-attr-col { width: 32%; }
+.vset-members table[data-testid="vset-members"] th.row-actions-col { width: 44px; }
+.vset-members table[data-testid="vset-members"] td { overflow-wrap: normal; }
+.vset-members .vset-attr { max-width: 100%; }

@@ -228,7 +228,7 @@ function Members({ keyName, first, total, writable, onOpen, reload }: { keyName:
                 <tr>
                   <th className="num">#</th>
                   <th>Member</th>
-                  {showAttributes && <th>Attributes</th>}
+                  {showAttributes && <th className="vset-attr-col">Attributes</th>}
                   {writable && <th className="row-actions-col"><span className="sr-only">Actions</span></th>}
                 </tr>
               </thead>
