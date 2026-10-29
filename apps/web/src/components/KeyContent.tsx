@@ -1,4 +1,4 @@
-import { createContext, Fragment, useContext, useState, type ReactNode } from "react";
+import { cloneElement, isValidElement, createContext, Fragment, useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Pencil, Timer, Trash2 } from "lucide-react";
 import {
   binFromString,
@@ -61,6 +61,8 @@ const CHANGED: Partial<Record<KeyValue["type"], string>> = {
   zset: "This member's score changed; reopen it to edit it.",
 };
 const ColumnWidths = createContext<{ width: number; set: (n: number) => void } | null>(null);
+const RowExpansion = createContext<{ selected?: number; column: number; toggle: () => void } | null>(null);
+
 interface Row {
   /** Element identity, so a reordered page keeps an open panel (and its draft) mounted. */
   id?: string;
@@ -81,16 +83,32 @@ function ValueTable({
   numeric?: number[];
   empty: string;
 }) {
+  const [expanded, setExpanded] = useState<{ row: string | number; column: number }>();
+  const tableRef = useRef<HTMLTableElement>(null);
+  const [tableWidth, setTableWidth] = useState(0);
+  const hasRows = rows.length > 0;
+  useLayoutEffect(() => {
+    const table = tableRef.current;
+    if (!table) return;
+    const measure = () => setTableWidth(table.clientWidth);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(table);
+    return () => observer.disconnect();
+  }, [hasRows]);
   const [localWidth, setLocalWidth] = useState(35);
   const widths = useContext(ColumnWidths);
   const firstWidth = widths?.width ?? localWidth, setFirstWidth = widths?.set ?? setLocalWidth;
   if (!rows.length) return <Empty compact title={empty} />;
   const hasActions = rows.some((row) => row.actions);
+  const ttlColumn = columns[2] === "Field TTL";
+  const reservedWidth = (hasActions ? 96 : 0) + (ttlColumn ? 112 : 0);
   return (
     <div className="table-wrap value-table detail-value-table">
       {columns.length > 1 && <label className="column-width-control">{columns[0]} / {columns[1]} widths <input type="range" min="15" max="80" aria-label={`${columns[0]} column width`} value={firstWidth} onChange={e => setFirstWidth(Number(e.target.value))} /></label>}
-      <table style={{ tableLayout: "fixed", width: "100%" }}>
-        <colgroup>{columns.map((_, i) => <col key={i} style={i === 0 && columns.length > 1 ? { width: `${firstWidth}%` } : undefined} />)}{hasActions && <col style={{ width: "96px" }} />}</colgroup>
+      <table ref={tableRef} style={{ tableLayout: "fixed", width: "100%" }}>
+        <colgroup>{columns.map((_, i) => <col key={i} style={i === 0 && columns.length > 1 ? { width: tableWidth ? `${Math.max(0, tableWidth - reservedWidth) * firstWidth / 100}px` : `${firstWidth}%` } : i === 2 && ttlColumn ? { width: "112px" } : undefined} />)}{hasActions && <col style={{ width: "96px" }} />}</colgroup>
         <thead>
           <tr>
             {columns.map((column, index) => (
@@ -114,11 +132,25 @@ function ValueTable({
                     key={cellIndex}
                     className={numeric.includes(cellIndex) ? "num" : ""}
                   >
-                    {cell}
+                    <RowExpansion value={isValidElement(cell) && cell.type === CollectionCell ? {
+                      selected: expanded?.row === (row.id ?? index) ? expanded.column : undefined,
+                      column: cellIndex,
+                      toggle: () => setExpanded(current =>
+                        current?.row === (row.id ?? index) && current.column === cellIndex
+                          ? undefined : { row: row.id ?? index, column: cellIndex }),
+                    } : null}>{cell}</RowExpansion>
                   </td>
                 ))}
                 {hasActions && <td className="row-actions">{row.actions}</td>}
               </tr>
+              {expanded?.row === (row.id ?? index) && isValidElement<{ expandedOnly?: boolean }>(row.cells[expanded.column]) && (
+                <tr className="row-panel-line collection-detail-line">
+                  <td colSpan={columns.length + (hasActions ? 1 : 0)}>
+                    <div className="collection-detail-heading"><strong>{columns[expanded.column]}</strong><button type="button" className="ghost" onClick={() => setExpanded(undefined)}>Collapse value</button></div>
+                    {cloneElement(row.cells[expanded.column] as React.ReactElement<{ expandedOnly?: boolean }>, { expandedOnly: true, key: `${row.id ?? index}:${expanded.column}` })}
+                  </td>
+                </tr>
+              )}
               {row.panel && (
                 <tr className="row-panel-line">
                   <td colSpan={columns.length + (hasActions ? 1 : 0)}>
@@ -486,29 +518,24 @@ export function KeyContent({
             </dd>
           </dl>
           <ValueTable
-            columns={["Entry ID", "Fields"]}
+            columns={["Entry ID", "Field", "Value"]}
             empty="No entries on this page."
-            rows={value.entries.map((entry) => ({
+            rows={value.entries.flatMap((entry) => entry.fields.map((field, index) => ({
+              id: `${entry.id}:${index}`,
               cells: [
                 <span className="stream-id">
                   <code>{entry.id}</code>
                   {epochLabel(entry.id) && <small>{epochLabel(entry.id)}</small>}
                 </span>,
-                <dl className="stream-fields">
-                  {entry.fields.map((field, i) => (
-                    <div key={i}>
-                      <dt>{cell(field.field, field.truncated, field.ref, "identity")}</dt>
-                      <dd>{cell(field.value, field.truncated, field.ref, "value", true)}</dd>
-                    </div>
-                  ))}
-                </dl>,
+                cell(field.field, field.truncated, field.ref, "identity"),
+                cell(field.value, field.truncated, field.ref, "value", true),
               ],
-              actions: removeButton({
+              actions: index === 0 ? removeButton({
                 op: "stream.delete",
                 key: details.key,
                 ids: [entry.id],
-              }),
-            }))}
+              }) : undefined,
+            })))}
           />
         </>
       );
@@ -629,13 +656,15 @@ export function KeyContent({
 }
 
 /** Formatting stays in the table; expansion mounts the richer formatter only for that row. */
-function CollectionCell({ value, truncated, format, open }: { value: Bin; truncated: boolean; format: ValueFormat; open: () => void }) {
+function CollectionCell({ value, truncated, format, open, expandedOnly = false }: { value: Bin; truncated: boolean; format: ValueFormat; open: () => void; expandedOnly?: boolean }) {
+  const row = useContext(RowExpansion);
   const [expanded, setExpanded] = useState(false);
   let text: string;
   try { text = truncated && !["text", "hex", "base64"].includes(format) ? `${displayBin(value, 2000)}\nTruncated preview; load the full element to decode.` : formatValue(value, format, 2000); }
   catch (error) { text = `Cannot format as ${format}: ${(error as Error).message}`; }
+  if (expandedOnly) return <ValueViewer value={value} truncated={truncated} preferred={format} />;
   return <div className="collection-cell">
     <button type="button" className="value-cell data" onClick={open} title="Open in the value inspector" data-testid="value-cell-open"><span>{text}</span>{value.enc === "utf8" && epochLabel(value.data) && <small className="muted"> · Timestamp hint: {epochLabel(value.data)}</small>}</button>
-    <details onToggle={e => setExpanded(e.currentTarget.open)}><summary>Expand value</summary>{expanded && <ValueViewer key={format} value={value} truncated={truncated} preferred={format} />}</details>
+    {row ? <button type="button" className="collection-expand" aria-expanded={row.selected === row.column} onClick={row.toggle}>Expand value</button> : <details onToggle={e => setExpanded(e.currentTarget.open)}><summary>Expand value</summary>{expanded && <ValueViewer key={format} value={value} truncated={truncated} preferred={format} />}</details>}
   </div>;
 }

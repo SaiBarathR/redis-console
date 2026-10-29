@@ -11,7 +11,7 @@ const live = process.env.DETAIL_LIVE === '1';
 const target = process.env.DETAIL_DB ?? DB.e2e;
 const liveCookies = new Map<string, Cookie[]>();
 const roles = live ? [process.env.DETAIL_ROLE ?? 'operator'] : ['viewer', 'operator', 'admin'];
-const P = `${K.scratchPrefix}detail:${live ? process.env.DETAIL_ROLE : 'suite'}:`;
+const P = process.env.DETAIL_PREFIX ?? `${K.scratchPrefix}detail:${live ? process.env.DETAIL_ROLE : 'suite'}:`;
 const b = (s: string) => ({ enc: 'utf8', data: s });
 const fullBytes = Buffer.concat([Buffer.from([0xff, 0, 13, 10]), Buffer.alloc(80000, 65)]);
 const sha = (v: Buffer) => createHash('sha256').update(v).digest('hex');
@@ -75,7 +75,8 @@ for (const role of roles) {
       await expect(detail.getByTestId('value-cell-open').nth(1)).toContainText('9007199254740993');
       await expect(detail.getByTestId('value-cell-open').nth(1)).toContainText('"n": 9007199254740993');
       await detail.getByText('Expand value', { exact: true }).nth(1).click(); await expect(detail.getByTestId('key-value')).toContainText('9007199254740993');
-      await detail.getByLabel('Field column width').fill('60'); await expect(detail.locator('col').first()).toHaveAttribute('style', 'width: 60%;');
+      await detail.getByLabel('Field column width').fill('60'); const widths = await detail.locator('.detail-value-table table').evaluate(table => ({ available: table.clientWidth - 208, first: table.querySelector('col')!.getBoundingClientRect().width }));
+      expect(Math.abs(widths.first - widths.available * 0.6)).toBeLessThan(2);
       await detail.getByLabel('Collection lookup', { exact: true }).fill('vector'); await detail.getByText('Apply lookup', { exact: true }).click();
       await detail.getByLabel('Collection value format').selectOption('float32le'); await expect(detail.getByTestId('value-cell-open').nth(1)).toHaveText('[1.5, -2, 0]');
       expect(await page.locator('img[src="x"]').count()).toBe(0);
