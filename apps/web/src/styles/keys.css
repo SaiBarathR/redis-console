@@ -988,4 +988,7 @@ tr:hover .row-button,
 [data-testid="multi-entry-dialog"] label { display: grid; gap: var(--space-1); min-width: 0; }
 [data-testid="multi-entry-dialog"] .actions { flex-wrap: wrap; }
 [data-testid="multi-entry-dialog"] li { overflow-wrap: anywhere; }
+[data-testid="multi-entry-dialog"] .entry-part { display: grid; grid-template-columns: minmax(0, 1fr) 8.5rem; gap: var(--space-3); align-items: start; }
+[data-testid="multi-entry-dialog"] .entry-score { max-width: 14rem; }
+[data-testid="multi-entry-dialog"] textarea { min-height: 64px; resize: vertical; }
 .inspector .form-row { flex-wrap: wrap; }
