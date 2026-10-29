@@ -35,7 +35,6 @@
 .admin-table table {
   min-width: 940px;
 }
-.admin-table td > code,
 .admin-table td.nowrap {
   white-space: nowrap;
   overflow-wrap: normal;
@@ -99,16 +98,10 @@
 }
 .audit-command {
   display: block;
-  max-width: 420px;
   color: var(--graphite);
   font-size: 12.5px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-@media (max-width: 1279px) {
-  .audit-command {
-    max-width: 260px;
-  }
 }
 .audit-command .cmd {
   color: var(--ink);
@@ -410,3 +403,31 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Fixed columns prevent content from changing the scroll extent or covering its neighbours. */
+.audit, .users, .admin-table { min-width: 0; }
+.audit .admin-table table { table-layout: fixed; min-width: 1120px; }
+.audit-time { width: 13%; }
+.audit-user { width: 13%; }
+.audit-outcome { width: 12%; }
+.audit-action, .audit-database { width: 10%; }
+.audit-argv { width: 25%; }
+.audit-detail { width: 17%; }
+.audit .admin-table td { white-space: normal; overflow-wrap: anywhere; }
+.audit .admin-table td > code { white-space: pre-wrap; }
+.user-ip { flex-wrap: wrap; white-space: normal; gap: var(--space-1) var(--space-2); }
+.user-ip > * { min-width: 0; overflow-wrap: anywhere; }
+.audit-command-cell { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
+.audit-command { width: 100%; }
+.audit-command.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.filter-bar .field { flex: 1 1 160px; }
+.filter-bar input, .filter-bar select, .filter-bar button { min-height: 32px; }
+.users .admin-table table { table-layout: fixed; min-width: 800px; }
+.users .admin-table th:first-child { width: 28%; }
+.users .admin-table .row-actions { width: 76px; }
+.users .stack { overflow-wrap: anywhere; }
+.account-facts dd, .account-section, .login-card { min-width: 0; overflow-wrap: anywhere; }
+.recovery-code-list { max-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* Status contents remain reachable when the server/session figures exceed the viewport. */
+.statusbar { overflow-x: auto; overflow-y: hidden; }
+.statusbar > * { flex-shrink: 0; }

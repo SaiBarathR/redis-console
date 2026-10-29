@@ -37,6 +37,26 @@ const OUTCOME_LABEL: Record<AuditEvent["outcome"], string> = {
   confirmation_required: "needs confirmation",
 };
 
+/** Keep large, redacted multi-key commands bounded until explicitly expanded. */
+function AuditCommand({ event }: { event: AuditEvent }) {
+  const [expanded, setExpanded] = useState(false);
+  const [name = event.command ?? "", ...args] = event.argvRedacted ?? [event.command ?? ""];
+  const text = visibleText(args.join(" "));
+  const long = text.length > 140;
+  return (
+    <div className="audit-command-cell">
+      <code className={`audit-command ${long && !expanded ? "clamped" : ""}`}>
+        <span className="cmd">{visibleText(name)}</span>
+        {text && ` ${text}`}
+        {!!event.keyCount && <span className="muted"> · {event.keyCount} {event.keyCount === 1 ? "key" : "keys"}</span>}
+      </code>
+      {long && <button type="button" className="link-button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
+        {expanded ? "Show less" : "Show full command"}
+      </button>}
+    </div>
+  );
+}
+
 export function Audit() {
   const { me } = useSession();
   const [user, setUser] = useState("");
@@ -183,7 +203,7 @@ export function Audit() {
           )}
         </div>
       </form>
-      <div className="admin-table">
+      <div className="admin-table" tabIndex={0} aria-label="Audit events">
         <ErrorState
           error={data.error}
           onRetry={() => {
@@ -194,6 +214,11 @@ export function Audit() {
           <Loading label="Reading audit events…" />
         ) : events.length ? (
           <table>
+            <colgroup>
+              <col className="audit-time" /><col className="audit-user" />
+              <col className="audit-outcome" /><col className="audit-action" />
+              <col className="audit-database" /><col className="audit-argv" /><col className="audit-detail" />
+            </colgroup>
             <thead>
               <tr>
                 {/* Outcome next to who and what: it is what tells a refusal from a change, and must stay
@@ -238,24 +263,7 @@ export function Audit() {
                   </td>
                   <td>
                     {event.command ? (
-                      <code className="audit-command">
-                        {/* The redacted argv starts with the command itself; fall back to the name. */}
-                        <span className="cmd">
-                          {visibleText(
-                            event.argvRedacted?.[0] ?? event.command,
-                          )}
-                        </span>
-                        {event.argvRedacted && event.argvRedacted.length > 1
-                          ? ` ${visibleText(event.argvRedacted.slice(1).join(" "))}`
-                          : ""}
-                        {event.keyCount ? (
-                          <span className="muted">
-                            {" "}
-                            · {event.keyCount}{" "}
-                            {event.keyCount === 1 ? "key" : "keys"}
-                          </span>
-                        ) : null}
-                      </code>
+                      <AuditCommand event={event} />
                     ) : (
                       <span className="muted">—</span>
                     )}
