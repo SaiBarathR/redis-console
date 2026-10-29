@@ -217,7 +217,7 @@ function ImportForm() {
                 </p>
                 <DataTable
                   className="dense"
-                  columns={["Line", "Command", "Why"]}
+                  columns={[<span className="num">Line</span>, "Command", "Why"]}
                   rows={plan.blocked.map((b) => [
                     <span className="num tabular">{b.line}</span>,
                     <code className="data">{visibleText(b.command)}</code>,
