@@ -625,7 +625,7 @@ export function KeyEditor({
           <p className="notice">Contains CR / CRLF line endings. Base64 editing preserves the stored bytes.</p>
         )}
         {type === "string" && details && (
-          <label className="checkbox-row">
+          <label className="checkbox">
             <input type="checkbox" checked={keepTtl} onChange={e => setKeepTtl(e.target.checked)} />
             Keep current expiry (SET KEEPTTL)
           </label>
