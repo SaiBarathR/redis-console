@@ -559,10 +559,10 @@ export function Users() {
                     </span>
                   </td>
                   <td>{user.totpEnabled ? "Enrolled" : "Not enrolled"}</td>
-                  <td className="nowrap tabular">
+                  <td className="tabular">
                     {stamp.format(new Date(user.createdAt))}
                   </td>
-                  <td className="nowrap tabular">
+                  <td className="tabular">
                     {user.lastLoginAt ? (
                       stamp.format(new Date(user.lastLoginAt))
                     ) : (
