@@ -313,7 +313,7 @@
 .col-head {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   min-height: 20px;
   padding: 0 4px;
   border: 0;
@@ -398,7 +398,7 @@
 }
 .list-head select.auto-refresh {
   width: auto;
-  min-height: 22px;
+  min-height: 28px;
   padding: 0 22px 0 6px;
   background-position: right 6px center;
   font-size: var(--text-micro);
@@ -671,7 +671,7 @@
 }
 .key-browser-hints dt {
   display: flex;
-  gap: 3px;
+  gap: 4px;
 }
 .key-browser-hints dd {
   margin: 0;

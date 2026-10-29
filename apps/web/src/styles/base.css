@@ -240,6 +240,7 @@ textarea {
 }
 /* One chevron for every select, inset from the border like the text: the native arrow sat on the right border. */
 select {
+  line-height: var(--lh-meta);
   cursor: pointer;
   appearance: none;
   padding-right: 28px;
