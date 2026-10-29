@@ -32,8 +32,8 @@
 .key-hint {
   border: 0;
   background: transparent;
-  min-height: 22px;
-  padding: 1px 5px;
+  min-height: 28px;
+  padding: 1px 6px;
   gap: 5px;
   color: var(--graphite);
   font-size: var(--text-micro);
@@ -440,7 +440,7 @@
   gap: 6px;
   flex-shrink: 0;
   height: 42px;
-  padding: 0 2px 0 14px;
+  padding: 0 8px 0 14px;
   font-size: var(--text-meta);
   box-shadow: inset 3px 0 0 var(--env, var(--rule-strong));
 }

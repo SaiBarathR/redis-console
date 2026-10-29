@@ -59,7 +59,7 @@
   width: 46px;
   font-family: var(--font-mono);
   text-align: center;
-  padding: 2px 4px;
+  padding: 2px 6px;
 }
 
 /* Split: list | handle | inspector. The handle is a 1px rule with a 7px hit area. */
