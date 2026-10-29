@@ -573,7 +573,7 @@ export function KeyContent({
           <ValueTable
             columns={["Timestamp", "Value"]}
             numeric={[1]}
-            firstShare={40}
+            firstShare={50}
             empty="This series has no samples in the read range."
             rows={value.samples.map(([t, v]) => ({
               cells: [<code><IsoTime iso={new Date(t).toISOString()} /></code>, v],
