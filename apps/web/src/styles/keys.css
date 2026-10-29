@@ -799,7 +799,10 @@ tr:hover .row-button,
   border-radius: var(--radius);
 }
 .value-cell {
-  display: block;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  text-overflow: ellipsis;
   width: 100%;
   min-height: 20px;
   text-align: left;
