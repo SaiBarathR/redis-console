@@ -24,7 +24,7 @@ spec:
         seccompProfile: { type: RuntimeDefault }
       containers:
         - name: rconsole
-          image: ghcr.io/saibarathr/redis-console:0.4.1 # pin by digest in production
+          image: ghcr.io/saibarathr/redis-console:0.4.2 # pin by digest in production
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 4000 }

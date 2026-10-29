@@ -63,25 +63,25 @@ Each release is published to GitHub Container Registry for `linux/amd64` and `li
 build provenance attestation:
 
 ```bash
-docker pull ghcr.io/saibarathr/redis-console:0.4.1
+docker pull ghcr.io/saibarathr/redis-console:0.4.2
 # optional: check that the image was built by this repository's release workflow
-gh attestation verify oci://ghcr.io/saibarathr/redis-console:0.4.1 --repo SaiBarathR/redis-console
+gh attestation verify oci://ghcr.io/saibarathr/redis-console:0.4.2 --repo SaiBarathR/redis-console
 ```
 
-Tags: the exact version (`0.4.1`), the minor line (`0.4`) and `latest`. In production, pin the digest that
+Tags: the exact version (`0.4.2`), the minor line (`0.4`) and `latest`. In production, pin the digest that
 `docker pull` printed (`ghcr.io/saibarathr/redis-console@sha256:…`).
 
 `gh attestation` needs GitHub CLI 2.49 or later; some distributions package an older one (Ubuntu 24.04's `gh` has no
 `attestation` command). Then verify on a workstation and compare the digest it reports with the one the server pulled
-(`docker image inspect ghcr.io/saibarathr/redis-console:0.4.1 --format '{{index .RepoDigests 0}}'`).
+(`docker image inspect ghcr.io/saibarathr/redis-console:0.4.2 --format '{{index .RepoDigests 0}}'`).
 
 Or build it yourself from a checkout of the release tag:
 
 ```bash
 git clone https://github.com/SaiBarathR/redis-console.git
 cd redis-console
-git checkout v0.4.1
-docker build -t redis-console:0.4.1 .
+git checkout v0.4.2
+docker build -t redis-console:0.4.2 .
 ```
 
 The `Dockerfile` is multi-stage. The final stage is `node:24-slim` without npm, corepack or yarn. It runs as the
@@ -348,7 +348,7 @@ docker run -d --name redis-console --restart unless-stopped \
   -v /etc/redis-console/config.json:/etc/rconsole/config.json:ro \
   -v /etc/redis-console/secrets:/run/secrets:ro \
   -v redis-console-data:/data \
-  ghcr.io/saibarathr/redis-console:0.4.1
+  ghcr.io/saibarathr/redis-console:0.4.2
 docker logs redis-console     # "Redis Console listening on 0.0.0.0:4000 (public URL https://…)"
 ```
 
@@ -361,8 +361,8 @@ The port is published on `127.0.0.1` only; the reverse proxy (section 8) is the 
 ```bash
 mkdir -p /srv/redis-console/secrets && cd /srv/redis-console
 # the two example files of the release; no checkout needed
-curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/SaiBarathR/redis-console/v0.4.1/deploy/docker-compose.example.yml
-curl -fsSL -o config.prod.json https://raw.githubusercontent.com/SaiBarathR/redis-console/v0.4.1/deploy/config.prod.example.json
+curl -fsSL -o docker-compose.yml https://raw.githubusercontent.com/SaiBarathR/redis-console/v0.4.2/deploy/docker-compose.example.yml
+curl -fsSL -o config.prod.json https://raw.githubusercontent.com/SaiBarathR/redis-console/v0.4.2/deploy/config.prod.example.json
 # then edit config.prod.json (section 6)
 # put one file per secret in ./secrets: oidc_client_secret, redis_viewer_password, redis_operator_password,
 # redis_admin_password, bootstrap_admin_password, totp_encryption_key (section 4)
@@ -413,7 +413,7 @@ On a Linux host with Node.js 24.11 or later:
 ```bash
 sudo useradd --system --home /var/lib/redis-console --shell /usr/sbin/nologin rconsole
 sudo git clone https://github.com/SaiBarathR/redis-console.git /opt/redis-console
-cd /opt/redis-console && sudo git checkout v0.4.1
+cd /opt/redis-console && sudo git checkout v0.4.2
 sudo corepack enable && sudo corepack prepare pnpm@11.7.0 --activate
 sudo pnpm install --frozen-lockfile
 sudo pnpm --filter @rconsole/web build              # writes apps/web/dist, served by the server
