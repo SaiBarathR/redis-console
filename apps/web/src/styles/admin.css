@@ -410,24 +410,30 @@
    clock); the command and the detail share the rest, the command getting the larger part. */
 .audit .admin-table table { table-layout: fixed; width: 100%; min-width: 900px; }
 .audit .admin-table th { white-space: normal; }
-.audit-time { width: 6.75rem; }
-.audit-user { width: 7.5rem; }
-.audit-outcome { width: 10rem; } /* fits the longest tag, "needs confirmation" */
-.audit-action { width: 10.5rem; }
-.audit-database { width: 8.5rem; }
-.audit-detail { width: 21%; }
+.audit .admin-table th, .audit .admin-table td { padding-left: var(--space-2); padding-right: var(--space-2); }
+.audit .admin-table th:first-child, .audit .admin-table td:first-child { padding-left: var(--space-4); }
+/* Identifiers in a slightly smaller mono size, so common actions ("timeseries.range") fit on one line. */
+.audit .admin-table td > .ident { font-size: var(--text-meta); }
+.audit-time { width: 10rem; }
+.audit-user { width: 6.25rem; }
+.audit-outcome { width: 7.25rem; }
+.audit-action { width: 11rem; }
+.audit-database { width: 7.75rem; }
+.audit-detail { width: 17%; }
 @media (min-width: 1280px) {
   .audit-user { width: 9rem; }
-  .audit-action { width: 12rem; }
-  .audit-database { width: 8.5rem; }
+  .audit-action { width: 13rem; }
+  .audit-database { width: 9rem; }
+  .audit-detail { width: 20%; }
 }
 @media (min-width: 1600px) {
-  .audit-time { width: 12.5rem; }
   .audit-user { width: 13rem; }
   .audit-action { width: 16.5rem; }
   .audit-database { width: 10rem; }
 }
-.audit-when time > span { white-space: nowrap; }
+.audit-when { white-space: nowrap; }
+/* "needs confirmation" is the only long tag: it may take two lines rather than widen the column for every row. */
+.audit .outcome-tag { height: auto; min-height: 18px; padding-top: 1px; padding-bottom: 1px; white-space: normal; line-height: 14px; }
 .audit .admin-table td { white-space: normal; overflow-wrap: break-word; }
 .audit .admin-table td > code { white-space: pre-wrap; }
 

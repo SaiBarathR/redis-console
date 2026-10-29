@@ -38,7 +38,8 @@ const OUTCOME_LABEL: Record<AuditEvent["outcome"], string> = {
   confirmation_required: "needs confirmation",
 };
 
-const stampDate = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+/** The audit row shows a short day and clock on one line; the cell title carries the full date and ISO time. */
+const stampDay = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
 const stampTime = new Intl.DateTimeFormat(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 /** Keep large, redacted multi-key commands bounded until explicitly expanded. */
@@ -239,10 +240,9 @@ export function Audit() {
             <tbody>
               {events.map((event) => (
                 <tr key={event.id}>
-                  <td className="tabular audit-when" title={event.at}>
+                  <td className="tabular audit-when" title={`${stamp.format(new Date(event.at))} (${event.at})`}>
                     <time dateTime={event.at}>
-                      <span>{stampDate.format(new Date(event.at))}</span>{" "}
-                      <span>{stampTime.format(new Date(event.at))}</span>
+                      {stampDay.format(new Date(event.at))} {stampTime.format(new Date(event.at))}
                     </time>
                   </td>
                   <td>
