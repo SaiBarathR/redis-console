@@ -113,8 +113,8 @@
 .role-tag {
   display: inline-flex;
   align-items: center;
-  height: 18px;
-  padding: 0 6px;
+  min-height: 20px;
+  padding: 2px 6px;
   border-radius: var(--radius);
   font-size: var(--text-micro);
   font-weight: 600;
