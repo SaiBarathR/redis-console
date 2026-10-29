@@ -123,7 +123,7 @@ th.num:has(.sort-header) {
 .inline-select select,
 .inline-select input {
   width: auto;
-  min-height: 26px;
+  min-height: 28px;
   padding: 2px 6px;
   font-size: var(--text-meta);
 }

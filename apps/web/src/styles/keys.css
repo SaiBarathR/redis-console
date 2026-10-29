@@ -488,8 +488,9 @@
   background: var(--pane);
   flex-shrink: 0;
 }
+/* Footer buttons (3 + 18 + 3 + borders) and the count select share one 26 px height. */
 .scan-foot button {
-  min-height: 24px;
+  min-height: 26px;
 }
 .scan-foot progress {
   width: 120px;

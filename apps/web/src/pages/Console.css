@@ -399,7 +399,7 @@
   white-space: nowrap;
 }
 .assist-action {
-  min-height: 22px;
+  min-height: 28px;
   padding: 1px 8px;
   font-size: var(--text-meta);
 }
