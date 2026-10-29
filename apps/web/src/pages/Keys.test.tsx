@@ -30,7 +30,7 @@ const KEYS = [
   "example:cfg",
   "example:cfg2",
 ];
-function api(o: { cursor?: string } = {}) {
+function api(o: { cursor?: string; metadataGate?: Promise<void> } = {}) {
   const calls: { path: string; body: Record<string, unknown> }[] = [];
   const fetch = vi.fn(async (url: string, init?: RequestInit) => {
     const path = url.replace(/^.*\/databases\/db/, "");
@@ -42,10 +42,12 @@ function api(o: { cursor?: string } = {}) {
       const keys = KEYS.filter((k) => k.startsWith(prefix)).map(binFromString);
       return json({ cursor: match === "*" ? (o.cursor ?? "0") : "0", keys, scanned: KEYS.length, dbSize: KEYS.length, threshold: 10_000 });
     }
-    if (path === "/keys/meta")
+    if (path === "/keys/meta") {
+      await o.metadataGate;
       return json({
         keys: (body.keys as Bin[]).map((key) => ({ key, type: "string", ...(body.ttl === false ? {} : { ttl: -1 }), ...(body.size === false ? {} : { size: 64 }) })),
       });
+    }
     if (path === "/keys/scan") return json({ cursor: "0", keys: [], scanned: 0, dbSize: KEYS.length });
     return json({});
   });
@@ -89,12 +91,15 @@ describe("key browser v0.2.1", () => {
   });
 
   it("loads type, TTL and size lazily for rows coming into view, with placeholders until then", async () => {
-    const calls = api();
+    let release!: () => void;
+    const metadataGate = new Promise<void>(resolve => { release = resolve; });
+    const calls = api({ metadataGate });
     mount();
     await waitFor(() => expect(screen.getByTestId("key-scan-summary")).toHaveAttribute("data-done", "true"));
     await userEvent.click(folder("small"));
     const rows = await screen.findAllByTestId("key-row");
-    expect(rows.some((row) => row.getAttribute("data-meta") === "pending")).toBe(true);
+    try { expect(rows.some((row) => row.getAttribute("data-meta") === "pending")).toBe(true); }
+    finally { release(); }
     await waitFor(() => expect(screen.getAllByTestId("key-row").every((row) => row.getAttribute("data-meta") === "loaded")).toBe(true));
     const batches = calls.filter((c) => c.path === "/keys/meta").map((c) => (c.body.keys as Bin[]).length);
     expect(batches.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(26);

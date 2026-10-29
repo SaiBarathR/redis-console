@@ -66,7 +66,36 @@ describe("F3 in-place formats and widths", () => {
     await userEvent.click(screen.getAllByText("Expand value")[1]!);
     await waitFor(() => expect(screen.getByTestId("key-value")).toHaveTextContent("9007199254740993"));
     fireEvent.change(screen.getByLabelText("Field column width"), { target: { value: "65" } });
+    // jsdom has no layout; the fallback preserves the selected percentage until ResizeObserver measures.
     expect(document.querySelector("col")).toHaveStyle({ width: "65%" });
+  });
+  it("opens one full-width detail area and switches from field to value", async () => {
+    render(wrap(<KeyContent details={hash()} refresh={async () => {}} />));
+    const expand = screen.getAllByRole("button", { name: "Expand value" });
+    await userEvent.click(expand[0]!);
+    expect(screen.getAllByTestId("value-format")).toHaveLength(1);
+    expect(screen.getByTestId("key-value").closest("td")).toHaveAttribute("colspan", "4");
+    expect(screen.getByTestId("key-value")).toHaveTextContent("f");
+    await userEvent.click(screen.getByRole("tab", { name: /^Hex$/ }));
+    await userEvent.click(expand[1]!);
+    expect(screen.getByRole("tab", { name: /^Text$/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getAllByTestId("value-format")).toHaveLength(1);
+    expect(expand[0]).toHaveAttribute("aria-expanded", "false");
+    expect(expand[1]).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("key-value")).toHaveTextContent("9007199254740993");
+    await userEvent.click(screen.getByRole("button", { name: "Collapse value" }));
+    expect(screen.queryByTestId("value-format")).toBeNull();
+  });
+  it("expands stream fields and values beneath the whole entry row", async () => {
+    const details: KeyDetails = { key: bin("stream"), type: "stream", ttl: -1, value: {
+      type: "stream", total: 1, groups: 0, lastId: "1-0", entries: [{ id: "1-0", fields: [{ field: bin("field"), value: bin("value") }] }],
+    } };
+    render(wrap(<KeyContent details={details} refresh={async () => {}} />));
+    const expand = screen.getAllByRole("button", { name: "Expand value" });
+    await userEvent.click(expand[0]!); await userEvent.click(expand[1]!);
+    expect(screen.getAllByTestId("value-format")).toHaveLength(1);
+    expect(screen.getByTestId("key-value").closest("td")).toHaveAttribute("colspan", "4");
+    expect(screen.getByTestId("key-value")).toHaveTextContent("value");
   });
   it("invalid codec data remains inert text with an explicit error", async () => {
     render(wrap(<KeyContent details={hash()} refresh={async () => {}} />));

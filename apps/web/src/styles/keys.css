@@ -952,3 +952,40 @@ tr:hover .row-button,
 .inspector-wide-toggle {
   margin-left: auto;
 }
+
+/* Each formatter owns its overflow; tabs scroll as one strip above aligned tools. */
+.value-viewer, .value-toolbar, .value-toolbar-end { min-width: 0; max-width: 100%; }
+.value-toolbar { gap: var(--space-2); }
+.value-toolbar > .tabs { flex: 1 1 100%; min-width: 0; max-width: 100%; overflow-x: auto; }
+.value-toolbar > .tabs > button { flex: 0 0 auto; white-space: nowrap; }
+.value-toolbar-end { flex-wrap: wrap; gap: var(--space-2); }
+.value-content { min-width: 0; max-width: 100%; max-height: 60vh; white-space: pre-wrap; overflow-wrap: anywhere; }
+.value-content.tree { white-space: normal; }
+.value-note { overflow-wrap: anywhere; }
+.inspector-actions .action-group { min-width: 0; gap: var(--space-2); }
+.dialog-subject { overflow-wrap: anywhere; min-width: 0; }
+.dialog-subject > .key-anatomy { min-width: 0; }
+.row-panel { min-width: 0; }
+.row-panel .actions { flex-wrap: wrap; }
+.key-pane .list-head, .selection-bar, .scan-foot { flex-wrap: wrap; white-space: normal; gap: var(--space-2); }
+.scan-form { flex-wrap: wrap; }
+.scan-form .pattern-field { max-width: none; }
+.pattern-field input { min-width: 0; }
+.inspector-foot .page-note { overflow-wrap: anywhere; }
+.inspector { container-type: inline-size; }
+@container (max-width: 600px) {
+  .inspector-facts { margin-left: 0; }
+  .inspector-facts .ttl-fuse.full .fuse-track { width: 80px; }
+  .action-group.end { margin-left: 0; }
+  .inspector-head { position: static; }
+  .inspector-body, .inspector-head, .inspector-foot { padding-left: var(--space-3); padding-right: var(--space-3); }
+  .stream-fields { grid-template-columns: minmax(0, 1fr); }
+}
+/* Entry forms stay readable when multiple rows and encoding controls are added. */
+[data-testid="multi-entry-dialog"] form, [data-testid="multi-entry-dialog"] fieldset { display: grid; gap: var(--space-3); min-width: 0; }
+[data-testid="multi-entry-dialog"] fieldset { margin: 0; padding: var(--space-3); border: 1px solid var(--rule); border-radius: var(--radius); }
+[data-testid="multi-entry-dialog"] legend { padding: 0 var(--space-1); }
+[data-testid="multi-entry-dialog"] label { display: grid; gap: var(--space-1); min-width: 0; }
+[data-testid="multi-entry-dialog"] .actions { flex-wrap: wrap; }
+[data-testid="multi-entry-dialog"] li { overflow-wrap: anywhere; }
+.inspector .form-row { flex-wrap: wrap; }
