@@ -399,8 +399,9 @@
 .list-head select.auto-refresh {
   width: auto;
   min-height: 28px;
-  padding: 0 22px 0 6px;
-  background-position: right 6px center;
+  padding: 0 6px;
+  --select-chevron-inset: 6px;
+  --select-pad-end: 22px;
   font-size: var(--text-micro);
 }
 .key-pane > .scan-progress,
@@ -495,9 +496,10 @@
 }
 .scan-foot .scan-count select {
   width: auto;
-  min-height: 24px;
-  padding: 0 22px 0 6px;
-  background-position: right 6px center;
+  min-height: 26px;
+  padding: 0 6px;
+  --select-chevron-inset: 6px;
+  --select-pad-end: 22px;
 }
 .scan-foot small {
   margin-left: auto;
@@ -592,8 +594,9 @@
 .refresh-select select {
   width: auto;
   min-height: 26px;
-  padding: 0 22px 0 6px;
-  background-position: right 6px center;
+  padding: 0 6px;
+  --select-chevron-inset: 6px;
+  --select-pad-end: 22px;
   font-size: var(--text-meta);
 }
 .inspector-head .notice {

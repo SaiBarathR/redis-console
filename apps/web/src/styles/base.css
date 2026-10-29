@@ -243,12 +243,17 @@ select {
   line-height: var(--lh-meta);
   cursor: pointer;
   appearance: none;
-  padding-right: 28px;
   background-image: var(--select-chevron);
   background-repeat: no-repeat;
-  background-position: right 9px center;
   background-size: 12px 12px;
   text-overflow: ellipsis;
+}
+/* The chevron's room is an invariant: a local `padding: 2px 6px` shorthand put text under the chevron (tool headers),
+   so the right padding and the inset come only from the tokens. Compact selects set the tokens instead. */
+select:not([multiple]):not([size]),
+select[size="1"] {
+  padding-right: var(--select-pad-end) !important;
+  background-position: right var(--select-chevron-inset) center !important;
 }
 select[multiple],
 select[size]:not([size="1"]) {

@@ -130,6 +130,10 @@ th.num:has(.sort-header) {
 .inline-select input {
   width: 110px;
 }
+.inline-select select {
+  --select-chevron-inset: 6px;
+  --select-pad-end: 22px;
+}
 .pane-head .actions .segmented button {
   min-height: 26px;
   padding: 2px 8px;

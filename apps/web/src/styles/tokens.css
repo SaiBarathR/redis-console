@@ -24,6 +24,9 @@
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
+  /* Select chevron geometry: inset from the right border, and the right padding that keeps text clear of it. */
+  --select-chevron-inset: 9px;
+  --select-pad-end: 28px;
   --radius: 3px;
   --radius-lg: 5px;
   --row: 26px;
