@@ -80,7 +80,7 @@
 .ro-tag {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   color: var(--danger);
   font-weight: 600;
 }
