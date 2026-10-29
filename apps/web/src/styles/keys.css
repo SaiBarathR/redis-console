@@ -657,18 +657,20 @@
 .inspector > .empty {
   padding: var(--space-5);
 }
-.key-hints {
+/* Not ".key-hints": the Console's lazily loaded stylesheet owns that name for its shortcut buttons, and once the
+   tools drawer had loaded it this list collapsed into one right-aligned run of text. */
+.key-browser-hints {
   display: grid;
   grid-template-columns: max-content minmax(0, 1fr);
   gap: 6px 12px;
   margin: var(--space-3) 0 0;
   align-items: center;
 }
-.key-hints dt {
+.key-browser-hints dt {
   display: flex;
   gap: 3px;
 }
-.key-hints dd {
+.key-browser-hints dd {
   margin: 0;
 }
 

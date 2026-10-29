@@ -1249,7 +1249,7 @@ export function Keys() {
                 The inspector shows the value with formatter tabs, the TTL as it burns down, the encoding and memory, and the
                 commands that read it.
               </span>
-              <dl className="key-hints">
+              <dl className="key-browser-hints">
                 <dt>
                   <kbd>↑</kbd> <kbd>↓</kbd>
                 </dt>
