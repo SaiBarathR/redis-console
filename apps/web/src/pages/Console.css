@@ -824,3 +824,97 @@
     border-right-color: var(--signal);
   }
 }
+
+/* Toolbars wrap as a unit instead of shrinking the title underneath their controls. */
+.console-view .page-title {
+  flex-wrap: wrap;
+}
+.console-view .page-title > .title-block {
+  flex-shrink: 0;
+}
+.console-view .page-title > .actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+}
+.console-view .page-title .segmented {
+  flex-shrink: 0;
+}
+
+/* Share the available height with results when the tools drawer reduces the workspace. */
+.workbench-pane {
+  flex-shrink: 1;
+  min-height: 0;
+}
+.workbench-pane > :not(.editor) {
+  flex-shrink: 0;
+}
+.workbench-pane .editor {
+  min-height: 64px;
+  flex-shrink: 1;
+}
+.is-workbench > .console-transcript {
+  min-height: 80px;
+}
+.workbench-head,
+.workbench-foot,
+.console-dock-foot,
+.history-search-bar {
+  flex-wrap: wrap;
+}
+.workbench-head {
+  padding-block: var(--space-1);
+}
+.workbench-snippets {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.workbench-snippets select {
+  max-width: 220px;
+}
+.console-prompt {
+  min-width: 0;
+  max-width: 50%;
+}
+.prompt-db {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.result-head {
+  flex-wrap: wrap;
+}
+.result-command {
+  flex-basis: 160px;
+}
+.result-meta,
+.result-actions {
+  flex-wrap: wrap;
+}
+/* The transcript owns vertical scrolling of result key links. */
+.console-transcript .result-keys {
+  max-height: none;
+}
+.console-view.is-docked .console-dock {
+  max-height: 50%;
+  overflow: auto;
+}
+.console-view.is-docked .console-prompt-row {
+  flex-wrap: wrap;
+}
+.console-view.is-docked .console-prompt {
+  max-width: 100%;
+}
+.console-view.is-docked .console-prompt-row .editor {
+  flex-basis: 180px;
+}
+.console-view.is-docked .key-hints {
+  justify-content: flex-start;
+}
+.console-view.is-docked .console-transcript {
+  min-height: 40px;
+}
+.console-view.is-docked .console-docked-bar {
+  max-height: 25%;
+  overflow: auto;
+}

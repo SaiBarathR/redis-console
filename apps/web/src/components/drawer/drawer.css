@@ -359,3 +359,23 @@
     transition: background 120ms var(--ease), color 120ms var(--ease);
   }
 }
+
+/* A split Console is narrower than a page: its toolbar must not set the pane's intrinsic width. */
+.console-docked-bar {
+  flex-wrap: wrap;
+}
+.console-docked-bar .actions {
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+}
+.drawer-tabs {
+  min-width: 0;
+  overflow-x: auto;
+}
+.drawer-tab {
+  flex-shrink: 0;
+}
+.drawer-bar > button,
+.drawer-session {
+  flex-shrink: 0;
+}
