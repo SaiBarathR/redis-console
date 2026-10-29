@@ -85,39 +85,58 @@ export function StreamInspector({ keyName, refresh }: { keyName: Bin; refresh: (
     return `Group ${newGroup.name} created at ${startId}.`;
   });
   return <details className="stream-inspector" data-testid="stream-inspector" onToggle={e => setExpanded(e.currentTarget.open)}><summary>Consumer groups, consumers and pending messages</summary>
-    {expanded && <>
-      <div className="actions"><button type="button" onClick={() => { setSelected([]); void groups.refetch(); void pending.refetch(); }}>Refresh stream groups</button></div>
+    {expanded && <div className="stream-inspector-body">
+      <div className="stream-inspector-bar">
+        <button type="button" onClick={() => { setSelected([]); void groups.refetch(); void pending.refetch(); }}>Refresh stream groups</button>
+        {groups.data && <span className="muted">{groups.data.groups.length} of {groups.data.total ?? groups.data.groups.length} consumer groups shown (up to 100).</span>}
+      </div>
       <ErrorState error={groups.error ?? pending.error ?? error} />
       {groups.isPending && <Loading label="Reading consumer groups…" />}
-      {groups.data && <p>{groups.data.groups.length} of {groups.data.total ?? groups.data.groups.length} consumer groups shown (up to 100).</p>}
-      {!!groups.data?.groups.length && <label>Group <select aria-label="Inspector consumer group" value={groupIndex < 0 ? "" : groupIndex} onChange={e => { const next = groups.data?.groups[Number(e.target.value)]; if (next) setSelectedGroup(next.nameBin ?? binFromString(next.name)); setConsumer(undefined); setSelected([]); setRange({ start: "-", end: "+" }); }}>
+      {!!groups.data?.groups.length && <label className="field stream-group-field"><span>Group</span><select aria-label="Inspector consumer group" value={groupIndex < 0 ? "" : groupIndex} onChange={e => { const next = groups.data?.groups[Number(e.target.value)]; if (next) setSelectedGroup(next.nameBin ?? binFromString(next.name)); setConsumer(undefined); setSelected([]); setRange({ start: "-", end: "+" }); }}>
         {groupIndex < 0 && <option value="" disabled>Selected group not available</option>}
         {groups.data.groups.map((g, i) => <option key={i} value={i}>{displayBin(g.nameBin ?? binFromString(g.name))} · {g.pending} pending</option>)}
       </select></label>}
       {selectedGroup && groups.isSuccess && !group && <p role="status">The selected group was removed. Choose a group to continue.</p>}
       {group && <>
-        <p>Last delivered: <code>{group.lastDeliveredId}</code> · lag {group.lag ?? "unknown"}. {group.consumers.length} of {group.consumerTotal ?? group.consumers.length} consumers shown.</p>
-        <table><thead><tr><th>Consumer</th><th>Pending</th><th>Idle ms</th><th>Messages</th>{canWrite(db) && <th>Delete</th>}</tr></thead><tbody>{group.consumers.map((c, i) => <tr key={i}><td className="data">{displayBin(c.nameBin ?? binFromString(c.name))}</td><td>{c.pending}</td><td>{c.idleMs}</td><td><button type="button" onClick={() => { setConsumer(c.nameBin ?? binFromString(c.name)); setSelected([]); }}>Pending for consumer {i + 1}</button></td>{canWrite(db) && <td><button type="button" className="danger-text" disabled={busy} data-testid="stream-consumer-delete" aria-label={`Delete consumer ${i + 1} (${c.pending} pending)`} onClick={() => { void deleteConsumer(c.nameBin ?? binFromString(c.name), c.pending); }}>Delete… ({c.pending} pending)</button></td>}</tr>)}</tbody></table>
-        {canWrite(db) && <div className="actions"><button type="button" className="danger-text" disabled={busy} data-testid="stream-group-destroy" onClick={() => { void destroyGroup(); }}>Destroy group {displayBin(groupName!)}… ({group.pending} pending)</button></div>}
-        <form className="actions" onSubmit={e => { e.preventDefault(); setSelected([]); setRange({ start: start || "-", end: end || "+" }); }}>
-          <input aria-label="Pending start ID" placeholder="- or entry ID" value={start} onChange={e => setStart(e.target.value)} /><input aria-label="Pending end ID" placeholder="+ or same ID" value={end} onChange={e => setEnd(e.target.value)} /><button type="submit">Find pending IDs</button>
-          <button type="button" onClick={() => { setConsumer(undefined); setSelected([]); }}>All consumers</button>
-          {pending.data?.pending.length === 100 && <button type="button" onClick={() => { setSelected([]); setRange(current => ({ ...current, start: `(${pending.data!.pending.at(-1)!.id}` })); }}>Next pending page</button>}
-        </form>
-        <p>{pending.data?.pending.length ?? 0} matching pending messages on this page · group total {pending.data?.total ?? group.pending}{consumer && <> · consumer {displayBin(consumer)}</>}.</p>
-        <table><thead><tr>{canWrite(db) && <th>Select</th>}<th>Entry ID</th><th>Consumer</th><th>Idle ms</th><th>Deliveries</th></tr></thead><tbody>{pending.data?.pending.map(p => <tr key={p.id}>{canWrite(db) && <td><input type="checkbox" aria-label={`Select pending ${p.id}`} checked={selected.includes(p.id)} onChange={e => setSelected(current => e.target.checked ? [...current, p.id] : current.filter(id => id !== p.id))} /></td>}<td><button type="button" onClick={() => setEntryId(p.id)} aria-label={`Inspect pending entry ${p.id}`}><code>{p.id}</code></button></td><td className="data">{displayBin(p.consumerBin ?? binFromString(p.consumer))}</td><td>{p.idleMs}</td><td>{p.deliveries}</td></tr>)}</tbody></table>
-        {canWrite(db) ? <div className="actions"><button type="button" disabled={busy || !selected.length} onClick={() => { void act("ack"); }}>Acknowledge selected (confirm)</button><input aria-label="Claim target consumer" placeholder="Target consumer" value={target} onChange={e => setTarget(e.target.value)} /><input aria-label="Claim minimum idle milliseconds" type="number" min={0} value={idle} onChange={e => setIdle(e.target.value)} /><button type="button" disabled={busy || !selected.length} onClick={() => { void act("claim"); }}>Claim selected (confirm)</button></div> : <p>Claim and acknowledgement require write access.</p>}
+        <section className="stream-section" aria-label="Consumers">
+          <div className="stream-section-head">
+            <h4>Consumers</h4>
+            <span className="muted">Last delivered <code>{group.lastDeliveredId}</code> · lag {group.lag ?? "unknown"} · {group.consumers.length} of {group.consumerTotal ?? group.consumers.length} consumers shown</span>
+            {canWrite(db) && <button type="button" className="danger-text stream-section-action" disabled={busy} data-testid="stream-group-destroy" onClick={() => { void destroyGroup(); }}>Destroy group {displayBin(groupName!)}… ({group.pending} pending)</button>}
+          </div>
+          {group.consumers.length ? <div className="table-wrap"><table><thead><tr><th>Consumer</th><th className="num">Pending</th><th className="num">Idle ms</th><th>Messages</th>{canWrite(db) && <th>Delete</th>}</tr></thead><tbody>{group.consumers.map((c, i) => <tr key={i}><td className="data">{displayBin(c.nameBin ?? binFromString(c.name))}</td><td className="num">{c.pending}</td><td className="num">{c.idleMs}</td><td><button type="button" onClick={() => { setConsumer(c.nameBin ?? binFromString(c.name)); setSelected([]); }}>Pending for consumer {i + 1}</button></td>{canWrite(db) && <td><button type="button" className="danger-text" disabled={busy} data-testid="stream-consumer-delete" aria-label={`Delete consumer ${i + 1} (${c.pending} pending)`} onClick={() => { void deleteConsumer(c.nameBin ?? binFromString(c.name), c.pending); }}>Delete… ({c.pending} pending)</button></td>}</tr>)}</tbody></table></div>
+            : <p className="muted stream-empty">No consumer has read from this group yet.</p>}
+        </section>
+        <section className="stream-section" aria-label="Pending messages">
+          <div className="stream-section-head"><h4>Pending messages</h4>
+            <span className="muted">{pending.data?.pending.length ?? 0} matching pending messages on this page · group total {pending.data?.total ?? group.pending}{consumer && <> · consumer {displayBin(consumer)}</>}</span></div>
+          <form className="stream-row" onSubmit={e => { e.preventDefault(); setSelected([]); setRange({ start: start || "-", end: end || "+" }); }}>
+            <label className="field"><span>Start ID</span><input className="data" aria-label="Pending start ID" placeholder="- or entry ID" value={start} onChange={e => setStart(e.target.value)} /></label>
+            <label className="field"><span>End ID</span><input className="data" aria-label="Pending end ID" placeholder="+ or same ID" value={end} onChange={e => setEnd(e.target.value)} /></label>
+            <button type="submit">Find pending IDs</button>
+            <button type="button" onClick={() => { setConsumer(undefined); setSelected([]); }}>All consumers</button>
+            {pending.data?.pending.length === 100 && <button type="button" onClick={() => { setSelected([]); setRange(current => ({ ...current, start: `(${pending.data!.pending.at(-1)!.id}` })); }}>Next pending page</button>}
+          </form>
+          {pending.data?.pending.length ? <div className="table-wrap"><table><thead><tr>{canWrite(db) && <th>Select</th>}<th>Entry ID</th><th>Consumer</th><th className="num">Idle ms</th><th className="num">Deliveries</th></tr></thead><tbody>{pending.data.pending.map(p => <tr key={p.id}>{canWrite(db) && <td><input type="checkbox" aria-label={`Select pending ${p.id}`} checked={selected.includes(p.id)} onChange={e => setSelected(current => e.target.checked ? [...current, p.id] : current.filter(id => id !== p.id))} /></td>}<td><button type="button" onClick={() => setEntryId(p.id)} aria-label={`Inspect pending entry ${p.id}`}><code>{p.id}</code></button></td><td className="data">{displayBin(p.consumerBin ?? binFromString(p.consumer))}</td><td className="num">{p.idleMs}</td><td className="num">{p.deliveries}</td></tr>)}</tbody></table></div>
+            : <p className="muted stream-empty">{pending.isPending ? "Reading pending messages…" : "No pending messages in this range."}</p>}
+          {canWrite(db) ? <div className="stream-row">
+            <button type="button" disabled={busy || !selected.length} onClick={() => { void act("ack"); }}>Acknowledge selected (confirm)</button>
+            <label className="field"><span>Claim for consumer</span><input className="data" aria-label="Claim target consumer" placeholder="Target consumer" value={target} onChange={e => setTarget(e.target.value)} /></label>
+            <label className="field stream-idle"><span>Minimum idle (ms)</span><input aria-label="Claim minimum idle milliseconds" type="number" min={0} value={idle} onChange={e => setIdle(e.target.value)} /></label>
+            <button type="button" disabled={busy || !selected.length} onClick={() => { void act("claim"); }}>Claim selected (confirm)</button>
+          </div> : <p className="muted">Claim and acknowledgement require write access.</p>}
+        </section>
       </>}
-      {canWrite(db) && <form className="stream-group-new" aria-label="Create a consumer group" onSubmit={e => { e.preventDefault(); void createGroup(); }}>
-        <h4>Create a consumer group</h4>
-        <div className="actions">
-          <input className="data" aria-label="New group name" placeholder="Group name" maxLength={256} value={newGroup.name} onChange={e => setNewGroup({ ...newGroup, name: e.target.value })} data-testid="stream-new-group-name" />
-          <select aria-label="New group start" value={newGroup.start} onChange={e => setNewGroup({ ...newGroup, start: e.target.value })} data-testid="stream-new-group-start">
+      {canWrite(db) && <form className="stream-section stream-group-new" aria-label="Create a consumer group" onSubmit={e => { e.preventDefault(); void createGroup(); }}>
+        <div className="stream-section-head"><h4>Create a consumer group</h4></div>
+        <div className="stream-row">
+          <label className="field"><span>Group name</span><input className="data" aria-label="New group name" placeholder="Group name" maxLength={256} value={newGroup.name} onChange={e => setNewGroup({ ...newGroup, name: e.target.value })} data-testid="stream-new-group-name" /></label>
+          <label className="field"><span>Start from</span><select aria-label="New group start" value={newGroup.start} onChange={e => setNewGroup({ ...newGroup, start: e.target.value })} data-testid="stream-new-group-start">
             <option value="$">New entries only ($)</option>
             <option value="0">Every entry (0)</option>
             <option value="id">After an entry ID…</option>
-          </select>
-          {newGroup.start === "id" && <input className="data" aria-label="New group start ID" placeholder="1700000000000-0" maxLength={64} value={newGroup.id} onChange={e => setNewGroup({ ...newGroup, id: e.target.value })} data-testid="stream-new-group-id" />}
+          </select></label>
+          {newGroup.start === "id" && <label className="field"><span>Entry ID</span><input className="data" aria-label="New group start ID" placeholder="1700000000000-0" maxLength={64} value={newGroup.id} onChange={e => setNewGroup({ ...newGroup, id: e.target.value })} data-testid="stream-new-group-id" /></label>}
           <label className="checkbox"><input type="checkbox" checked={newGroup.mkstream} onChange={e => setNewGroup({ ...newGroup, mkstream: e.target.checked })} data-testid="stream-new-group-mkstream" />Create the stream if it is missing (MKSTREAM)</label>
           <button type="submit" disabled={busy || !newGroup.name || !startValid} data-testid="stream-new-group-create">Create group</button>
         </div>
@@ -125,7 +144,7 @@ export function StreamInspector({ keyName, refresh }: { keyName: Bin; refresh: (
       </form>}
       {outcome && <p role="status" data-testid="stream-lifecycle-outcome">{outcome}</p>}
       {entryId && <PendingPayload key={entryId} keyName={keyName} id={entryId} close={() => setEntryId(undefined)} />}
-    </>}
+    </div>}
   </details>;
 }
 
