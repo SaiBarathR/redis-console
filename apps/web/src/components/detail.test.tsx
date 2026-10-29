@@ -63,7 +63,7 @@ describe("F3 in-place formats and widths", () => {
     await userEvent.selectOptions(screen.getByLabelText("Collection value format"), "json");
     const cells = screen.getAllByTestId("value-cell-open");
     expect(cells[1]).toHaveTextContent('"n": 9007199254740993');
-    await userEvent.click(screen.getAllByText("Expand value")[1]!);
+    await userEvent.click(screen.getAllByText("Expand value")[0]!);
     await waitFor(() => expect(screen.getByTestId("key-value")).toHaveTextContent("9007199254740993"));
     fireEvent.change(screen.getByLabelText("Field column width"), { target: { value: "65" } });
     // jsdom has no layout; the fallback preserves the selected percentage until ResizeObserver measures.
@@ -71,9 +71,11 @@ describe("F3 in-place formats and widths", () => {
   });
   it("opens one full-width detail area and switches from field to value", async () => {
     render(wrap(<KeyContent details={hash()} refresh={async () => {}} />));
-    const expand = screen.getAllByRole("button", { name: "Expand value" });
+    const expand = screen.getAllByRole("button", { name: /^Expand (field|value)$/ });
+    expect(expand.slice(0, 2).map((button) => button.textContent)).toEqual(["Expand field", "Expand value"]);
     await userEvent.click(expand[0]!);
     expect(screen.getAllByTestId("value-format")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Collapse field" })).toBeInTheDocument();
     expect(screen.getByTestId("key-value").closest("td")).toHaveAttribute("colspan", "4");
     expect(screen.getByTestId("key-value")).toHaveTextContent("f");
     await userEvent.click(screen.getByRole("tab", { name: /^Hex$/ }));
@@ -91,7 +93,7 @@ describe("F3 in-place formats and widths", () => {
       type: "stream", total: 1, groups: 0, lastId: "1-0", entries: [{ id: "1-0", fields: [{ field: bin("field"), value: bin("value") }] }],
     } };
     render(wrap(<KeyContent details={details} refresh={async () => {}} />));
-    const expand = screen.getAllByRole("button", { name: "Expand value" });
+    const expand = screen.getAllByRole("button", { name: /^Expand (field|value)$/ });
     await userEvent.click(expand[0]!); await userEvent.click(expand[1]!);
     expect(screen.getAllByTestId("value-format")).toHaveLength(1);
     expect(screen.getByTestId("key-value").closest("td")).toHaveAttribute("colspan", "4");

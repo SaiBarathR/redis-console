@@ -74,7 +74,7 @@ for (const role of roles) {
       await detail.getByLabel('Collection value format').selectOption('json');
       await expect(detail.getByTestId('value-cell-open').nth(1)).toContainText('9007199254740993');
       await expect(detail.getByTestId('value-cell-open').nth(1)).toContainText('"n": 9007199254740993');
-      await detail.getByText('Expand value', { exact: true }).nth(1).click(); await expect(detail.getByTestId('key-value')).toContainText('9007199254740993');
+      await detail.getByText('Expand value', { exact: true }).first().click(); await expect(detail.getByTestId('key-value')).toContainText('9007199254740993');
       await detail.getByLabel('Field column width').fill('60'); const widths = await detail.locator('.detail-value-table table').evaluate(table => ({ available: table.clientWidth - 208, first: table.querySelector('col')!.getBoundingClientRect().width }));
       expect(Math.abs(widths.first - widths.available * 0.6)).toBeLessThan(2);
       await detail.getByLabel('Collection lookup', { exact: true }).fill('vector'); await detail.getByText('Apply lookup', { exact: true }).click();

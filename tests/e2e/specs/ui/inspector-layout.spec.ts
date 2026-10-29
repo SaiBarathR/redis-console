@@ -24,7 +24,7 @@ for (const role of ['viewer', 'operator', 'admin'] as const) {
         for (const theme of ['light', 'dark']) {
           if (await page.locator('html').getAttribute('data-theme') !== theme) await page.getByTestId('theme-toggle').click();
           const detail = await openKey(page, key);
-          const buttons = detail.getByRole('button', { name: 'Expand value', exact: true });
+          const buttons = detail.getByRole('button', { name: /^Expand (field|value)$/ });
           await buttons.first().click(); await buttons.nth(1).click();
           await expect(detail.locator('.collection-detail-line .value-viewer')).toHaveCount(1);
           await expect(detail.locator('.collection-detail-line td')).toHaveAttribute('colspan', '4');

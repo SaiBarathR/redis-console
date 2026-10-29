@@ -189,7 +189,7 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
   Score range / Entry ID-range), `Collection lookup`, `Lookup encoding`, `List index`, `Minimum score`,
   `Maximum score`, `Start entry ID`, `End entry ID`; Apply/Reset lookup reset paging. `collection-filter-count`
   labels page matches, exact total matches only when known, and the whole-collection total separately.
-- `Collection value format` applies safe formatters in place; each cell has `Expand value`. `Field column width`,
+- `Collection value format` applies safe formatters in place; each cell has a toggle named after its column (`Expand field`, `Expand value`, `Expand member`, …); the detail row it opens has `Collapse <column>`. `Field column width`,
   `Index column width`, etc. are keyboard-operable range controls. Format and width choices survive paging in
   session memory. Float32/64 LE/BE tabs show byte order, dimensions and alignment errors.
 - Hash rows have a `Field TTL` column, batched by the server. `Field TTL for <field>` opens Seconds / Set field TTL /

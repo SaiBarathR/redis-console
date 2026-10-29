@@ -61,7 +61,9 @@ const CHANGED: Partial<Record<KeyValue["type"], string>> = {
   zset: "This member's score changed; reopen it to edit it.",
 };
 const ColumnWidths = createContext<{ width: number; set: (n: number) => void } | null>(null);
-const RowExpansion = createContext<{ selected?: number; column: number; toggle: () => void } | null>(null);
+const RowExpansion = createContext<{ selected?: number; column: number; noun: string; toggle: () => void } | null>(null);
+/** "Field" → "field": the collection toggles name what they expand. */
+const nounOf = (column: string | undefined) => (column ?? "value").toLowerCase();
 
 interface Row {
   /** Element identity, so a reordered page keeps an open panel (and its draft) mounted. */
@@ -135,6 +137,7 @@ function ValueTable({
                     <RowExpansion value={isValidElement(cell) && cell.type === CollectionCell ? {
                       selected: expanded?.row === (row.id ?? index) ? expanded.column : undefined,
                       column: cellIndex,
+                      noun: nounOf(columns[cellIndex]),
                       toggle: () => setExpanded(current =>
                         current?.row === (row.id ?? index) && current.column === cellIndex
                           ? undefined : { row: row.id ?? index, column: cellIndex }),
@@ -146,7 +149,7 @@ function ValueTable({
               {expanded?.row === (row.id ?? index) && isValidElement<{ expandedOnly?: boolean }>(row.cells[expanded.column]) && (
                 <tr className="row-panel-line collection-detail-line">
                   <td colSpan={columns.length + (hasActions ? 1 : 0)}>
-                    <div className="collection-detail-heading"><strong>{columns[expanded.column]}</strong><button type="button" className="ghost" onClick={() => setExpanded(undefined)}>Collapse value</button></div>
+                    <div className="collection-detail-heading"><strong>{columns[expanded.column]}</strong><button type="button" className="ghost" onClick={() => setExpanded(undefined)}>Collapse {nounOf(columns[expanded.column])}</button></div>
                     {cloneElement(row.cells[expanded.column] as React.ReactElement<{ expandedOnly?: boolean }>, { expandedOnly: true, key: `${row.id ?? index}:${expanded.column}` })}
                   </td>
                 </tr>
@@ -665,6 +668,6 @@ function CollectionCell({ value, truncated, format, open, expandedOnly = false }
   if (expandedOnly) return <ValueViewer value={value} truncated={truncated} preferred={format} />;
   return <div className="collection-cell">
     <button type="button" className="value-cell data" onClick={open} title="Open in the value inspector" data-testid="value-cell-open"><span>{text}</span>{value.enc === "utf8" && epochLabel(value.data) && <small className="muted"> · Timestamp hint: {epochLabel(value.data)}</small>}</button>
-    {row ? <button type="button" className="collection-expand" aria-expanded={row.selected === row.column} onClick={row.toggle}>Expand value</button> : <details onToggle={e => setExpanded(e.currentTarget.open)}><summary>Expand value</summary>{expanded && <ValueViewer key={format} value={value} truncated={truncated} preferred={format} />}</details>}
+    {row ? <button type="button" className="collection-expand" aria-expanded={row.selected === row.column} onClick={row.toggle}>Expand {row.noun}</button> : <details onToggle={e => setExpanded(e.currentTarget.open)}><summary>Expand value</summary>{expanded && <ValueViewer key={format} value={value} truncated={truncated} preferred={format} />}</details>}
   </div>;
 }
