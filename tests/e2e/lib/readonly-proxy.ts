@@ -103,7 +103,10 @@ export async function startReadonlyProxy(opts: {
         const parsed = parseCommand(buf, pos);
         if (parsed === undefined) break;
         if (parsed === null) {
-          appendFileSync(PROXY_VIOLATIONS_FILE, JSON.stringify({ at: new Date().toISOString(), command: '<inline or malformed>' }) + '\n');
+          // Say what arrived without recording data: an HTTP request line's method (a port probe from another
+          // process), or that the bytes were not RESP. The app's own client always speaks RESP arrays.
+          const http = /^(GET|HEAD|POST|PUT|OPTIONS|CONNECT|PRI) /.exec(buf.subarray(pos, pos + 16).toString('latin1'));
+          appendFileSync(PROXY_VIOLATIONS_FILE, JSON.stringify({ at: new Date().toISOString(), command: http ? `<HTTP ${http[1]} request>` : '<inline or malformed>', clientPort: client.remotePort }) + '\n');
           kill();
           return;
         }
