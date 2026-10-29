@@ -662,8 +662,8 @@
 .policy-tag {
   display: inline-flex;
   align-items: center;
-  height: 17px;
-  padding: 0 5px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: var(--radius);
   font-size: var(--text-micro);
   font-weight: 600;

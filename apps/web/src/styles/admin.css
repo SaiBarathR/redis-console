@@ -417,7 +417,7 @@
 .audit .admin-table td > .ident { font-size: var(--text-meta); }
 .audit-time { width: 10rem; }
 .audit-user { width: 6.25rem; }
-.audit-outcome { width: 7.25rem; }
+.audit-outcome { width: 8.5rem; }
 .audit-action { width: 11rem; }
 .audit-database { width: 7.75rem; }
 .audit-detail { width: 17%; }
@@ -434,7 +434,7 @@
 }
 .audit-when { white-space: nowrap; }
 /* "needs confirmation" is the only long tag: it may take two lines rather than widen the column for every row. */
-.audit .outcome-tag { height: auto; min-height: 18px; padding-top: 1px; padding-bottom: 1px; white-space: normal; line-height: 14px; }
+.audit .outcome-tag { height: auto; min-height: 20px; padding-top: 2px; padding-bottom: 2px; white-space: normal; line-height: 14px; }
 .audit .admin-table td { white-space: normal; overflow-wrap: break-word; }
 .audit .admin-table td > code { white-space: pre-wrap; }
 
