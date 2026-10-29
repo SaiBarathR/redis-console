@@ -469,6 +469,9 @@
   padding: 7px 12px 8px;
   border-right: 1px solid var(--rule);
   margin-right: -1px;
+  /* A wrapped second row needs a rule above it too; the strip's own border hides the last row's. */
+  border-bottom: 1px solid var(--rule);
+  margin-bottom: -1px;
 }
 .readout-label {
   color: var(--graphite);

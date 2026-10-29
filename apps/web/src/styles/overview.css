@@ -4,6 +4,20 @@
 }
 .overview > .readouts {
   margin-top: var(--space-1);
+  /* Seven readouts: one row where they fit, otherwise four and three; never six and a lone seventh. */
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.overview {
+  container-type: inline-size;
+}
+@container (max-width: 900px) {
+  .overview > .readouts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+.overview > .readouts .readout-sub {
+  white-space: normal;
+  overflow-wrap: break-word;
 }
 .overview .section .chart {
   border: 1px solid var(--rule);
