@@ -80,6 +80,12 @@ interface Row {
   panel?: ReactNode;
 }
 
+/** An ISO timestamp that wraps only between its date and its time, never inside "2026-10-29". */
+function IsoTime({ iso }: { iso: string }) {
+  const at = iso.indexOf("T") + 1;
+  return at > 0 ? <><span className="nowrap">{iso.slice(0, at)}</span><wbr /><span className="nowrap">{iso.slice(at)}</span></> : <>{iso}</>;
+}
+
 /** Dense element table; a row's edit or field-TTL panel opens on a full-width line under it. */
 function ValueTable({
   columns,
@@ -541,7 +547,7 @@ export function KeyContent({
               cells: [
                 <span className="stream-id">
                   <code>{entry.id}</code>
-                  {epochLabel(entry.id) && <small>{epochLabel(entry.id)}</small>}
+                  {epochLabel(entry.id) && <small><IsoTime iso={epochLabel(entry.id)!} /></small>}
                 </span>,
                 cell(field.field, field.truncated, field.ref, "identity"),
                 cell(field.value, field.truncated, field.ref, "value", true),
@@ -570,7 +576,7 @@ export function KeyContent({
             firstShare={40}
             empty="This series has no samples in the read range."
             rows={value.samples.map(([t, v]) => ({
-              cells: [<code>{new Date(t).toISOString()}</code>, v],
+              cells: [<code><IsoTime iso={new Date(t).toISOString()} /></code>, v],
             }))}
           />
           <details className="disclosure">
