@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Ident } from "../components/Ident.tsx";
 import {
   binFromString,
   type AnalysisReport,
@@ -281,7 +282,7 @@ function Clients() {
                 <code className="num">{entry.id}</code>,
                 <span className="client-cell">
                   {entry.addr && entry.addr !== "<hidden>" ? (
-                    <code>{visibleText(entry.addr)}</code>
+                    <Ident text={entry.addr} />
                   ) : (
                     <span className="muted">Address hidden</span>
                   )}
