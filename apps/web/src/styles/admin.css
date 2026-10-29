@@ -412,6 +412,7 @@
 .audit .admin-table th { white-space: normal; }
 .audit .admin-table th, .audit .admin-table td { padding-left: var(--space-2); padding-right: var(--space-2); }
 .audit .admin-table th:first-child, .audit .admin-table td:first-child { padding-left: var(--space-4); }
+.audit .admin-table th:last-child, .audit .admin-table td:last-child { padding-right: var(--space-4); }
 /* Identifiers in a slightly smaller mono size, so common actions ("timeseries.range") fit on one line. */
 .audit .admin-table td > .ident { font-size: var(--text-meta); }
 .audit-time { width: 10rem; }
