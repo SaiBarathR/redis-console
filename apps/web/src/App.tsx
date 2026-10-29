@@ -561,14 +561,14 @@ function Shell() {
             className="nav-item profile"
             to="/account"
             aria-label={`Account settings for ${me.displayName}`}
-            title={railOpen ? undefined : `Account: ${me.displayName}`}
+            title={`Account: ${me.displayName}`}
             data-testid="account-link"
           >
             <span className="avatar" aria-hidden="true">
               {me.displayName.slice(0, 1).toUpperCase()}
             </span>
             <span className="nav-label profile-text">
-              {me.displayName}
+              <span className="profile-name">{me.displayName}</span>
               <small>
                 {me.source === "oidc" ? "Company SSO" : "Local account"} ·{" "}
                 {me.role}

@@ -247,6 +247,14 @@
 .profile-text small {
   font-size: 10.5px;
 }
+/* A long display name ends in an ellipsis (the link's title has it in full) instead of being cut mid-letter. */
+.profile-text > .profile-name,
+.profile-text > small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Context bar */
 .main-column {
