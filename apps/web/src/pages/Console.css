@@ -902,3 +902,47 @@
   flex-shrink: 0;
   row-gap: var(--space-1);
 }
+/* The drawer is a short, narrow surface: its chrome (toolbar, prompt, shortcut row) wrapped to five rows, left the
+   transcript 40 px and pushed the last shortcut row out of the pane. Docked, key hints show their keys only (as on
+   narrow screens; the name stays in the title and the shortcut overlay), and Run drops its Enter cap. */
+.console-view.is-docked .key-hint:not(.keep-label) span {
+  display: none;
+}
+.console-view.is-docked .console-run-button kbd {
+  display: none;
+}
+.console-view.is-docked .console-prompt-row .editor {
+  flex-basis: 140px;
+}
+/* One row each for the toolbar and the shortcut line: what does not fit scrolls sideways in its own strip. */
+.console-view.is-docked .console-docked-bar {
+  flex-wrap: nowrap;
+}
+.console-view.is-docked .console-docked-bar .meta {
+  flex: 1 1 0;
+}
+/* Beside another tool there is no room for the counts (they stay in the full-width drawer and the Console page). */
+.drawer-pane .console-view.is-docked .console-docked-bar .meta {
+  display: none;
+}
+.console-view.is-docked .console-dock-foot {
+  flex-wrap: nowrap;
+}
+.console-view.is-docked .console-docked-bar .actions,
+.console-view.is-docked .console-dock-foot .key-hints {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.console-view.is-docked .console-docked-bar .actions > *,
+.console-view.is-docked .console-dock-foot .key-hints > * {
+  flex-shrink: 0;
+}
+.console-view.is-docked .console-dock-foot .key-hints {
+  flex: 0 1 auto;
+}
+.console-view.is-docked .console-dock-foot .policy {
+  flex: 1 1 160px;
+}
