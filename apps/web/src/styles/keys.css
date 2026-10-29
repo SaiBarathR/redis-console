@@ -989,6 +989,8 @@ tr:hover .row-button,
 .row-panel { min-width: 0; }
 .row-panel .actions { flex-wrap: wrap; }
 .key-pane .list-head, .selection-bar, .scan-foot { flex-wrap: wrap; white-space: normal; gap: var(--space-2); }
+/* The counts stay on one line and end in an ellipsis: wrapping left the total alone on a second line. */
+.key-pane .list-head .count-line { white-space: nowrap; }
 .scan-form { flex-wrap: wrap; }
 .scan-form .pattern-field { max-width: none; }
 .pattern-field input { min-width: 0; }

@@ -539,7 +539,7 @@ function Streams() {
                         <span className="num">Deliveries</span>,
                       ]}
                       rows={(pending.data ?? []).map((row) => [
-                        <code>{row.id}</code>,
+                        <code className="nowrap">{row.id}</code>,
                         <code>{visibleText(row.consumer)}</code>,
                         <span className="num tabular">
                           {msLabel(row.idleMs)}
