@@ -318,3 +318,46 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The body owns vertical scrolling; table wrappers own only necessary horizontal overflow. */
+.diag-pane { overflow: hidden; }
+.diag-pane > .pane-body { min-width: 0; min-height: 0; overflow: auto; }
+.diag-pane > .pane-head { flex-wrap: wrap; padding-block: var(--space-2); }
+.diag-pane > .pane-head .meta { white-space: normal; overflow-wrap: anywhere; }
+.diag-pane > .pane-head .actions { flex-wrap: wrap; }
+.diag-pane .table-wrap table { table-layout: fixed; }
+.diag-pane .table-wrap th { white-space: normal; overflow-wrap: anywhere; }
+.diag-pane .table-wrap td { overflow-wrap: anywhere; }
+.diag-pane .table-wrap td:has(> .nowrap) { white-space: normal; }
+.diag-pane .nowrap, .diag-pane .client-cell code { white-space: normal; overflow-wrap: anywhere; }
+.command-cell, .command-line { max-width: 100%; }
+.diag-pane .section > header { flex-wrap: wrap; }
+.diag-pane .listening { flex-wrap: wrap; overflow-wrap: anywhere; }
+
+.slowlog-table th:nth-child(1) { width: 8%; }
+.slowlog-table th:nth-child(2) { width: 20%; }
+.slowlog-table th:nth-child(3) { width: 14%; }
+.slowlog-table th:nth-child(4) { width: 36%; }
+.slowlog-table th:nth-child(5) { width: 22%; }
+.profiler-events th:nth-child(1) { width: 16%; }
+.profiler-events th:nth-child(2) { width: 8%; }
+.profiler-events th:nth-child(3) { width: 22%; }
+.profiler-events th:nth-child(4) { width: 54%; }
+.pubsub-messages th:nth-child(1) { width: 16%; }
+.pubsub-messages th:nth-child(2), .pubsub-messages th:nth-child(3) { width: 22%; }
+.pubsub-messages th:nth-child(4) { width: 40%; }
+/* Addresses and action labels need usable widths; only this genuinely wide table scrolls. */
+.clients-table table { min-width: 900px; }
+.clients-table th:nth-child(1) { width: 8%; }
+.clients-table th:nth-child(2) { width: 25%; }
+.clients-table th:nth-child(3) { width: 15%; }
+.clients-table th:nth-child(4), .clients-table th:nth-child(5) { width: 8%; }
+.clients-table th:nth-child(6) { width: 12%; }
+.clients-table th:nth-child(7) { width: 10%; }
+.clients-table th:nth-child(8) { width: 14%; }
+.diag-pane .table-wrap .key-anatomy { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diag-pane .listening > div { min-width: 0; max-width: 100%; }
+.diag-pane .topic-chips { min-width: 0; max-width: 100%; }
+.diag-pane .topic-chip { min-width: 0; }
+.diag-pane .topic-chip code { white-space: pre-wrap; overflow-wrap: anywhere; }
+.diag-pane .channel-cell { min-width: 0; max-width: 100%; flex-wrap: wrap; }

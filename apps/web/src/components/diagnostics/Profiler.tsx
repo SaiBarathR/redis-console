@@ -224,7 +224,7 @@ export function Profiler({ compact = false }: { compact?: boolean }) {
             <p className={state.status === "error" ? "notice warning" : "muted"}>{visibleText(state.message)}</p>
           )}
           <DataTable
-            className="dense"
+            className="dense profiler-events"
             columns={["Time", <span className="num">DB</span>, "Client", "Command"]}
             rows={events
               .slice()

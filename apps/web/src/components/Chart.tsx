@@ -38,13 +38,18 @@ export function Chart({
   useEffect(() => {
     if (!host.current || !ready) return;
     const element = host.current;
+    // uPlot needs the content width: clientWidth includes the host's chart padding.
+    const contentWidth = () => {
+      const css = getComputedStyle(element);
+      return Math.max(1, element.clientWidth - parseFloat(css.paddingLeft || "0") - parseFloat(css.paddingRight || "0"));
+    };
     const stroke = token(color, "#3b3db4");
     const axis = token("--graphite", "#555e59");
     const grid = token("--rule", "#d2d8d2");
     const font = `11px ${token("--font-ui", "system-ui")}`;
     const instance = new uPlot(
       {
-        width: element.clientWidth || 500,
+        width: contentWidth(),
         height,
         series: [
           {},
@@ -107,7 +112,7 @@ export function Chart({
     );
     chart.current = instance;
     const resize = new ResizeObserver(() =>
-      instance.setSize({ width: element.clientWidth || 500, height }),
+      instance.setSize({ width: contentWidth(), height }),
     );
     resize.observe(element);
     return () => {

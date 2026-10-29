@@ -264,7 +264,7 @@ function Clients() {
           <Loading label="Reading connected clients…" />
         ) : (
           <DataTable
-            className="dense"
+            className="dense clients-table"
             columns={[
               <span className="num">ID</span>,
               "Address and name",
