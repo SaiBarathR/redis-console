@@ -25,9 +25,14 @@
 .warn-text {
   color: var(--warn);
 }
+/* The containing tool pane or Console transcript owns vertical scrolling. */
 .rich-scroll {
-  max-height: 420px;
   overflow: auto;
+}
+.rich-scroll th {
+  max-width: 420px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .rich-cell {
   display: block;
@@ -520,3 +525,19 @@
   cursor: pointer;
 }
 
+/* Preserve usable schema controls; the wizard's table wrapper owns horizontal overflow. */
+.schema-table {
+  min-width: 900px;
+}
+.schema-table td:nth-child(3) {
+  min-width: 120px;
+}
+.schema-table td:nth-child(4) {
+  min-width: 110px;
+}
+.schema-table td:nth-child(5) {
+  min-width: 150px;
+}
+.schema-table .checkbox {
+  white-space: nowrap;
+}
