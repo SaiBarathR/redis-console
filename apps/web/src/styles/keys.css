@@ -315,7 +315,7 @@
   align-items: center;
   gap: 4px;
   min-height: 20px;
-  padding: 0 4px;
+  padding: 0 6px;
   border: 0;
   background: transparent;
   color: var(--graphite);

@@ -65,8 +65,10 @@
   border: 0;
   background: transparent;
   min-height: 0;
-  padding: 0;
-  gap: 3px;
+  /* Room for the inset focus ring around the label without moving it off the column's text edge. */
+  padding: 2px 4px;
+  margin: -2px -4px;
+  gap: 4px;
   color: inherit;
   font: inherit;
   font-weight: inherit;
