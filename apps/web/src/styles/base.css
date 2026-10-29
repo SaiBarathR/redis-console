@@ -273,7 +273,7 @@ kbd {
   background: var(--raised);
   color: var(--graphite);
   border-radius: var(--radius);
-  padding: 0 4px;
+  padding: 0 6px;
   font-size: 10.5px;
   line-height: 15px;
 }
