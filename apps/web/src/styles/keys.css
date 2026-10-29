@@ -994,3 +994,20 @@ tr:hover .row-button,
 [data-testid="multi-entry-dialog"] .entry-score { max-width: 14rem; }
 [data-testid="multi-entry-dialog"] textarea { min-height: 64px; resize: vertical; }
 .inspector .form-row { flex-wrap: wrap; }
+
+/* A long string or JSON value shrinks to the inspector and owns the only scroll: a fixed 60vh cap left the value scrolling
+   inside an inspector that also scrolled by a few dozen pixels (two scrollbars for one value). */
+.inspector-body:has(> .value-viewer) {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.inspector-body > .value-viewer {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.inspector-body > .value-viewer > .value-content {
+  flex: 0 1 auto;
+  min-height: 120px;
+  max-height: none;
+}
