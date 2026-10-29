@@ -211,6 +211,12 @@ textarea {
   min-height: 28px;
   font-size: var(--text-data);
 }
+/* A text input's line box matches a button's (4 + 18 + 4 + borders = 28 px), so inputs, selects and buttons in one
+   row share a height instead of inputs standing 2 px taller. */
+input,
+input.data {
+  line-height: var(--lh-meta);
+}
 input::placeholder,
 textarea::placeholder {
   color: var(--delim);
