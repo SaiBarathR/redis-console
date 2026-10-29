@@ -254,26 +254,6 @@
   text-align: right;
   color: var(--graphite);
 }
-.key-link {
-  border: 0;
-  background: transparent;
-  min-height: 20px;
-  max-width: 100%;
-  min-width: 0;
-  padding: 0 3px;
-  justify-content: flex-start;
-  font-size: var(--text-data);
-  font-weight: 400;
-  line-height: var(--lh-data);
-}
-.key-link:hover {
-  background: var(--hover);
-}
-.key-link:hover .ka-leaf,
-.key-link:focus-visible .ka-leaf {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
 .result-keys {
   display: flex;
   flex-wrap: wrap;

@@ -73,7 +73,8 @@ export function KeyName({
       {hidden && <span className="sr-only">{visibleText(hidden)}</span>}
       {segments.map((segment, index) => (
         <span key={index}>
-          {index > 0 && <span className="ka-d">{visibleText(delimiter)}</span>}
+          {/* A long name wraps after a delimiter before it breaks inside a segment. */}
+          {index > 0 && <><span className="ka-d">{visibleText(delimiter)}</span><wbr /></>}
           <span className={`ka-${segment.kind}`}>
             {visibleText(segment.text)}
           </span>

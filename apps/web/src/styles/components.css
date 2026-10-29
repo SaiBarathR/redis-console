@@ -709,3 +709,26 @@
 .ident { white-space: normal; overflow-wrap: anywhere; word-break: normal; }
 .ident-list { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); min-width: 0; }
 
+/* Key links (Console replies, search documents, analysis keys). Shared here, not in the lazily loaded Console
+   stylesheet, so a link looks the same whether or not the Console has been opened in this tab. */
+.key-link {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  min-height: 20px;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 3px;
+  justify-content: flex-start;
+  font-size: var(--text-data);
+  font-weight: 400;
+  line-height: var(--lh-data);
+}
+.key-link:hover {
+  background: var(--hover);
+}
+.key-link:hover .ka-leaf,
+.key-link:focus-visible .ka-leaf {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
