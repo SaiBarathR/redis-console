@@ -363,3 +363,9 @@
 .diag-pane .topic-chip { min-width: 0; }
 .diag-pane .topic-chip code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .diag-pane .channel-cell { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+
+/* Consumer-group names wrap in their own cell; numeric columns and stream IDs keep their natural width. */
+.diag-pane .stream-groups-table table { table-layout: auto; }
+.stream-groups-table .group-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.stream-groups-table td:not(:first-child) { white-space: nowrap; }
+.stream-groups-table .ident { white-space: nowrap; }

@@ -432,7 +432,7 @@ function Streams() {
                 <Loading label="Reading consumer groups…" />
               ) : (
                 <DataTable
-                  className="dense"
+                  className="dense stream-groups-table"
                   columns={[
                     "Group",
                     <span className="num">Consumers</span>,
