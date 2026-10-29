@@ -55,3 +55,10 @@
 .collection-lookup > .error-state { flex-basis: 100%; }
 /* Stream IDs and their timestamp hints must wrap inside the ID column as well. */
 .stream-id { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+
+/* Stream inspector tables size to their content; buttons and names wrap at spaces or separators instead of
+   painting over the next column. */
+.stream-inspector .table-wrap table { table-layout: auto; overflow-wrap: break-word; }
+.stream-inspector td button { white-space: normal; text-align: left; max-width: 100%; }
+.stream-inspector td.num, .stream-inspector th.num { white-space: nowrap; }
+.stream-inspector td button > code { white-space: nowrap; }
