@@ -183,3 +183,13 @@
 .db-error {
   white-space: normal;
 }
+
+/* Metadata is a wrapping row: tags must not push the description out of reach. */
+.db-sub { flex-wrap: wrap; overflow: visible; white-space: normal; gap: var(--space-1) var(--space-2); }
+.db-sub > code { flex-shrink: 1; overflow-wrap: anywhere; min-width: 0; }
+.db-sub .db-tag, .db-sub .db-capability { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+.db-description { flex-basis: 100%; white-space: normal; overflow-wrap: anywhere; }
+.db-sub > .db-description::before { content: none; }
+.landing { overflow: hidden; }
+.landing-table { min-height: 0; overflow: auto; }
+.landing-help { flex-shrink: 0; }
