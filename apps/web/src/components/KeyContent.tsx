@@ -60,7 +60,7 @@ const CHANGED: Partial<Record<KeyValue["type"], string>> = {
   hash: "This field changed; reopen it to edit it.",
   zset: "This member's score changed; reopen it to edit it.",
 };
-const ColumnWidths = createContext<{ width: number; set: (n: number) => void } | null>(null);
+const ColumnWidths = createContext<{ width?: number; set: (n: number) => void } | null>(null);
 const RowExpansion = createContext<{ selected?: number; column: number; noun: string; toggle: () => void } | null>(null);
 /** "Field" → "field": the collection toggles name what they expand. */
 const nounOf = (column: string | undefined) => (column ?? "value").toLowerCase();
@@ -79,11 +79,14 @@ function ValueTable({
   rows,
   numeric = [],
   empty,
+  firstShare,
 }: {
   columns: string[];
   rows: Row[];
   numeric?: number[];
   empty: string;
+  /** The first column's default share (%) of the row, before the user drags the width control. */
+  firstShare?: number;
 }) {
   const [expanded, setExpanded] = useState<{ row: string | number; column: number }>();
   const tableRef = useRef<HTMLTableElement>(null);
@@ -99,9 +102,12 @@ function ValueTable({
     observer.observe(table);
     return () => observer.disconnect();
   }, [hasRows]);
-  const [localWidth, setLocalWidth] = useState(35);
+  const [localWidth, setLocalWidth] = useState<number>();
   const widths = useContext(ColumnWidths);
-  const firstWidth = widths?.width ?? localWidth, setFirstWidth = widths?.set ?? setLocalWidth;
+  // Until the user drags the control, a short numeric column (list index, score, sample value) gets a small share
+  // of the row; otherwise the first column takes about a third.
+  const firstWidth = (widths ? widths.width : localWidth) ?? firstShare ?? (numeric.includes(0) ? 15 : numeric.includes(1) ? 75 : 35);
+  const setFirstWidth = widths?.set ?? setLocalWidth;
   if (!rows.length) return <Empty compact title={empty} />;
   const hasActions = rows.some((row) => row.actions);
   const ttlColumn = columns[2] === "Field TTL";
@@ -554,6 +560,7 @@ export function KeyContent({
           <ValueTable
             columns={["Timestamp", "Value"]}
             numeric={[1]}
+            firstShare={40}
             empty="This series has no samples in the read range."
             rows={value.samples.map(([t, v]) => ({
               cells: [<code>{new Date(t).toISOString()}</code>, v],
@@ -613,7 +620,7 @@ export function KeyContent({
         </div>
       )}
       {["hash", "list", "set", "zset", "stream", "array"].includes(value.type) && <label className="collection-format-control">Collection value format <select aria-label="Collection value format" value={format} onChange={e => setFormat(e.target.value as ValueFormat)}>{FORMATS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}</select></label>}
-      <ColumnWidths value={columnWidth !== undefined && onColumnWidth ? { width: columnWidth, set: onColumnWidth } : null}>{result}</ColumnWidths>
+      <ColumnWidths value={onColumnWidth ? { width: columnWidth, set: onColumnWidth } : null}>{result}</ColumnWidths>
       {inspected && (
         <Modal
           title="Value inspector"

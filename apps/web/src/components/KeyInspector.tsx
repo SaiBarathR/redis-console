@@ -182,7 +182,7 @@ export function KeyInspector({
   const [streamSeen, setStreamSeen] = useState(0);
   const [full, setFull] = useState(false);
   const [collectionFormat, setCollectionFormat] = useMemorySlot<ValueFormat>(`${db.id}:collection:format:${keyToParam(selected)}`, "text");
-  const [columnWidth, setColumnWidth] = useMemorySlot(`${db.id}:collection:width:${keyToParam(selected)}`, 35);
+  const [columnWidth, setColumnWidth] = useMemorySlot<number | undefined>(`${db.id}:collection:width:${keyToParam(selected)}`, undefined);
   const [criteria, setCriteria] = useState<CollectionCriteria>({});
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);

@@ -26,7 +26,9 @@
 .column-width-control { flex-wrap: wrap; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--rule); margin: 0; }
 .collection-format-control { flex-wrap: wrap; margin-bottom: var(--space-2); gap: var(--space-2); }
 .collection-format-control select { width: auto; max-width: 100%; }
-.detail-value-table td.num, .detail-value-table th.num { white-space: normal; }
+/* The table is fixed-layout with measured column widths; the generic 1% width for numeric cells would collapse a
+   score or sample-value column to a few pixels here. */
+.detail-value-table td.num, .detail-value-table th.num { width: auto; white-space: nowrap; overflow-wrap: normal; }
 .stream-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-2); }
 .stream-fields dt, .stream-fields dd { min-width: 0; }
 .stream-inspector .table-wrap { max-width: 100%; }
