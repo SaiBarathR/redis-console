@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Ident } from "../Ident.tsx";
 import { useQuery } from "@tanstack/react-query";
 import type { SlowlogConfigResponse, SlowlogResponse } from "@rconsole/shared";
 import { canAdmin, useDatabase } from "../../lib/context.tsx";
@@ -189,7 +188,7 @@ export function Slowlog() {
               </span>,
               <CommandLine argv={entry.argv} />,
               <span className="client-cell">
-                <Ident text={entry.client ?? "—"} />
+                <code className="client-address" title={entry.client ?? undefined}>{visibleText(entry.client ?? "—")}</code>
                 {entry.clientName && <small>{visibleText(entry.clientName)}</small>}
               </span>,
             ])}

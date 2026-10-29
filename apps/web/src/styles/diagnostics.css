@@ -334,11 +334,13 @@
 .diag-pane .section > header { flex-wrap: wrap; }
 .diag-pane .listening { flex-wrap: wrap; overflow-wrap: anywhere; }
 
-.slowlog-table th:nth-child(1) { width: 8%; }
-.slowlog-table th:nth-child(2) { width: 20%; }
-.slowlog-table th:nth-child(3) { width: 14%; }
-.slowlog-table th:nth-child(4) { width: 36%; }
-.slowlog-table th:nth-child(5) { width: 22%; }
+/* ID, time and duration take what their values need; the client column fits a whole IPv4 address:port; the
+   command takes the rest. */
+.slowlog-table th:nth-child(1) { width: 4.5rem; }
+.slowlog-table th:nth-child(2) { width: 9.5rem; }
+.slowlog-table th:nth-child(3) { width: 6.5rem; }
+.slowlog-table th:nth-child(5) { width: 14.5rem; }
+.diag-pane .slowlog-table td .client-address { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .profiler-events th:nth-child(1) { width: 16%; }
 .profiler-events th:nth-child(2) { width: 8%; }
 .profiler-events th:nth-child(3) { width: 22%; }
