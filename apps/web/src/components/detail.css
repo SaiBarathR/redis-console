@@ -85,3 +85,6 @@
 .collection-lookup-actions { display: inline-flex; gap: var(--space-2); margin-left: auto; flex: 0 0 auto; }
 /* Consumer row actions: short labels (the accessible names keep the consumer and pending count), one line. */
 .stream-inspector td button.stream-row-action { white-space: nowrap; min-height: 24px; padding: 1px var(--space-2); }
+
+/* A score can exceed the user's chosen column width; keep it inside its cell with the full score in its title. */
+.detail-value-table .score-value { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }

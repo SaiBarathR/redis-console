@@ -476,7 +476,7 @@ export function KeyContent({
             id: `member:${elementId(member.member, member.ref)}`,
             cells: [
               cell(member.member, member.truncated, member.ref, "value", true),
-              <code title={member.score}>
+              <code className="score-value" title={member.score}>
                 {member.score}
                 {epochLabel(member.score) && <small className="muted"> · Timestamp hint: <IsoTime iso={epochLabel(member.score)!} /></small>}
               </code>,
