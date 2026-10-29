@@ -875,9 +875,10 @@
 .console-transcript .result-keys {
   max-height: none;
 }
+/* The docked prompt area keeps all its rows (a 50% cap scrolled its shortcut row half out of view); the
+   transcript above it is the part that shrinks and scrolls. */
 .console-view.is-docked .console-dock {
-  max-height: 50%;
-  overflow: auto;
+  flex-shrink: 0;
 }
 .console-view.is-docked .console-prompt-row {
   flex-wrap: wrap;
