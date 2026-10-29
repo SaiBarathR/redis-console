@@ -35,6 +35,11 @@
 .landing-table tbody tr:focus-within td:first-child {
   box-shadow: inset 3px 0 0 var(--signal);
 }
+/* The link is the row's single tab stop: the keyboard ring goes around the whole row (the shared ring style). */
+.landing-table tbody tr:has(.db-link:focus-visible) {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
 .landing-table td.env-cell {
   width: 1%;
   white-space: nowrap;
