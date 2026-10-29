@@ -704,3 +704,8 @@
   color: var(--env-ink);
 }
 
+
+/* Identifiers (components/Ident.tsx) wrap after a separator; a segment wider than its box still breaks. */
+.ident { white-space: normal; overflow-wrap: anywhere; word-break: normal; }
+.ident-list { display: flex; flex-wrap: wrap; gap: 0 var(--space-3); min-width: 0; }
+

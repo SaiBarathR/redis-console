@@ -10,6 +10,7 @@ import { RefreshButton, ToolHead } from "../../components/toolChrome.tsx";
 import { IndexDetail } from "./IndexDetail.tsx";
 import { IndexWizard } from "./IndexWizard.tsx";
 import { QueryPanel } from "./QueryPanel.tsx";
+import { Ident } from "../../components/Ident.tsx";
 import { EMPTY_FORM, searchSlots, type QueryForm } from "./state.ts";
 import "../../styles/insight.css";
 
@@ -98,7 +99,7 @@ export function SearchTool() {
                     </button>,
                     <span className="num tabular">{row.numDocs.toLocaleString()}</span>,
                     row.indexing ? "Indexing" : "Ready",
-                    <span className="data">{row.prefixes.map(visibleText).join("  ·  ")}</span>,
+                    <span className="data ident-list">{row.prefixes.map((prefix, i) => <Ident key={i} text={prefix} />)}</span>,
                     <span className="fields">
                       {row.fields.map((field) => (
                         <code key={field.name}>

@@ -430,8 +430,7 @@
 .audit-when time > span { white-space: nowrap; }
 .audit .admin-table td { white-space: normal; overflow-wrap: break-word; }
 .audit .admin-table td > code { white-space: pre-wrap; }
-.ident { white-space: normal; overflow-wrap: normal; word-break: normal; }
-.ident-part { white-space: nowrap; }
+
 .user-ip { flex-wrap: wrap; white-space: normal; gap: var(--space-1) var(--space-2); }
 .user-ip > * { min-width: 0; overflow-wrap: break-word; }
 .audit-command-cell { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
