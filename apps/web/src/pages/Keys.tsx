@@ -1067,8 +1067,8 @@ export function Keys() {
             <span className="c-name">
               <SortHeader by="name" label="Key" sort={sort} onSort={setSort} className="" />
               {view === "tree" && treeDelimiter && (
-                <span className="share-note" title="The percentage on each folder row" data-testid="key-share-note">
-                  folder % of {denominator}
+                <span className="share-note" title={`The percentage on each folder row: its share of ${denominator}`} data-testid="key-share-note">
+                  folder %
                 </span>
               )}
               <ColumnsMenu columns={columns} onChange={setColumns} />

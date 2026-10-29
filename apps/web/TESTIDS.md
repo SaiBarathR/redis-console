@@ -44,7 +44,7 @@ All selectors use `data-testid`. Accessible names are also maintained. Database 
   - `key-scan-summary`: "Results N · Scanned X / DBSIZE" (or "exact key lookup"), with `data-done` (`true` once the cursor returned to 0), `data-results`, `data-scanned`, `data-total`.
   - `key-row` has `data-meta="pending|loaded"`; until metadata arrives it shows placeholders (type "type loading", an empty fuse, no size).
   - `key-folder`: folder rows (class `key-folder`, `aria-expanded`, `aria-label` "<folder> N keys, P% of matching keys|loaded matches", `title` with the full pattern and the precise share); cells `.folder-count`, `.folder-share`, `.folder-bytes` (`.partial` while some sizes are missing). Hover actions `folder-filter` (also key F) and `folder-delete` (writers only; also the Delete key) pre-fill the pattern.
-  - `key-share-note`: "folder % of matching keys" (complete scan) or "folder % of loaded matches" (partial).
+  - `key-share-note`: "folder %"; its `title` ends "its share of matching keys" (complete scan) or "its share of loaded matches" (partial).
   - `key-view-tree`, `key-view-list` (`aria-pressed`); `key-delimiter` shows in tree view only and keeps its value.
   - Column headers `key-sort-type`, `key-sort-name`, `key-sort-ttl`, `key-sort-size` (`aria-pressed` on the active one; pressing it again reverses); `key-columns` opens the chooser with `key-column-type`, `key-column-ttl`, `key-column-size` (session memory).
   - `key-load-more` ("Scan more" / "Scan complete"), `key-scan-all` ("Scan to end"), `key-scan-stop`, `key-scan-count` ("Keys to scan" select; localStorage `rconsole.keyScanCount`, a number only).

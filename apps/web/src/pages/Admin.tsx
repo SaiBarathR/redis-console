@@ -247,7 +247,7 @@ export function Audit() {
                   </td>
                   <td>
                     <span className="user-ip">
-                      <span>{visibleText(event.username)}</span>
+                      <span className="audit-username" title={visibleText(event.username)}>{visibleText(event.username)}</span>
                       <small className="data" title="Source address">
                         {visibleText(event.ip)}
                       </small>

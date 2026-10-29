@@ -82,7 +82,8 @@ describe("key browser v0.2.1", () => {
     expect(big.getAttribute("title")).toContain("example:big:*");
     expect(big.getAttribute("title")).toContain("82.89% of matching keys");
     expect(folder("small")).toHaveTextContent("16%");
-    expect(screen.getByTestId("key-share-note")).toHaveTextContent("folder % of matching keys");
+    expect(screen.getByTestId("key-share-note")).toHaveTextContent("folder %");
+    expect(screen.getByTestId("key-share-note")).toHaveAttribute("title", "The percentage on each folder row: its share of matching keys");
     // Only folders are on screen except the two loose keys: metadata is asked for those rows only.
     await waitFor(() => expect(calls.some((c) => c.path === "/keys/meta")).toBe(true));
     const meta = calls.filter((c) => c.path === "/keys/meta");
@@ -136,7 +137,8 @@ describe("key browser v0.2.1", () => {
     mount();
     await waitFor(() => expect(screen.getByTestId("key-scan-summary")).toHaveTextContent("Results 152"));
     expect(screen.getByTestId("key-scan-summary")).toHaveAttribute("data-done", "false");
-    expect(screen.getByTestId("key-share-note")).toHaveTextContent("folder % of loaded matches");
+    expect(screen.getByTestId("key-share-note")).toHaveTextContent("folder %");
+    expect(screen.getByTestId("key-share-note")).toHaveAttribute("title", "The percentage on each folder row: its share of loaded matches");
     expect(folder("big").getAttribute("title")).toContain("of loaded matches");
     expect(screen.getByTestId("key-load-more")).toHaveTextContent("Scan more");
     expect(screen.getByTestId("key-load-more")).toBeEnabled();

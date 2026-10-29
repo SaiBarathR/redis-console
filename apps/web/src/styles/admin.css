@@ -455,3 +455,5 @@
 /* Status contents remain reachable when the server/session figures exceed the viewport. */
 .statusbar { overflow-x: auto; overflow-y: hidden; }
 .statusbar > * { flex-shrink: 0; }
+/* A username stays on one line (it broke into three at 1024 px); the full name is in the tooltip. */
+.audit .audit-username { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -44,7 +44,8 @@ test.describe('key browser v0.2.1', () => {
     const summary = page.getByTestId('key-scan-summary');
     await expect(summary).toHaveAttribute('data-done', 'true');
     await expect(summary).toContainText('Results 300');
-    await expect(page.getByTestId('key-share-note')).toHaveText('folder % of matching keys');
+    await expect(page.getByTestId('key-share-note')).toHaveText('folder %');
+    await expect(page.getByTestId('key-share-note')).toHaveAttribute('title', /its share of matching keys$/);
     // More than 150 results: collapsed start, the single-child chain e2e: → scratch: → kb21: is open.
     await expect(folder(page, 'img')).toContainText('240');
     await expect(folder(page, 'img')).toContainText('80%');
@@ -122,7 +123,8 @@ test.describe('key browser v0.2.1', () => {
     const summary = page.getByTestId('key-scan-summary');
     await expect(summary).toHaveAttribute('data-done', 'false');
     expect(Number(await summary.getAttribute('data-scanned'))).toBeLessThanOrEqual(600);
-    await expect(page.getByTestId('key-share-note')).toHaveText('folder % of loaded matches');
+    await expect(page.getByTestId('key-share-note')).toHaveText('folder %');
+    await expect(page.getByTestId('key-share-note')).toHaveAttribute('title', /its share of loaded matches$/);
     await page.getByTestId('key-scan-all').click();
     await expect(summary).toHaveAttribute('data-done', 'true', { timeout: 30_000 });
     await page.getByTestId('key-scan-count').selectOption('10000');

@@ -337,6 +337,9 @@
 .diag-pane .table-wrap td { overflow-wrap: anywhere; }
 .diag-pane .table-wrap td:has(> .nowrap) { white-space: normal; }
 .diag-pane .nowrap, .diag-pane .client-cell code { white-space: normal; overflow-wrap: anywhere; }
+/* Stream entry IDs stay whole (a wrap after the hyphen left a lone sequence digit): the column fits the longest ID. */
+.diag-pane .table-wrap.pending-ids th:first-child { width: 17ch; }
+.diag-pane .table-wrap.pending-ids td:first-child, .diag-pane .table-wrap.pending-ids td:first-child .nowrap { white-space: nowrap; overflow-wrap: normal; }
 .command-cell, .command-line { max-width: 100%; }
 .diag-pane .section > header { flex-wrap: wrap; }
 .diag-pane .listening { flex-wrap: wrap; overflow-wrap: anywhere; }

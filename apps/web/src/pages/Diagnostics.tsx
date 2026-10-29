@@ -531,7 +531,7 @@ function Streams() {
                     <Loading label="Reading pending entries…" />
                   ) : (
                     <DataTable
-                      className="dense"
+                      className="dense pending-ids"
                       columns={[
                         "Entry ID",
                         "Consumer",
