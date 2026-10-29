@@ -83,3 +83,5 @@
 .collection-lookup > input { flex: 1 1 9rem; min-width: 8rem; }
 .collection-lookup > label { flex: 0 0 auto; }
 .collection-lookup-actions { display: inline-flex; gap: var(--space-2); margin-left: auto; flex: 0 0 auto; }
+/* Consumer row actions: short labels (the accessible names keep the consumer and pending count), one line. */
+.stream-inspector td button.stream-row-action { white-space: nowrap; min-height: 24px; padding: 1px var(--space-2); }

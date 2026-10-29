@@ -204,7 +204,7 @@ No tests may write to `remote-6390`. It is production/read-only with effective v
   `Pending start ID`, `Pending end ID`, Find pending IDs / Next pending page / All consumers. Selection checkboxes are
   `Select pending <id>`. `Claim target consumer`, `Claim minimum idle milliseconds`, Claim selected (confirm) and
   Acknowledge selected (confirm) are writer-only, both using server confirmation.
-  Writer-only lifecycle (review v0.2.1 web L2): `stream-consumer-delete` per consumer row (`Delete… (N pending)`,
+  Writer-only lifecycle (review v0.2.1 web L2): `stream-consumer-delete` per consumer row (visible `Delete…`, accessible name `Delete consumer N (P pending)`; the row's `Show pending` button is named `Pending for consumer N`,
   XGROUP DELCONSUMER by bytes, server confirmation whose note names the pending count), `stream-group-destroy` (selected
   group, confirmed), and the create form `stream-new-group-name`, `stream-new-group-start` (`$` | `0` | `id`),
   `stream-new-group-id`, `stream-new-group-mkstream`, `stream-new-group-create`, `stream-new-group-command` (the exact

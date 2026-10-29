@@ -256,7 +256,7 @@ describe("F15 inspector groups and pending", () => {
     const pending = sent.find(x => x.path === "/streams/pending")!;
     expect(pending.body.key).toEqual({ enc: "base64", data: "/g==" }); expect(pending.body.group).toEqual({ enc: "base64", data: "/w==" });
     expect(screen.queryByText("Claim selected (confirm)")).toBeNull();
-    await userEvent.click(screen.getByText("Pending for consumer 1"));
+    await userEvent.click(screen.getByRole("button", { name: "Pending for consumer 1" }));
     await waitFor(() => expect(sent.at(-1)?.body.consumer).toEqual(bin("c")));
   });
 });

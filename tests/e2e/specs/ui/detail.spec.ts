@@ -134,7 +134,7 @@ for (const role of roles) {
       const inspector = detail.getByTestId('stream-inspector'); await expect(inspector).toContainText('worker');
       await redisExec(['XGROUP', 'CREATE', `${P}stream`, 'a', '0']); await inspector.getByText('Refresh stream groups', { exact: true }).click();
       await expect(inspector.getByLabel('Inspector consumer group').locator('option:checked')).toHaveText(/^g ·/);
-      await inspector.getByText('Pending for consumer 1', { exact: true }).click();
+      await inspector.getByRole('button', { name: 'Pending for consumer 1', exact: true }).click();
       await inspector.getByLabel('Pending start ID').fill('2-0'); await inspector.getByLabel('Pending end ID').fill('2-0'); await inspector.getByText('Find pending IDs', { exact: true }).click();
       await expect(inspector).toContainText('1 matching pending messages on this page');
       await inspector.getByRole('button', { name: 'Inspect pending entry 2-0', exact: true }).click(); await expect(page.getByTestId('pending-entry-dialog')).toContainText('v2'); await page.getByTestId('pending-entry-dialog').getByRole('button', { name: 'Close dialog' }).click();
