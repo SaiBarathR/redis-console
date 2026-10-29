@@ -444,7 +444,7 @@
   gap: 10px;
 }
 .key-row {
-  grid-template-columns: 14px var(--indent) 30px minmax(0, 1fr) 96px 56px;
+  grid-template-columns: 14px var(--indent) var(--type-glyph-width) minmax(0, 1fr) 96px 56px;
   cursor: pointer;
 }
 .key-row .tree-indent {
