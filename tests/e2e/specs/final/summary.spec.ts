@@ -7,7 +7,7 @@
 import { test, expect } from '@playwright/test';
 import { existsSync, readFileSync } from 'node:fs';
 import { LEAK_COUNT_FILE, LEAK_FINDINGS_FILE, scanForLeaks } from '../../lib/leak.ts';
-import { PROXY_SEEN_FILE, PROXY_VIOLATIONS_FILE } from '../../lib/readonly-proxy.ts';
+import { PROXY_FOREIGN_FILE, PROXY_SEEN_FILE, PROXY_VIOLATIONS_FILE } from '../../lib/readonly-proxy.ts';
 import { SERVER_LOG } from '../../lib/server.ts';
 import { AUDIT_CANARY_VALUE, XSS_PAYLOADS } from '../../lib/fixtures-data.ts';
 
@@ -45,6 +45,7 @@ test('only read commands ever reached the selected remote upstream', () => {
   const violations = lines(PROXY_VIOLATIONS_FILE);
   const seen = existsSync(PROXY_SEEN_FILE) ? JSON.parse(readFileSync(PROXY_SEEN_FILE, 'utf8')) : {};
   test.info().annotations.push({ type: 'commands forwarded to upstream', description: JSON.stringify(seen) });
+  test.info().annotations.push({ type: 'non-RESP probes refused (nothing forwarded)', description: String(lines(PROXY_FOREIGN_FILE).length) });
   expect(Object.keys(seen).length, 'the server did talk to remote-6390 through the proxy').toBeGreaterThan(0);
   expect(violations, 'non-read commands blocked by the proxy (each one is a server bug)').toEqual([]);
 });

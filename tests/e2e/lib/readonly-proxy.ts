@@ -18,6 +18,8 @@ import { parseCommand, RedisConn } from './resp.ts';
 import { STATE_DIR } from './env.ts';
 
 export const PROXY_VIOLATIONS_FILE = path.join(STATE_DIR, 'proxy-violations.jsonl');
+/** Connections whose first bytes were not RESP (port probes from other local tools); nothing was forwarded. */
+export const PROXY_FOREIGN_FILE = path.join(STATE_DIR, 'proxy-foreign.jsonl');
 export const PROXY_SEEN_FILE = path.join(STATE_DIR, 'proxy-seen.json');
 
 /** Allowed even without the `readonly` flag: connection setup and pure introspection. */
@@ -79,6 +81,7 @@ export async function startReadonlyProxy(opts: {
 }): Promise<ProxyHandle> {
   mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(PROXY_VIOLATIONS_FILE, '');
+  writeFileSync(PROXY_FOREIGN_FILE, '');
   const seen: Record<string, number> = {};
   const flushSeen = () => writeFileSync(PROXY_SEEN_FILE, JSON.stringify(seen, null, 1));
   flushSeen();
@@ -89,6 +92,7 @@ export async function startReadonlyProxy(opts: {
     const upstream = net.connect(opts.upstream.port, opts.upstream.host);
     sockets.add(upstream);
     let buf = Buffer.alloc(0);
+    let sawCommand = false; // a Redis client: anything malformed after this is a violation
     const kill = () => { client.destroy(); upstream.destroy(); };
     upstream.on('data', (d) => client.write(d));
     upstream.on('error', kill);
@@ -106,7 +110,10 @@ export async function startReadonlyProxy(opts: {
           // Say what arrived without recording data: an HTTP request line's method (a port probe from another
           // process), or that the bytes were not RESP. The app's own client always speaks RESP arrays.
           const http = /^(GET|HEAD|POST|PUT|OPTIONS|CONNECT|PRI) /.exec(buf.subarray(pos, pos + 16).toString('latin1'));
-          appendFileSync(PROXY_VIOLATIONS_FILE, JSON.stringify({ at: new Date().toISOString(), command: http ? `<HTTP ${http[1]} request>` : '<inline or malformed>', clientPort: client.remotePort }) + '\n');
+          const entry = JSON.stringify({ at: new Date().toISOString(), command: http ? `<HTTP ${http[1]} request>` : '<inline or malformed>', clientPort: client.remotePort }) + '\n';
+          // Non-RESP as the very first bytes is another local tool probing the port (desktop apps scan listening
+          // ports with HTTP); nothing is forwarded, so it is logged apart. After a RESP command it is a violation.
+          appendFileSync(sawCommand ? PROXY_VIOLATIONS_FILE : PROXY_FOREIGN_FILE, entry);
           kill();
           return;
         }
@@ -119,6 +126,7 @@ export async function startReadonlyProxy(opts: {
           kill();
           return;
         }
+        sawCommand = true;
         seen[label] = (seen[label] ?? 0) + 1;
         forward.push(buf.subarray(pos, parsed.next));
         pos = parsed.next;
