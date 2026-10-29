@@ -413,12 +413,12 @@
 .audit-time { width: 6.75rem; }
 .audit-user { width: 7.5rem; }
 .audit-outcome { width: 10rem; } /* fits the longest tag, "needs confirmation" */
-.audit-action { width: 8.5rem; }
-.audit-database { width: 7rem; }
+.audit-action { width: 10.5rem; }
+.audit-database { width: 8.5rem; }
 .audit-detail { width: 21%; }
 @media (min-width: 1280px) {
   .audit-user { width: 9rem; }
-  .audit-action { width: 11rem; }
+  .audit-action { width: 12rem; }
   .audit-database { width: 8.5rem; }
 }
 @media (min-width: 1600px) {
