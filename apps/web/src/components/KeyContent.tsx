@@ -478,7 +478,7 @@ export function KeyContent({
               cell(member.member, member.truncated, member.ref, "value", true),
               <code title={member.score}>
                 {member.score}
-                {epochLabel(member.score) && <small className="muted"> · Timestamp hint: {epochLabel(member.score)}</small>}
+                {epochLabel(member.score) && <small className="muted"> · Timestamp hint: <IsoTime iso={epochLabel(member.score)!} /></small>}
               </code>,
             ],
             actions: (
@@ -695,7 +695,7 @@ function CollectionCell({ value, truncated, format, open, expandedOnly = false }
   catch (error) { text = `Cannot format as ${format}: ${(error as Error).message}`; }
   if (expandedOnly) return <ValueViewer value={value} truncated={truncated} preferred={format} />;
   return <div className="collection-cell">
-    <button type="button" className="value-cell data" onClick={open} title="Open in the value inspector" data-testid="value-cell-open"><span>{text}</span>{value.enc === "utf8" && epochLabel(value.data) && <small className="muted"> · Timestamp hint: {epochLabel(value.data)}</small>}</button>
+    <button type="button" className="value-cell data" onClick={open} title="Open in the value inspector" data-testid="value-cell-open"><span>{text}</span>{value.enc === "utf8" && epochLabel(value.data) && <small className="muted"> · Timestamp hint: <IsoTime iso={epochLabel(value.data)!} /></small>}</button>
     {row ? <button type="button" className="collection-expand" aria-expanded={row.selected === row.column} onClick={row.toggle}>Expand {row.noun}</button> : <details onToggle={e => setExpanded(e.currentTarget.open)}><summary>Expand value</summary>{expanded && <ValueViewer key={format} value={value} truncated={truncated} preferred={format} />}</details>}
   </div>;
 }

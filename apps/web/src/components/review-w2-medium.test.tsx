@@ -101,7 +101,10 @@ describe("web review round 2 medium", () => {
   it("M3: collection cells show stored numbers beside date hints", () => {
     render(wrap(<KeyContent details={list("1700000000")} refresh={async () => {}} />));
     expect(screen.getByText("1700000000")).toBeVisible();
-    expect(screen.getByText(/Timestamp hint: 2023-11-14T22:13:20.000Z/)).toBeVisible();
+    // The hint wraps only between date and time, so its text spans two inner spans.
+    const hint = screen.getByText(/Timestamp hint:/);
+    expect(hint).toBeVisible();
+    expect(hint).toHaveTextContent("Timestamp hint: 2023-11-14T22:13:20.000Z");
   });
   it("M5: dialog focuses first field and returns to trigger", async () => {
     const trigger = document.createElement("button"); document.body.append(trigger); trigger.focus();
