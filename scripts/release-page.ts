@@ -3,7 +3,8 @@
  *
  *   node scripts/release-page.ts <tag> <owner/repo> [image digest]
  *
- * The notes file's title is dropped (the release has its own), its relative links are pinned to the tagged docs, and
+ * The notes file's title is dropped (the release has its own), its relative links are pinned to the tagged docs (images
+ * to the raw files, so they render on the page), and
  * an "Install" section names the published image tags, its digest when given, and how to verify its provenance. The
  * release workflow runs this after the image is pushed; it fails when the notes file is missing, so a tag without
  * notes is noticed.
@@ -19,9 +20,12 @@ export function releasePage(notes: string, tag: string, repo: string, digest = '
   const minor = full.split('.').slice(0, 2).join('.');
   const image = `ghcr.io/${repo.toLowerCase()}`;
   const docs = `https://github.com/${repo}/blob/${tag}/docs/`;
+  const raw = `https://github.com/${repo}/raw/${tag}/docs/`;
   const body = notes
     .replace(/^# [^\n]*\n+/, '')
-    .replace(/\]\((?![a-z][a-z0-9+.-]*:|#|\/)([^)\s]+)\)/gi, (_, target: string) => `](${new URL(target, docs).href})`)
+    // Images first: a blob page does not render inline, so they point at the raw file of the tag.
+    .replace(/!\[([^\]]*)\]\((?![a-z][a-z0-9+.-]*:|#|\/)([^)\s]+)\)/gi, (_, alt: string, target: string) => `![${alt}](${new URL(target, raw).href})`)
+    .replace(/(?<!!\[[^\]]*)\]\((?![a-z][a-z0-9+.-]*:|#|\/)([^)\s]+)\)/gi, (_, target: string) => `](${new URL(target, docs).href})`)
     .trimEnd();
   const install = [
     '## Install',

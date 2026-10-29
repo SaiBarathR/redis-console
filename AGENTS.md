@@ -201,7 +201,8 @@ changes minimal; validate.
 
 1. Merge the streams into `release/vX.Y`; run every gate and the review loop on the merged tree.
 2. Bump `version` in the package manifests; write `docs/RELEASE-NOTES-vX.Y.md` (what changed, upgrade notes such as
-   new ACL grants and config keys, how it was checked).
+   new ACL grants and config keys, how it was checked). User-visible changes get screenshots in
+   `docs/releases/vX.Y/` (sandbox data only), embedded as `![…](releases/vX.Y/<name>.png)`; the release page shows them.
 3. Tag `vX.Y` (annotated) and fast-forward `main` (`git merge --ff-only release/vX.Y`). Push only when the owner asks.
 4. Release tags are never moved or deleted. Pushing a `vX.Y` tag publishes the image and then the GitHub release page
    (`.github/workflows/release.yml`). The page is built from the release notes by `scripts/release-page.ts`: links are
