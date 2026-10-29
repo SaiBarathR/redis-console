@@ -185,6 +185,7 @@ function measurePage({ limits, allowlist }: { limits: typeof LIMITS; allowlist: 
 
   // Text: inset from the owner's border box, overflow out of it, clipping without an ellipsis.
   const texts = new Map<Element, { rects: { l: number; t: number; r: number; b: number }[]; raw: DOMRect[] }>();
+  const allText: { r: DOMRect; el: Element }[] = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     const parent = n.parentElement;
@@ -220,6 +221,14 @@ function measurePage({ limits, allowlist }: { limits: typeof LIMITS; allowlist: 
       }
       break;
     }
+    if (!legend) {
+      // Clamped to what is painted: an ellipsized label's range runs on past its clip edge.
+      const va = visibleArea(parent);
+      for (const r of raw) {
+        const c = inter(ltrb(r), va);
+        if (c.r - c.l > 0.5 && c.b - c.t > 0.5) allText.push({ r: new DOMRect(c.l, c.t, c.r - c.l, c.b - c.t), el: parent });
+      }
+    }
     const o = ownerOf(parent);
     if (!o || legend) continue;
     const entry = texts.get(o.owner) ?? { rects: [], raw: [] };
@@ -249,6 +258,12 @@ function measurePage({ limits, allowlist }: { limits: typeof LIMITS; allowlist: 
     const selector = sel(e);
     styles.push({ selector, rect, signature: [e.tagName, s.fontFamily, s.fontSize, s.fontWeight, s.lineHeight, s.padding, s.borderWidth, s.borderStyle, s.borderColor, s.borderRadius, s.backgroundColor, s.color, s.display, s.gap, Math.round(r.height), s.backgroundImage, s.boxShadow].join('|') });
     const isScroller = scrolls(s) && (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1);
+    // A control wider than its table cell runs over the neighbouring column.
+    const cell = k.control ? e.parentElement?.closest('td, th') : null;
+    if (cell) {
+      const c = cell.getBoundingClientRect();
+      if (r.right > c.right + 1 || r.left < c.left - 1) add(e, 'control-overflow', `runs ${f(Math.max(r.right - c.right, c.left - r.left))}px out of its table cell`);
+    }
     const t = texts.get(e);
     const textOk = (b: { l: number; t: number; r: number; b: number }) => !isScroller || (b.t >= r.top && b.b <= r.bottom && b.l >= r.left && b.r <= r.right);
     if (t) {
@@ -329,6 +344,27 @@ function measurePage({ limits, allowlist }: { limits: typeof LIMITS; allowlist: 
         const chevronLeft = r.right - br - inset - size, contentRight = r.right - br - pr;
         if (contentRight > chevronLeft - 2 + T) add(e, 'select-chevron', `text area ends ${f(contentRight - chevronLeft)}px under the chevron`);
       }
+    }
+  }
+
+  // Chips and controls laid out as flex/grid items keep a gap to the text beside them (a glyph wider than its grid
+  // track ran up to 2 px from the key name).
+  for (const e of all) {
+    const k = kind.get(e)!;
+    if (!k.boxed || !e.parentElement || !/flex|grid/.test(cs(e.parentElement).display) || !fullyVisible(e)) continue;
+    const r = e.getBoundingClientRect();
+    if (r.height > 40 || r.width > 320) continue;
+    for (const { r: b, el } of allText) {
+      if (e.contains(el) || el.contains(e)) continue;
+      if (Math.min(b.bottom, r.bottom) - Math.max(b.top, r.top) < Math.min(b.height, r.height) * 0.5) continue;
+      const gap = Math.max(b.left - r.right, r.left - b.right);
+      if (!(gap < limits.iconGap - T && gap > -Math.min(b.width, r.width))) continue;
+      // Only text actually painted there: content scrolled under a sticky bar or covered by a popover is not beside it.
+      const hit = document.elementFromPoint(Math.min(Math.max(b.left + b.width / 2, 0), innerWidth - 1), Math.min(Math.max(b.top + b.height / 2, 0), innerHeight - 1));
+      if (!hit || !(hit === el || el.contains(hit) || hit.contains(el))) continue;
+      const self = document.elementFromPoint(Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1), Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1));
+      if (!self || !(self === e || e.contains(self))) continue;
+      add(e, 'outside-gap', `${f(gap)}px to the text beside it`); break;
     }
   }
 

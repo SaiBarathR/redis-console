@@ -185,7 +185,9 @@ for (const width of [1024, 1440]) for (const theme of ['light', 'dark'] as const
       await assertClean(page, run, unreached);
     });
 
-    test('console, workbench, guided, search', async ({ page }) => {
+    test('console, workbench, guided, search', async ({ page, guards }) => {
+      // The search error state is a deliberate syntax error: the server answers 502 redis_error.
+      guards.allowConsole(/status of 502/);
       const run = anatomyRun('tools', width, theme);
       const { step, unreached } = stepper(page, run);
       await step('console', go(page, 'console'));
