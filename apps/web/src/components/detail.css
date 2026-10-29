@@ -30,7 +30,8 @@
 
 /* Expansion occupies one full-width table row, never a pair of competing cell panels. */
 .collection-detail-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
-.collection-expand { display: inline-flex; min-height: 24px; padding: 0 var(--space-2); margin-top: var(--space-1); border-color: transparent; background: transparent; color: var(--graphite); font-size: var(--text-meta); }
+/* Text lines up with the cell text above; the padding only shows when the toggle is filled (expanded) or focused. */
+.collection-expand { display: inline-flex; min-height: 24px; padding: 0 var(--space-2); margin-top: var(--space-1); margin-left: calc(-1 * var(--space-2)); border-color: transparent; background: transparent; color: var(--graphite); font-size: var(--text-meta); }
 .collection-expand[aria-expanded="true"] { color: var(--signal); background: var(--signal-tint); }
 .collection-cell { min-width: 0; }
 .collection-cell > .value-cell { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; max-height: 60px; }

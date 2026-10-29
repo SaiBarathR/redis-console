@@ -447,7 +447,8 @@
 .filter-bar input, .filter-bar select, .filter-bar button { min-height: 32px; }
 .users .admin-table table { table-layout: fixed; min-width: 800px; }
 .users .admin-table th:first-child { width: 28%; }
-.users .admin-table .row-actions { width: 76px; }
+.users .admin-table .row-actions { width: 100px; }
+.users .admin-table th:last-child, .users .admin-table td:last-child { padding-right: var(--space-4); }
 .users .stack { overflow-wrap: anywhere; }
 .account-facts dd, .account-section, .login-card { min-width: 0; overflow-wrap: anywhere; }
 .recovery-code-list { max-width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); }
