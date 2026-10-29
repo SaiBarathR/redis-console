@@ -894,7 +894,8 @@
 .console-view.is-docked .console-transcript {
   min-height: 40px;
 }
+/* The docked toolbar wraps to as many rows as it needs: a height cap clipped its last row (Clear history) in half. */
 .console-view.is-docked .console-docked-bar {
-  max-height: 25%;
-  overflow: auto;
+  flex-shrink: 0;
+  row-gap: var(--space-1);
 }

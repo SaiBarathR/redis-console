@@ -1046,9 +1046,9 @@ export function Console({
     >
       {docked ? (
         <div className="console-docked-bar" role="toolbar" aria-label="Console">
-          <span className="meta" data-testid="drawer-console-meta">
+          <span className="meta" data-testid="drawer-console-meta" title="Shared with the Console page and kept in this tab's memory only">
             {resultsCount} {resultsCount === 1 ? "result" : "results"} · {history.length} in history · shared with the
-            Console page, this tab's memory only
+            Console page
           </span>
           <span className="actions">
             {toolbarActions}
