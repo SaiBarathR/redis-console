@@ -170,12 +170,19 @@
   background: var(--danger-tint);
   border-color: var(--danger);
 }
+/* A name button in a table cell (search indexes, stream groups) wraps inside its cell: nowrap ran long index names
+   across the Documents column. */
 .group-button {
   min-height: 22px;
+  max-width: calc(100% + 6px);
   padding: 0 6px;
   margin-left: -6px;
   color: var(--signal);
   font-weight: 600;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  justify-content: flex-start;
 }
 .group-button.selected {
   background: var(--signal-tint);
@@ -366,6 +373,5 @@
 
 /* Consumer-group names wrap in their own cell; numeric columns and stream IDs keep their natural width. */
 .diag-pane .stream-groups-table table { table-layout: auto; }
-.stream-groups-table .group-button { max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .stream-groups-table td:not(:first-child) { white-space: nowrap; }
 .stream-groups-table .ident { white-space: nowrap; }
