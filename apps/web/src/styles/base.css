@@ -605,6 +605,16 @@ th.num {
   cursor: pointer;
   font-weight: 600;
 }
+/* Disclosures: one hit area for marker and label, inset like any control (the marker sat 0-2 px from the edge of
+   tinted panels and notices). Components with their own summary geometry override this. */
+details > summary {
+  padding: 2px 6px;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+details > summary:hover {
+  background: var(--hover);
+}
 .section-heading {
   display: flex;
   align-items: center;
