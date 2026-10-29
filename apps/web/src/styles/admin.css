@@ -406,19 +406,36 @@
 
 /* Fixed columns prevent content from changing the scroll extent or covering its neighbours. */
 .audit, .users, .admin-table { min-width: 0; }
-.audit .admin-table table { table-layout: fixed; min-width: 1120px; }
-.audit-time { width: 13%; }
-.audit-user { width: 13%; }
-.audit-outcome { width: 12%; }
-.audit-action, .audit-database { width: 10%; }
-.audit-argv { width: 25%; }
-.audit-detail { width: 17%; }
-.audit .admin-table td { white-space: normal; overflow-wrap: anywhere; }
+/* Short columns are sized to their content (identifiers wrap only after a separator, the time only between date and
+   clock); the command and the detail share the rest, the command getting the larger part. */
+.audit .admin-table table { table-layout: fixed; width: 100%; min-width: 900px; }
+.audit .admin-table th { white-space: normal; }
+.audit-time { width: 6.75rem; }
+.audit-user { width: 7.5rem; }
+.audit-outcome { width: 10rem; } /* fits the longest tag, "needs confirmation" */
+.audit-action { width: 8.5rem; }
+.audit-database { width: 7rem; }
+.audit-detail { width: 21%; }
+@media (min-width: 1280px) {
+  .audit-user { width: 9rem; }
+  .audit-action { width: 11rem; }
+  .audit-database { width: 8.5rem; }
+}
+@media (min-width: 1600px) {
+  .audit-time { width: 12.5rem; }
+  .audit-user { width: 13rem; }
+  .audit-action { width: 16.5rem; }
+  .audit-database { width: 10rem; }
+}
+.audit-when time > span { white-space: nowrap; }
+.audit .admin-table td { white-space: normal; overflow-wrap: break-word; }
 .audit .admin-table td > code { white-space: pre-wrap; }
+.ident { white-space: normal; overflow-wrap: normal; word-break: normal; }
+.ident-part { white-space: nowrap; }
 .user-ip { flex-wrap: wrap; white-space: normal; gap: var(--space-1) var(--space-2); }
-.user-ip > * { min-width: 0; overflow-wrap: anywhere; }
+.user-ip > * { min-width: 0; overflow-wrap: break-word; }
 .audit-command-cell { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-1); }
-.audit-command { width: 100%; }
+.audit-command { width: 100%; overflow-wrap: break-word; }
 .audit-command.clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 .filter-bar .field { flex: 1 1 160px; }
 .filter-bar input, .filter-bar select, .filter-bar button { min-height: 32px; }

@@ -37,6 +37,24 @@ const OUTCOME_LABEL: Record<AuditEvent["outcome"], string> = {
   confirmation_required: "needs confirmation",
 };
 
+/**
+ * An identifier (audit action, database id) that may wrap only after its separators, never inside a word:
+ * `auth.totp.confirm` breaks as `auth.totp.` / `confirm`, not `auth.totp.confi` / `rm`.
+ */
+function Ident({ text }: { text: string }) {
+  const parts = visibleText(text).match(/[^.\-_:/]+[.\-_:/]*|[.\-_:/]+/g) ?? [];
+  return (
+    <code className="ident">
+      {parts.map((part, i) => (
+        <span key={i}>{i > 0 && <wbr />}<span className="ident-part">{part}</span></span>
+      ))}
+    </code>
+  );
+}
+
+const stampDate = new Intl.DateTimeFormat(undefined, { year: "numeric", month: "2-digit", day: "2-digit" });
+const stampTime = new Intl.DateTimeFormat(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
 /** Keep large, redacted multi-key commands bounded until explicitly expanded. */
 function AuditCommand({ event }: { event: AuditEvent }) {
   const [expanded, setExpanded] = useState(false);
@@ -235,8 +253,11 @@ export function Audit() {
             <tbody>
               {events.map((event) => (
                 <tr key={event.id}>
-                  <td className="nowrap tabular" title={event.at}>
-                    {stamp.format(new Date(event.at))}
+                  <td className="tabular audit-when" title={event.at}>
+                    <time dateTime={event.at}>
+                      <span>{stampDate.format(new Date(event.at))}</span>{" "}
+                      <span>{stampTime.format(new Date(event.at))}</span>
+                    </time>
                   </td>
                   <td>
                     <span className="user-ip">
@@ -252,11 +273,11 @@ export function Audit() {
                     </span>
                   </td>
                   <td>
-                    <code>{visibleText(event.action)}</code>
+                    <Ident text={event.action} />
                   </td>
                   <td>
                     {event.databaseId ? (
-                      <code>{visibleText(event.databaseId)}</code>
+                      <Ident text={event.databaseId} />
                     ) : (
                       <span className="muted">—</span>
                     )}
