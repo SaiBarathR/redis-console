@@ -304,16 +304,16 @@
   min-width: 220px;
   max-width: 380px;
   height: 28px;
-  padding: 0 28px 0 12px;
+  padding: 2px 28px 2px 12px;
   border-color: transparent;
-  background: transparent;
+  background-color: transparent;
   font-size: var(--text-data);
   font-weight: 600;
   appearance: none;
   text-overflow: ellipsis;
 }
 .database-picker select:hover {
-  background: var(--hover);
+  background-color: var(--hover);
   border-color: var(--rule-strong);
 }
 .database-badges {
