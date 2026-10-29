@@ -732,3 +732,13 @@
   text-decoration: underline;
   text-underline-offset: 3px;
 }
+
+/* Key names carry a wrap opportunity after each delimiter (anatomy.tsx), but Chrome honours <wbr> even under
+   white-space: pre; single-line names (key rows, titles, palette) keep it inert, wrapping contexts enable it. */
+.key-anatomy wbr {
+  display: none;
+}
+.key-anatomy.wrap wbr,
+.diag-pane .table-wrap .key-anatomy wbr {
+  display: inline;
+}
