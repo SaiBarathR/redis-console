@@ -4,6 +4,11 @@ A self-hosted, browser-based console for Redis that replaces Redis Insight and s
 connections live only on the server. Every command passes a server-side policy **and** runs as a Redis ACL user for
 the caller's role, and everything is audited without storing values.
 
+https://github.com/user-attachments/assets/9191fba7-54e8-4fd0-9da6-facc2c04afec
+
+<sub>Music: "Voltaic" by Kevin MacLeod (incompetech.com), licensed under
+[Creative Commons: By Attribution 4.0](http://creativecommons.org/licenses/by/4.0/). Shortened and limited for this video.</sub>
+
 ![Key browser](docs/screenshots/key-browser.png)
 
 ## Why it exists
