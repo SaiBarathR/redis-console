@@ -9,7 +9,7 @@
 name: rconsole
 services:
   rconsole:
-    image: ghcr.io/saibarathr/redis-console:0.4.2   # pin by digest in production, or use your own build
+    image: ghcr.io/saibarathr/redis-console:0.4.3   # pin by digest in production, or use your own build
     restart: unless-stopped
     read_only: true
     user: "1000:1000"
