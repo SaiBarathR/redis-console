@@ -133,8 +133,10 @@
 .brand-mark {
   display: inline-grid;
   place-items: center;
-  width: 26px;
+  /* Sized by its padding, not a fixed width: wider fonts (Linux) put the letters 5.5 px from the edge. */
+  min-width: 26px;
   height: 26px;
+  padding: 0 7px;
   flex-shrink: 0;
   border-radius: var(--radius);
   background: var(--ink);

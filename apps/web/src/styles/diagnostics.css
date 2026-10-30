@@ -338,7 +338,8 @@
 .diag-pane .table-wrap td:has(> .nowrap) { white-space: normal; }
 .diag-pane .nowrap, .diag-pane .client-cell code { white-space: normal; overflow-wrap: anywhere; }
 /* Stream entry IDs stay whole (a wrap after the hyphen left a lone sequence digit): the column fits the longest ID. */
-.diag-pane .table-wrap.pending-ids th:first-child { width: 17ch; }
+/* rem, not ch: ch would follow the header's proportional font, not the monospace IDs (too narrow on Linux). */
+.diag-pane .table-wrap.pending-ids th:first-child { width: 11.5rem; }
 .diag-pane .table-wrap.pending-ids td:first-child, .diag-pane .table-wrap.pending-ids td:first-child .nowrap { white-space: nowrap; overflow-wrap: normal; }
 .command-cell, .command-line { max-width: 100%; }
 .diag-pane .section > header { flex-wrap: wrap; }
