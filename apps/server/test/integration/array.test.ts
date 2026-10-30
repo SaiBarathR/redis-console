@@ -191,7 +191,9 @@ describe.skipIf(!sandboxUp)('v0.4 arrays', () => {
       const { worst } = JSON.parse(lines.find((l) => l.startsWith('{'))!) as { worst: number };
       expect(res.status, res.body.slice(0, 200)).toBe(200);
       expect(res.json.skipped).toBeUndefined();
-      expect(worst, `the health client waited ${worst.toFixed(0)} ms`).toBeLessThan(120);
+      // The bug held other requests 600-1,000 ms; with yields every 10 ms they wait a few ms. 250 ms keeps that margin
+      // while tolerating a loaded CI runner (122 ms once, with the topology suites running in parallel).
+      expect(worst, `the health client waited ${worst.toFixed(0)} ms`).toBeLessThan(250);
     });
 
     it('an element over half the budget is skipped by index; the search continues after it', async () => {
