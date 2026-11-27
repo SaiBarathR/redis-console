@@ -4,6 +4,8 @@ A self-hosted, browser-based console for Redis that replaces Redis Insight and s
 connections live only on the server. Every command passes a server-side policy **and** runs as a Redis ACL user for
 the caller's role, and everything is audited without storing values.
 
+**Website: [saibarathr.github.io/redis-console](https://saibarathr.github.io/redis-console/)** · [Install](https://saibarathr.github.io/redis-console/docs/) · [Security model](https://saibarathr.github.io/redis-console/security/) · [Changelog](https://saibarathr.github.io/redis-console/changelog/)
+
 https://github.com/user-attachments/assets/9191fba7-54e8-4fd0-9da6-facc2c04afec
 
 <sub>Music: "Voltaic" by Kevin MacLeod (incompetech.com), licensed under
@@ -60,7 +62,7 @@ third-party desktop app**. Security is the product; the reasons for each design 
 | ![Pub/Sub](docs/screenshots/pubsub.png) | ![Audit log](docs/screenshots/audit-log.png) |
 | Live Pub/Sub | Audit log with redacted arguments |
 
-Screenshots show sandbox fixtures only.
+Screenshots show demo data only.
 
 ## Try it locally (about five minutes)
 
@@ -106,6 +108,7 @@ production config, the first sign-in, backups, upgrades and a hardening checklis
 | [docs/SECURITY.md](docs/SECURITY.md) | Threat model, controls and their tests, reporting a vulnerability |
 | [AGENTS.md](AGENTS.md), [CONTRIBUTING.md](CONTRIBUTING.md) | Working on the code (agents and humans) |
 | [docs/README.md](docs/README.md) | Index of every document, including history |
+| [site/](site/README.md) | The website, built from these documents and published to GitHub Pages |
 
 ## Tests
 
