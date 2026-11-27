@@ -27,10 +27,17 @@ run_node() {
   docker run -d --rm --name "$name" --network host -e P="$P" -e ACL="$ACL" redis:8 \
     sh -c 'printf "%s\n" "$ACL" | sed "s/\$P/$P/g" > /tmp/users.acl && exec redis-server "$@" --aclfile /tmp/users.acl' sh "$@" >/dev/null
 }
+# Redis 8.12+ refuses to start a cluster node whose bus port isn't TLS unless cluster-bus-port-protected-mode is
+# turned off. These nodes bind 127.0.0.1 and live for one test run, so only this host reaches the bus. Older
+# images don't know the option and would refuse it, so it's added by version.
+bus_flags=()
+read -r major minor < <(docker run --rm --entrypoint redis-server redis:8 --version | sed -nE 's/.* v=([0-9]+)\.([0-9]+).*/\1 \2/p') ||
+  { echo 'could not read the redis:8 version' >&2; exit 1; }
+if (( major > 8 || (major == 8 && minor >= 12) )); then bus_flags=(--cluster-bus-port-protected-mode no); fi
 for i in 0 1 2; do
   port=$((6420 + i)); bus=$((6423 + i))
   run_node "rcsrv-cl-$i" --port "$port" --cluster-enabled yes --cluster-port "$bus" --cluster-config-file "/tmp/nodes-$port.conf" \
-    --save '' --appendonly no --bind 127.0.0.1 --masterauth "$P" --masteruser rc-admin
+    ${bus_flags[@]+"${bus_flags[@]}"} --save '' --appendonly no --bind 127.0.0.1 --masterauth "$P" --masteruser rc-admin
 done
 sleep 1
 docker exec rcsrv-cl-0 redis-cli -p 6420 --user rc-admin --pass "$P" --no-auth-warning --cluster create \
