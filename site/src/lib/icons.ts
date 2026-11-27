@@ -19,8 +19,11 @@ export function icon(name: string, size = 20, label?: string): string {
   }
   let inner = cache.get(name);
   if (inner === undefined) {
+    // Keep only what's inside <svg …>…</svg>; the licence comment before it goes with the wrapper.
     const raw = fs.readFileSync(path.join(iconDir, name + '.svg'), 'utf8');
-    inner = raw.replace(/<!--[\s\S]*?-->/, '').replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').trim();
+    const body = /<svg\b[^>]*>([\s\S]*)<\/svg>/.exec(raw)?.[1];
+    if (body === undefined) throw new Error(`lucide-static/icons/${name}.svg has no <svg> element`);
+    inner = body.trim();
     cache.set(name, inner);
   }
   const a11y = label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"';
