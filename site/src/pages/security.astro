@@ -1,0 +1,185 @@
+---
+import Base from '../layouts/Base.astro';
+import Shot from '../components/Shot.astro';
+import { icon } from '../lib/icons';
+import { SITE, url } from '../lib/site';
+
+const never = [
+  'Redis passwords, ACL user names and TLS keys',
+  'Hosts, ports, connection URLs and logical database numbers',
+  'OIDC client secrets, ID tokens and access tokens',
+  'Session identifiers (the cookie is HttpOnly) and server keys',
+];
+
+// Summarised from docs/SECURITY.md, "Threat model (summary)". Keep in step with it.
+const threats = [
+  { id: 'T1', title: 'Credential theft from a laptop', text: 'Credentials exist only on the server. The browser gets a session cookie and a CSRF token, nothing else.' },
+  { id: 'T2', title: 'Leaks through the API, UI, URLs, logs or errors', text: 'Secret references only, databases exposed by id, no Redis data in URLs, redacted logs and audit, and an automated leak scan of every response and of the server log.' },
+  { id: 'T3', title: 'Privilege escalation', text: 'A fail-closed command policy, effective role = min(user, database maximum), read-only databases, and a per-role Redis ACL user underneath.' },
+  { id: 'T4', title: 'Accidental destruction', text: 'Two-step confirmations bound to the session and the exact request, the typed database name and a reason on production, impact previews for bulk deletes, FLUSHALL blocked.' },
+  { id: 'T5', title: 'XSS from hostile keys and values', text: 'Data is never rendered as HTML. A strict Content Security Policy with per-request nonces and Trusted Types, and no navigation built from data.' },
+  { id: 'T6', title: 'CSRF, clickjacking, cross-origin reads', text: 'SameSite=Strict cookies, a per-session CSRF token, an exact Origin check, JSON-only bodies, no CORS, no framing, COOP and CORP same-origin.' },
+  { id: 'T7', title: 'SSRF and pivoting', text: 'The browser can never choose a host, port or TLS setting. MIGRATE, REPLICAOF, MODULE and similar commands are blocked.' },
+  { id: 'T8', title: 'Account takeover', text: 'OIDC with PKCE, state and nonce; argon2id; lockout and global sign-in limits; replay-protected TOTP; single-use recovery codes; seeds encrypted under a rotatable key ring.' },
+  { id: 'T8b', title: 'Stale authority after revocation', text: 'Sessions and accounts are re-checked when a request arrives, after its body, after any wait and right before every write reaches Redis.' },
+  { id: 'T9', title: 'Denial of service', text: 'KEYS blocked, SCAN budgets, command timeouts, replies measured and capped on the wire, global and per-user command budgets, rate limits and bounded jobs.' },
+  { id: 'T10', title: 'Repudiation and insider misuse', text: 'An append-only audit of every command and sign-in, with redacted arguments, reasons for production writes and JSON lines for the SIEM.' },
+  { id: 'T11', title: 'Supply chain', text: 'Few dependencies pinned exactly, an install-script allowlist, audits and an SBOM in CI, no runtime fetches, a minimal non-root image with signed provenance.' },
+];
+
+const tested = [
+  { icon: 'grid-3x3', title: 'Route × role matrix', text: 'Every API route is called as anonymous, viewer, operator and admin, and must answer exactly as the policy says. A new route without a matrix entry fails the build.' },
+  { icon: 'search-check', title: 'Leak scan', text: 'Every response and the whole server log are scanned for credentials, connection URLs, tokens, session ids and canary values written to Redis.' },
+  { icon: 'shield-alert', title: 'CSP and XSS fixtures', text: 'Hostile keys and values are rendered across the UI. Any Content Security Policy or Trusted Types violation fails the suite.' },
+  { icon: 'lock', title: 'Read-only proof', text: 'A read-only database is reached through a proxy that records every command. The suite fails if a single non-read command gets through.' },
+];
+---
+<Base title="Security" path="security/" description="How Redis Console keeps Redis credentials off the browser, checks every command twice, confirms destructive actions and audits everything, and how each control is tested.">
+  <section class="page-hero">
+    <div class="container">
+      <span class="eyebrow">Security model</span>
+      <h1>Security is the product</h1>
+      <p>Redis Console exists because desktop and third-party Redis GUIs keep production credentials on laptops, talk to Redis directly and can leak data. The server is the only component that holds secrets or talks to Redis; the browser, and everything Redis returns, is untrusted.</p>
+    </div>
+  </section>
+
+  <section class="section-tight">
+    <div class="container never-grid">
+      <div class="card never">
+        <h2><span set:html={icon('ban', 20)} /> The browser never receives</h2>
+        <ul role="list">{never.map((n) => <li>{n}</li>)}</ul>
+        <p class="never-note">It gets an HttpOnly, SameSite=Strict session cookie and a CSRF token. Databases are referenced by id; the browser can't choose a host, port, TLS setting or logical database.</p>
+      </div>
+      <div class="layers">
+        <div class="layer">
+          <span class="layer-n">1</span>
+          <div>
+            <h3>The server's command policy</h3>
+            <p>Every command is classified as read, write, admin or blocked, for the caller's effective role on that database. Unknown commands are blocked. Lua, <code>KEYS</code>, <code>FLUSHALL</code>, <code>CONFIG SET</code>, <code>MODULE</code> and <code>MULTI</code> are blocked for everyone.</p>
+          </div>
+        </div>
+        <div class="layer">
+          <span class="layer-n">2</span>
+          <div>
+            <h3>A Redis ACL user per role</h3>
+            <p>The command then runs as <code>rc-viewer</code>, <code>rc-operator</code> or <code>rc-admin</code>, so Redis enforces the same limits a second time. A role never falls back to another role's user, and the server won't start with a production database that lacks them, unless that risk is explicitly accepted in the config.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section alt" aria-labelledby="threats-title">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title" id="threats-title">The threat model, threat by threat</h2>
+        <p class="section-lead">Each threat and its main controls. The full model, every control and the test that holds it are in the <a href={url('docs/security/')}>security document</a>.</p>
+      </div>
+      <ol class="threats" role="list">
+        {threats.map((t) => (
+          <li class="threat">
+            <span class="threat-id">{t.id}</span>
+            <div>
+              <h3>{t.title}</h3>
+              <p>{t.text}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p class="scope">Out of scope: a compromised server or Redis host, and malicious administrators of the identity provider.</p>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="confirm-title">
+    <div class="container two-up">
+      <figure>
+        <Shot name="prod-confirmation" alt="A production write asking for the typed database name and a reason" />
+        <figcaption>On production, every write asks for the database's name and a reason, from a preview the server built.</figcaption>
+      </figure>
+      <figure>
+        <Shot name="audit-log" alt="The audit log with redacted command arguments" />
+        <figcaption>The audit log keeps who did what, where and why. Keys appear as hashes and values as byte counts.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section alt" aria-labelledby="tested-title">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title" id="tested-title">Tested, not just claimed</h2>
+        <p class="section-lead">The end-to-end suite runs the real server and web app against real Redis 8 instances with per-role ACL users and a real Keycloak, in the production-style setup.</p>
+      </div>
+      <ul class="tested" role="list">
+        {tested.map((t) => (
+          <li class="card tested-item">
+            <span class="feature-icon" set:html={icon(t.icon, 20)} />
+            <h3>{t.title}</h3>
+            <p>{t.text}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="report-title">
+    <div class="container report-grid">
+      <div>
+        <h2 class="section-title" id="report-title">Known limitations</h2>
+        <p class="section-lead">What the design doesn't cover, said plainly: a single replica per data directory, OIDC roles read at sign-in, the policy as the only layer when a database has just a default Redis user, and more.</p>
+        <a class="btn btn-secondary" href={url('docs/security/#known-limitations')}>Read the known limitations</a>
+      </div>
+      <div class="card report">
+        <h2><span set:html={icon('bug', 20)} /> Reporting a vulnerability</h2>
+        <p>Please don't open a public issue. Report it privately through the repository's <a href={`${SITE.repo}/security/advisories/new`}>GitHub security advisories</a>, with the version, your configuration (secrets redacted), the steps to reproduce and the impact. We aim to acknowledge reports within two business days.</p>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .alt { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .never-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 28px; align-items: start; }
+  @media (max-width: 900px) { .never-grid { grid-template-columns: minmax(0, 1fr); } }
+  .never { padding: 24px; }
+  .never h2, .report h2 { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 700; }
+  .never h2 :global(svg) { color: var(--danger); display: block; }
+  .report h2 :global(svg) { color: var(--accent-text); display: block; }
+  .never ul { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 10px; }
+  .never li { position: relative; padding-left: 22px; color: var(--text); font-size: 15.5px; line-height: 1.5; }
+  .never li::before { content: '×'; position: absolute; left: 2px; top: -1px; color: var(--danger); font-weight: 700; }
+  .never-note { margin-top: 16px; font-size: 14.5px; color: var(--text-2); line-height: 1.6; }
+  .layers { display: grid; gap: 16px; }
+  .layer { display: flex; gap: 16px; padding: 22px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-sm); }
+  .layer-n { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; flex-shrink: 0; border-radius: 50%; background: var(--step-bg); color: var(--step-fg); font: 700 15px/1 var(--font); }
+  .layer h3 { font-size: 17px; font-weight: 680; }
+  .layer p { margin-top: 6px; color: var(--text-2); font-size: 15px; line-height: 1.6; }
+  .layer code, .threat code { font-size: 0.86em; }
+
+  .threats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
+  @media (max-width: 820px) { .threats { grid-template-columns: minmax(0, 1fr); } }
+  .threat { display: flex; gap: 14px; align-items: flex-start; padding: 16px 0; border-bottom: 1px solid var(--border); }
+  .threat-id { flex-shrink: 0; min-width: 44px; padding: 3px 8px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); font: 600 13px/1.4 var(--mono); color: var(--text-2); text-align: center; }
+  .threat h3 { font-size: 16px; font-weight: 660; }
+  .threat p { margin-top: 4px; font-size: 14.5px; color: var(--text-2); line-height: 1.55; }
+  .scope { margin-top: 20px; font-size: 14.5px; color: var(--text-3); }
+
+  .two-up { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
+  @media (max-width: 860px) { .two-up { grid-template-columns: minmax(0, 1fr); } }
+  .two-up figure { margin: 0; }
+  .two-up figcaption { margin-top: 14px; font-size: 15px; color: var(--text-2); line-height: 1.55; }
+
+  .tested { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px; }
+  @media (max-width: 1000px) { .tested { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .tested { grid-template-columns: minmax(0, 1fr); } }
+  .tested-item { padding: 22px; }
+  .tested-item h3 { font-size: 16.5px; font-weight: 680; margin-top: 14px; }
+  .tested-item p { margin-top: 6px; font-size: 14.5px; color: var(--text-2); line-height: 1.6; }
+  .feature-icon { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 11px; background: var(--pill); color: var(--pill-fg); }
+  .feature-icon :global(svg) { display: block; }
+
+  .report-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+  @media (max-width: 860px) { .report-grid { grid-template-columns: minmax(0, 1fr); } }
+  .report-grid .btn { margin-top: 24px; }
+  .report { padding: 24px; }
+  .report p { margin-top: 12px; color: var(--text-2); font-size: 15.5px; line-height: 1.6; }
+</style>

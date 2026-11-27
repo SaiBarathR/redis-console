@@ -1,0 +1,31 @@
+---
+import Base from '../layouts/Base.astro';
+import { url } from '../lib/site';
+---
+<Base title="Page not found" path="404.html" description="This page doesn't exist.">
+  <section class="nf">
+    <div class="container">
+      <p class="nf-reply" aria-hidden="true"><span class="nf-prompt">&gt;</span> GET /this-page<br /><span class="nf-nil">(nil)</span></p>
+      <h1>No such page</h1>
+      <p>This page doesn't exist, or it moved. Try one of these instead:</p>
+      <div class="nf-links">
+        <a class="btn btn-primary" href={url()}>Home</a>
+        <a class="btn btn-secondary" href={url('docs/')}>Install</a>
+        <a class="btn btn-secondary" href={url('security/')}>Security</a>
+        <a class="btn btn-secondary" href={url('changelog/')}>Changelog</a>
+      </div>
+    </div>
+  </section>
+</Base>
+<style>
+  .nf { padding: 96px 0 72px; text-align: center; }
+  .nf-reply {
+    display: inline-block; text-align: left; margin-bottom: 28px; padding: 14px 20px; border-radius: 12px;
+    background: var(--pill); color: #f5f5f4; font: 500 16px/1.6 var(--mono); box-shadow: var(--shadow-lg);
+  }
+  .nf-prompt { color: var(--amber); }
+  .nf-nil { color: #a8a29e; }
+  .nf h1 { font-size: clamp(30px, 5vw, 44px); font-weight: 800; letter-spacing: -0.03em; }
+  .nf p { margin-top: 14px; color: var(--text-2); font-size: 18px; }
+  .nf-links { margin-top: 28px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+</style>

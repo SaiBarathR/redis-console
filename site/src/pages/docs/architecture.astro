@@ -1,0 +1,9 @@
+---
+import Docs from '../../layouts/Docs.astro';
+import { Content, getHeadings } from '../../../../docs/ARCHITECTURE.md';
+import { docMeta } from '../../lib/docs';
+const meta = docMeta('ARCHITECTURE');
+---
+<Docs title={meta.title} description={meta.description} path="docs/architecture/" headings={getHeadings()} source="docs/ARCHITECTURE.md">
+  <Content />
+</Docs>

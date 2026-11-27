@@ -1,0 +1,432 @@
+---
+import { Code } from 'astro:components';
+import Base from '../layouts/Base.astro';
+import Shot from '../components/Shot.astro';
+import Steps from '../components/Steps.astro';
+import VideoSlot from '../components/VideoSlot.astro';
+import { codeThemes } from '../lib/code-themes.mjs';
+import { icon } from '../lib/icons';
+import { APP_VERSION, SITE, url } from '../lib/site';
+
+const problems = [
+  { icon: 'laptop', title: 'Credentials on laptops', text: 'Desktop GUIs keep production passwords and hosts on every engineer\'s machine, where malware or a lost laptop takes them along.' },
+  { icon: 'globe', title: 'Any host, any command', text: 'Point the tool at whatever server you like, then type anything: FLUSHALL, CONFIG SET, Lua, or KEYS * on a busy production server.' },
+  { icon: 'user-x', title: 'No roles, no audit', text: 'Everyone gets the same access, there is no single sign-on, and nobody can say afterwards who changed what.' },
+  { icon: 'cloud-upload', title: 'Data that leaves', text: 'Some GUIs send telemetry, crash reports or your data to outside services. Your keys can hold personal data.' },
+];
+
+const controls = [
+  { icon: 'key-round', title: 'No secrets in the browser', text: 'The browser gets an HttpOnly, SameSite=Strict session cookie and a CSRF token. Hosts, TLS settings and credentials are server configuration, referenced by database id, and secrets are file or environment references.' },
+  { icon: 'shield-check', title: 'Two enforcement layers', text: 'Every command passes a fail-closed policy (unknown commands are blocked) and then runs as a Redis ACL user for the caller\'s role, so Redis refuses what the policy should have. Effective role = min(user role, database maximum).' },
+  { icon: 'circle-alert', title: 'Safe by default', text: 'Destructive actions are confirmed against a preview the server builds from the exact commands. Production writes need the typed database name and a reason, and edits are compare-and-set, so a concurrent change is never overwritten.' },
+  { icon: 'log-in', title: 'Single sign-on and MFA', text: 'OIDC (authorization code with PKCE) with group-to-role mapping, and local accounts with argon2id, lockout, TOTP and single-use recovery codes; TOTP seeds are encrypted at rest.' },
+  { icon: 'scroll-text', title: 'Audited, without values', text: 'Every sign-in, command and read is recorded with redacted arguments (key hashes and byte counts, never values) and written as JSON lines for your SIEM.' },
+  { icon: 'eye-off', title: 'Nothing leaves', text: 'No telemetry, no AI, no CDN. The server talks to your Redis and your identity provider, and nothing else. Data is shown as text, byte-exact, never rendered as HTML.' },
+];
+
+const gallery = [
+  { name: 'landing', caption: 'Pick a database: environment, role and live stats at a glance', alt: 'The database picker with four databases, their environments, versions, key counts and your role on each' },
+  { name: 'stream', caption: 'Streams with consumer groups, consumers and pending messages', alt: 'A stream key with its consumer groups, consumers and pending messages' },
+  { name: 'workbench-geo', caption: 'Workbench: geo results on an offline world map', alt: 'The workbench with a GEOSEARCH result shown on a world map' },
+  { name: 'workbench', caption: 'Workbench: time series as charts', alt: 'The workbench with a TS.RANGE result shown as a chart' },
+  { name: 'memory-analysis', caption: 'Memory analysis with recommendations', alt: 'A memory analysis report with big keys and recommendations' },
+  { name: 'slowlog', caption: 'Slow log, with arguments redacted below admin', alt: 'The slow log with durations and redacted arguments' },
+  { name: 'pubsub', caption: 'Live Pub/Sub: subscribe, publish, watch', alt: 'Pub/Sub with a channel and a pattern subscription and received messages' },
+  { name: 'users', caption: 'Local users with TOTP status for admins', alt: 'The local users table with roles, status and two-factor enrollment' },
+];
+
+const types = ['Strings', 'Hashes (with field TTLs)', 'Lists', 'Sets', 'Sorted sets', 'Streams and consumer groups', 'JSON', 'TimeSeries', 'Bloom, Cuckoo, Count-Min, Top-K, t-digest', 'Vector sets', 'Arrays (Redis 8.8+)', 'Geo', 'FalkorDB graphs (Workbench)'];
+const topologies = ['Standalone, Cluster and Sentinel', 'TLS and mutual TLS', 'Redis 6 or later, developed on Redis 8', 'Redis 7 and Valkey 8, read-only verified', 'Managed services with ACL users'];
+
+const pull = `docker pull ${SITE.image}:${APP_VERSION}
+gh attestation verify \\
+  oci://${SITE.image}:${APP_VERSION} \\
+  --repo SaiBarathR/redis-console`;
+
+const config = `{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 4000,
+    "publicUrl": "https://redis.example.com",
+    "trustProxy": 1,
+    "dataDir": "/data"
+  },
+  "auth": {
+    "local": {
+      "enabled": true,
+      "requireTotpForRoles": ["admin", "operator"],
+      "bootstrapAdmin": {
+        "username": "admin",
+        "password": { "file": "/run/secrets/bootstrap_admin_password" }
+      },
+      "totpEncryptionKey": { "file": "/run/secrets/totp_encryption_key" }
+    }
+  },
+  "databases": [{
+    "id": "orders",
+    "name": "Orders (prod)",
+    "environment": "prod",
+    "maxRole": "operator",
+    "url": "rediss://orders-redis.internal:6380",
+    "credentials": {
+      "viewer": {
+        "username": "rc-viewer",
+        "password": { "file": "/run/secrets/redis_viewer_password" }
+      },
+      "operator": {
+        "username": "rc-operator",
+        "password": { "file": "/run/secrets/redis_operator_password" }
+      }
+    }
+  }]
+}`;
+
+const run = `src=https://raw.githubusercontent.com/SaiBarathR/redis-console/v${APP_VERSION}
+curl -fsSL -o docker-compose.yml "$src/deploy/docker-compose.example.yml"
+# next to it: config.prod.json (above) and one file per secret in ./secrets
+docker compose up -d
+# it listens on 127.0.0.1:4000; put your TLS proxy in front`;
+---
+<Base path="">
+  <section class="hero">
+    <div class="container">
+      <div class="hero-copy">
+        <span class="eyebrow">Free and open source · Self-hosted · Apache 2.0</span>
+        <h1>A Redis console that keeps <span class="hl">credentials on the server</span></h1>
+        <p class="hero-lead">
+          Redis Console is a browser-based Redis GUI you run yourself. Your Redis passwords and hosts never reach the
+          browser. Every command passes a fail-closed policy and runs as a Redis ACL user for the caller's role, and
+          everything is audited without storing values.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary btn-lg" href={url('docs/')}>
+            <span set:html={icon('container', 18)} /> Install with Docker
+          </a>
+          <a class="btn btn-secondary btn-lg" href={SITE.repo}>
+            <span set:html={icon('github', 18)} /> View on GitHub
+          </a>
+        </div>
+        <p class="hero-meta">
+          <span>Version {APP_VERSION}</span>
+          <span aria-hidden="true">·</span>
+          <span>Image for amd64 and arm64</span>
+          <span aria-hidden="true">·</span>
+          <a href={url('changelog/')}>What's new</a>
+        </p>
+      </div>
+      <div class="hero-shot">
+        <Shot name="key-browser" eager alt="The key browser: the namespace tree with key counts and sizes on the left, a JSON product document open in the inspector on the right" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section-tight" aria-labelledby="video-title">
+    <div class="container narrow-video">
+      <div class="section-head center">
+        <span class="eyebrow">See it work</span>
+        <h2 class="section-title" id="video-title">Forty-five seconds with Redis Console</h2>
+      </div>
+      <VideoSlot file="promo.mp4" poster="promo-poster.webp" title="Redis Console promo" caption={'Music: "Voltaic" by Kevin MacLeod (incompetech.com), CC BY 4.0. Shortened for this video.'} />
+    </div>
+  </section>
+
+  <section class="section alt" aria-labelledby="why-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Why it exists</span>
+        <h2 class="section-title" id="why-title">Desktop Redis GUIs weren't built for production data</h2>
+        <p class="section-lead">Redis Console exists because credentials and data must never live in the browser or in a third-party desktop app.</p>
+      </div>
+      <ul class="problem-grid" role="list">
+        {problems.map((p) => (
+          <li class="problem card">
+            <span class="problem-icon" set:html={icon(p.icon, 20)} />
+            <h3>{p.title}</h3>
+            <p>{p.text}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="security-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Security is the product</span>
+        <h2 class="section-title" id="security-title">Every command is checked twice and recorded once</h2>
+        <p class="section-lead">The server is the only component that holds secrets or talks to Redis. The browser, and everything Redis returns, is treated as untrusted.</p>
+      </div>
+
+      <figure class="flow" aria-labelledby="flow-caption">
+        <div class="flow-step">
+          <span class="flow-icon" set:html={icon('monitor', 20)} />
+          <div><h3>Browser</h3><p>Session cookie and CSRF token. No hosts, no passwords, no tokens.</p></div>
+        </div>
+        <span class="flow-arrow" aria-hidden="true" set:html={icon('arrow-right', 20)} />
+        <div class="flow-step flow-server">
+          <span class="flow-icon" set:html={icon('server', 20)} />
+          <div>
+            <h3>Redis Console server</h3>
+            <ol class="flow-checks" role="list">
+              <li>Signed in? Role for this database?</li>
+              <li>Command policy: read, write, admin or blocked</li>
+              <li>Confirmation for destructive commands</li>
+              <li>Audit with redacted arguments</li>
+            </ol>
+          </div>
+        </div>
+        <span class="flow-arrow" aria-hidden="true" set:html={icon('arrow-right', 20)} />
+        <div class="flow-step">
+          <span class="flow-icon" set:html={icon('database', 20)} />
+          <div><h3>Redis</h3><p>One ACL user per role: <code>rc-viewer</code>, <code>rc-operator</code>, <code>rc-admin</code>.</p></div>
+        </div>
+        <figcaption id="flow-caption">A request from the browser reaches Redis only through the server's checks, and then only as the ACL user of the caller's role.</figcaption>
+      </figure>
+
+      <ul class="control-grid" role="list">
+        {controls.map((c) => (
+          <li class="control card">
+            <span class="feature-icon" set:html={icon(c.icon, 20)} />
+            <h3>{c.title}</h3>
+            <p>{c.text}</p>
+          </li>
+        ))}
+      </ul>
+      <p class="more"><a href={url('security/')}>How the security model works, and how each control is tested <span set:html={icon('arrow-right', 16)} /></a></p>
+    </div>
+  </section>
+
+  <section class="section alt" aria-labelledby="features-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Everything you use Redis Insight for</span>
+        <h2 class="section-title" id="features-title">A complete console, built for real data sizes</h2>
+        <p class="section-lead">Every read is bounded by bytes, elements or time, so a large keyspace or a multi-megabyte value stays responsive, for you and for everyone else using the server.</p>
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-copy">
+          <h3>Key browser and inspectors</h3>
+          <p>Names-only scanning shows the whole namespace tree with counts and shares in under a second; type, TTL and size load for the rows you can see. Every Redis type has its own inspector, with formatters for JSON, hex, Base64, MessagePack and compressed values. Values stay byte-exact, and binary keys work.</p>
+          <ul class="ticks" role="list">
+            <li>Expand any field or value into a full-width viewer</li>
+            <li>Edits are compare-and-set; renames never overwrite</li>
+            <li>Delete by pattern as a cancellable job</li>
+          </ul>
+        </div>
+        <Shot name="hash-inspector" alt="The hash inspector with one value expanded into a full-width viewer with format choices" />
+      </div>
+
+      <div class="feature-row flip">
+        <div class="feature-copy">
+          <h3>Console and workbench</h3>
+          <p>redis-cli syntax with autocomplete, inline docs and a policy badge before you press Enter, so you know a command is blocked before you run it. The workbench runs scripts with per-line results and shows search results as tables, time series as charts and geo sets on a map.</p>
+          <ul class="ticks" role="list">
+            <li>Terminal-style shortcuts and history search</li>
+            <li>KEYS, FLUSHALL, CONFIG SET, Lua and MODULE are blocked for everyone</li>
+          </ul>
+        </div>
+        <Shot name="console" alt="The console with several commands run, and KEYS refused by the policy before it reaches Redis" />
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-copy">
+          <h3>Diagnostics</h3>
+          <p>A live dashboard, the slow log, memory analysis with recommendations, Pub/Sub, stream consumer groups, a RediSearch index wizard and query editor, TimeSeries charts, the client list, and a time-boxed profiler for admins outside production.</p>
+        </div>
+        <Shot name="overview" alt="The overview dashboard with live charts of commands per second and memory" />
+      </div>
+
+      <div class="feature-row flip">
+        <div class="feature-copy">
+          <h3>Confirmations you can trust</h3>
+          <p>The server, not the browser, decides what needs confirming, and shows a preview built from the exact commands that will run. On a production database every write asks for the database's name and a reason, and the reason lands in the audit log.</p>
+        </div>
+        <Shot name="prod-confirmation" alt="A production write asking for the typed database name and a reason before it runs" />
+      </div>
+
+      <div class="feature-row">
+        <div class="feature-copy">
+          <h3>Guided mode</h3>
+          <p>Forms for everyday tasks that show the exact command they will run, offline tutorials, and a policy-checked import of command files. A good way in for people who have never used redis-cli.</p>
+        </div>
+        <Shot name="guided" alt="Guided mode: a task form with the exact command it will run" />
+      </div>
+
+      <div class="feature-row flip">
+        <div class="feature-copy">
+          <h3>Audit log and users</h3>
+          <p>Admins see every sign-in, command and change, with arguments redacted to key hashes and byte counts. Local accounts are managed in the app; single sign-on users get their role from your identity provider's groups.</p>
+        </div>
+        <Shot name="audit-log" alt="The audit log: time, user, outcome, action, database, the command with redacted arguments, and the detail" />
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="gallery-title">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">More of the console</span>
+        <h2 class="section-title" id="gallery-title">Built for the work you do every day</h2>
+      </div>
+      <ul class="gallery" role="list">
+        {gallery.map((g) => (
+          <li>
+            <figure>
+              <Shot name={g.name} alt={g.alt} zoom />
+              <figcaption>{g.caption}</figcaption>
+            </figure>
+          </li>
+        ))}
+      </ul>
+    </div>
+  </section>
+
+  <section class="section alt" aria-labelledby="support-title">
+    <div class="container support-grid">
+      <div>
+        <span class="eyebrow">Data types</span>
+        <h2 class="section-title" id="support-title">Every type you store</h2>
+        <ul class="chips" role="list">{types.map((t) => <li class="chip">{t}</li>)}</ul>
+      </div>
+      <div>
+        <span class="eyebrow">Deployments</span>
+        <h2 class="section-title">Wherever your Redis runs</h2>
+        <ul class="chips" role="list">{topologies.map((t) => <li class="chip">{t}</li>)}</ul>
+        <p class="support-note">Sign in with Keycloak, Microsoft Entra ID, Okta, Google or any OIDC provider, or with local accounts.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="start-title">
+    <div class="container start-grid">
+      <div class="start-intro">
+        <span class="eyebrow">Get started</span>
+        <h2 class="section-title" id="start-title">Running in a few steps</h2>
+        <p class="section-lead">One container, one configuration file, one ACL user per role. The install guide covers Docker, Compose, Kubernetes and Node with systemd, TLS proxies, identity providers and a hardening checklist.</p>
+        <div class="start-links">
+          <a class="btn btn-primary" href={url('docs/')}>Read the install guide</a>
+          <a class="btn btn-secondary" href={url('docs/operations/')}>Configuration reference</a>
+        </div>
+      </div>
+      <Steps>
+        <li>
+          <h3>Pull the image</h3>
+          <p>Published for amd64 and arm64 with an SBOM and a signed build provenance attestation. Pin the digest in production.</p>
+          <Code code={pull} lang="bash" themes={codeThemes} defaultColor={false} />
+        </li>
+        <li>
+          <h3>Create the Redis ACL users</h3>
+          <p>One user per role, so Redis enforces the same limits a second time. The exact <code>ACL SETUSER</code> lines are in the <a href={url('docs/#5-create-the-redis-acl-users')}>install guide</a>.</p>
+        </li>
+        <li>
+          <h3>Write the configuration</h3>
+          <p>Secrets are file or environment references, never values. This config passes the production checks as written.</p>
+          <Code code={config} lang="json" themes={codeThemes} defaultColor={false} />
+        </li>
+        <li>
+          <h3>Run it behind TLS</h3>
+          <p>The Compose example runs the container read-only and unprivileged, with the secrets mounted from <code>./secrets</code>. Put Caddy, nginx, an ingress or a Cloudflare Tunnel in front, then sign in as the bootstrap admin, change the password and enroll an authenticator.</p>
+          <Code code={run} lang="bash" themes={codeThemes} defaultColor={false} />
+        </li>
+      </Steps>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero { padding: 64px 0 40px; }
+  .hero-copy { max-width: 820px; margin: 0 auto; text-align: center; }
+  .hero h1 { font-size: clamp(38px, 5.6vw, 62px); font-weight: 800; letter-spacing: -0.035em; line-height: 1.07; }
+  .hl { background: var(--amber); color: #1c1917; border-radius: 0.12em; padding: 0 0.1em; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+  .hero-lead { margin: 22px auto 0; font-size: 19px; line-height: 1.6; color: var(--text-2); max-width: 680px; }
+  .hero-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 30px; }
+  .hero-meta { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; margin-top: 16px; font-size: 14.5px; color: var(--text-3); }
+  .hero-shot { margin-top: 48px; }
+  @media (max-width: 720px) { .hero { padding: 44px 0 24px; } .hero-shot { margin-top: 32px; } }
+  @media (max-width: 480px) { .hero-actions .btn { width: 100%; } }
+
+  .narrow-video { max-width: 960px; }
+  .alt { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+  .problem-grid, .control-grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
+  .problem-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .control-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 40px; }
+  @media (max-width: 980px) { .problem-grid, .control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 600px) { .problem-grid, .control-grid { grid-template-columns: minmax(0, 1fr); } }
+  .problem, .control { padding: 22px 22px 24px; }
+  .problem h3, .control h3 { font-size: 17px; font-weight: 680; margin-top: 14px; }
+  .problem p, .control p { margin-top: 6px; color: var(--text-2); font-size: 15px; line-height: 1.6; }
+  .problem-icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 11px;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--danger);
+  }
+  .feature-icon {
+    display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 11px;
+    background: var(--pill); color: var(--pill-fg); box-shadow: var(--shadow-sm);
+  }
+  .problem-icon :global(svg), .feature-icon :global(svg) { width: 20px; height: 20px; display: block; }
+
+  .flow { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.35fr) auto minmax(0, 1fr); align-items: stretch; gap: 14px; }
+  .flow-step { display: flex; gap: 14px; align-items: flex-start; padding: 20px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); min-width: 0; }
+  .flow-server { border-color: color-mix(in srgb, var(--amber) 55%, var(--border)); }
+  .flow-step h3 { font-size: 16.5px; font-weight: 680; }
+  .flow-step p { margin-top: 6px; font-size: 14.5px; color: var(--text-2); line-height: 1.55; }
+  .flow-step code { font-size: 0.86em; white-space: nowrap; }
+  .flow-icon { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px; background: var(--pill); color: var(--pill-fg); }
+  .flow-icon :global(svg) { display: block; }
+  .flow-arrow { align-self: center; color: var(--text-3); display: flex; }
+  .flow-arrow :global(svg) { display: block; }
+  .flow-checks { margin: 8px 0 0; padding-left: 1.2em; font-size: 14.5px; color: var(--text-2); line-height: 1.55; }
+  .flow-checks li + li { margin-top: 3px; }
+  .flow figcaption { grid-column: 1 / -1; margin-top: 4px; font-size: 14.5px; color: var(--text-3); text-align: center; }
+  @media (max-width: 920px) {
+    .flow { grid-template-columns: minmax(0, 1fr); }
+    .flow-arrow { justify-self: center; transform: rotate(90deg); }
+  }
+  .more { margin-top: 26px; font-size: 15.5px; }
+  .more a { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .more a :global(svg) { display: block; }
+
+  .feature-row { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr); gap: 48px; align-items: center; }
+  .feature-row + .feature-row { margin-top: 72px; }
+  .feature-row.flip { grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.9fr); }
+  .feature-row.flip .feature-copy { order: 2; }
+  .feature-copy h3 { font-size: 24px; font-weight: 740; letter-spacing: -0.02em; }
+  .feature-copy p { margin-top: 12px; color: var(--text-2); font-size: 16px; line-height: 1.65; }
+  .ticks { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+  .ticks li { position: relative; padding-left: 26px; font-size: 15px; color: var(--text-2); line-height: 1.5; }
+  .ticks li::before { content: ''; position: absolute; left: 4px; top: 0.38em; width: 10px; height: 6px; border-left: 2px solid var(--ok); border-bottom: 2px solid var(--ok); transform: rotate(-45deg); }
+  @media (max-width: 900px) {
+    .feature-row, .feature-row.flip { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .feature-row.flip .feature-copy { order: 0; }
+    .feature-row + .feature-row { margin-top: 56px; }
+  }
+
+  .gallery { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 28px 22px; }
+  @media (max-width: 1000px) { .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 520px) { .gallery { grid-template-columns: minmax(0, 1fr); } }
+  .gallery figure { margin: 0; }
+  .gallery :global(.screenshot) { border-radius: 10px; box-shadow: var(--shadow); }
+  .gallery figcaption { margin-top: 10px; font-size: 14.5px; line-height: 1.5; color: var(--text-2); }
+
+  .support-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 56px; }
+  @media (max-width: 860px) { .support-grid { grid-template-columns: minmax(0, 1fr); gap: 40px; } }
+  .support-grid .section-title { font-size: clamp(24px, 3vw, 32px); }
+  .chips { list-style: none; padding: 0; margin: 20px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { display: inline-flex; align-items: center; padding: 6px 13px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 14.5px; font-weight: 550; color: var(--text); }
+  .support-note { margin-top: 18px; font-size: 15px; color: var(--text-2); line-height: 1.6; }
+
+  .start-grid { display: grid; grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr); gap: 48px; align-items: start; }
+  .start-intro { position: sticky; top: calc(var(--header-h) + 32px); }
+  .start-links { display: inline-grid; gap: 12px; margin-top: 28px; }
+  .start-grid :global(pre.astro-code) { margin-top: 12px; font-size: 12.5px; }
+  @media (max-width: 960px) {
+    .start-grid { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+    .start-intro { position: static; }
+    .start-links { display: flex; flex-wrap: wrap; }
+  }
+  @media (max-width: 480px) {
+    .start-links .btn { width: 100%; }
+  }
+</style>

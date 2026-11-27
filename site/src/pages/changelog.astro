@@ -1,0 +1,67 @@
+---
+// Rendered from docs/RELEASE-NOTES-v*.md: whatever release notes exist, newest first.
+import Base from '../layouts/Base.astro';
+import { SITE } from '../lib/site';
+import { icon } from '../lib/icons';
+
+type MD = { Content: any; file: string; getHeadings: () => { depth: number; slug: string; text: string }[] };
+const modules = import.meta.glob<MD>('../../../docs/RELEASE-NOTES-v*.md', { eager: true });
+const parse = (v: string) => v.replace(/^v/, '').split(/[.-]/).map((n) => (/^\d+$/.test(n) ? Number(n) : n));
+const releases = Object.entries(modules)
+  .map(([p, mod]) => {
+    const version = p.split('/').pop()!.replace(/^RELEASE-NOTES-/, '').replace(/\.md$/, '');
+    return { version, mod };
+  })
+  .sort((a, b) => {
+    const x = parse(a.version), y = parse(b.version);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      const p = x[i] ?? 0, q = y[i] ?? 0;
+      if (p === q) continue;
+      if (typeof p === 'number' && typeof q === 'number') return q - p;
+      return String(q).localeCompare(String(p));
+    }
+    return 0;
+  });
+---
+<Base title="Changelog" path="changelog/" description="What changed in each Redis Console release.">
+  <section class="page-hero">
+    <div class="container narrow">
+      <h1>Changelog</h1>
+      <p>What changed in each release, with upgrade notes. Each release publishes a container image; see the <a href={SITE.releases}>GitHub releases page</a> for its digest and how to verify it.</p>
+    </div>
+  </section>
+  <div class="container narrow">
+    {releases.length === 0 && <p class="none">No releases yet.</p>}
+    <ol class="releases" role="list">
+      {releases.map(({ version, mod }, i) => (
+        <li class="release" id={version}>
+          <div class="rel-meta">
+            <a class="rel-version" href={`#${version}`}>{version}</a>
+            {i === 0 && <span class="latest">Latest</span>}
+            <a class="rel-gh" href={`${SITE.repo}/releases/tag/${version}`}><span set:html={icon('external-link', 14)} /> Release on GitHub</a>
+          </div>
+          <div class="prose rel-body"><mod.Content /></div>
+        </li>
+      ))}
+    </ol>
+  </div>
+</Base>
+
+<style>
+  .narrow { max-width: 860px; }
+  .none { color: var(--text-2); }
+  .releases { list-style: none; margin: 16px 0 24px; padding: 0; }
+  .release { padding: 36px 0; border-top: 1px solid var(--border); scroll-margin-top: calc(var(--header-h) + 12px); }
+  .release:first-child { border-top: 0; padding-top: 8px; }
+  .rel-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
+  .rel-version { font: 600 14px/1 var(--mono); color: var(--text-2); text-decoration: none; padding: 6px 10px; border-radius: 8px; background: var(--bg-soft); border: 1px solid var(--border); }
+  .rel-version:hover { color: var(--text); }
+  .latest { font-size: 12.5px; font-weight: 650; padding: 4px 9px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); }
+  .rel-gh { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-3); text-decoration: none; }
+  .rel-gh:hover { color: var(--text); }
+  .rel-gh :global(svg) { display: block; }
+  .rel-body :global(h2:first-child) { margin-top: 8px; font-size: 30px; font-weight: 760; letter-spacing: -0.025em; padding-top: 0; }
+  .rel-body :global(h3) { font-size: 20px; margin-top: 1.8em; }
+  .rel-body :global(h4) { font-size: 17px; }
+  @media (max-width: 560px) { .rel-gh { margin-left: 0; width: 100%; } }
+</style>

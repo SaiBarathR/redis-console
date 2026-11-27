@@ -1,0 +1,38 @@
+---
+// A product screenshot in both themes; CSS shows the one that matches the site's theme.
+// Files: public/images/<name>-light.webp and <name>-dark.webp, 1600 × 1000 (the app at 1440 × 900, 2x, scaled).
+// `zoom` links each image to its full-size file, for screenshots shown small.
+import { url } from '../lib/site';
+
+interface Props { name: string; alt: string; eager?: boolean; zoom?: boolean; class?: string; }
+const { name, alt, eager = false, zoom = false, class: cls = '' } = Astro.props;
+const loading = eager ? 'eager' : 'lazy';
+const light = url(`images/${name}-light.webp`);
+const dark = url(`images/${name}-dark.webp`);
+---
+<span class={`shot ${cls}`}>
+  {zoom ? (
+    <>
+      <a class="zoom theme-light-only" href={light} target="_blank" rel="noopener" aria-label={`${alt} (full size)`}>
+        <img class="screenshot" src={light} width="1600" height="1000" alt="" loading={loading} decoding="async" />
+      </a>
+      <a class="zoom theme-dark-only" href={dark} target="_blank" rel="noopener" aria-label={`${alt} (full size)`}>
+        <img class="screenshot" src={dark} width="1600" height="1000" alt="" loading={loading} decoding="async" />
+      </a>
+    </>
+  ) : (
+    <>
+      <img class="screenshot theme-light-only" src={light} width="1600" height="1000" alt={alt} loading={loading} decoding="async" fetchpriority={eager ? 'high' : undefined} />
+      <img class="screenshot theme-dark-only" src={dark} width="1600" height="1000" alt={alt} loading={loading} decoding="async" />
+    </>
+  )}
+</span>
+
+<style>
+  .shot { display: block; }
+  .shot img { display: block; width: 100%; height: auto; }
+  .zoom { cursor: zoom-in; border-radius: 10px; }
+  .zoom img { transition: transform 0.15s ease; }
+  .zoom:hover img { transform: translateY(-2px); }
+  @media (prefers-reduced-motion: reduce) { .zoom img { transition: none; } .zoom:hover img { transform: none; } }
+</style>

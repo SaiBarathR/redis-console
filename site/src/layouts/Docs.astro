@@ -1,0 +1,177 @@
+---
+import Base from './Base.astro';
+import { url, SITE } from '../lib/site';
+import { icon } from '../lib/icons';
+
+interface Heading { depth: number; slug: string; text: string; }
+interface Props {
+  title: string;
+  description?: string;
+  path: string;
+  headings: Heading[];
+  /** Repository path of the Markdown source, for the "Edit on GitHub" link. */
+  source?: string;
+}
+const { title, description, path, headings, source } = Astro.props;
+
+const pages = [
+  { group: 'Guide', items: [
+    { href: 'docs/', label: 'Install' },
+    { href: 'docs/user-guide/', label: 'User guide' },
+    { href: 'docs/operations/', label: 'Operations' },
+  ] },
+  { group: 'Reference', items: [
+    { href: 'docs/security/', label: 'Security' },
+    { href: 'docs/architecture/', label: 'Architecture' },
+    { href: 'docs/decisions/', label: 'Design decisions' },
+  ] },
+];
+const flat = pages.flatMap((g) => g.items);
+const index = flat.findIndex((p) => p.href === path);
+const prev = index > 0 ? flat[index - 1] : null;
+const next = index >= 0 && index < flat.length - 1 ? flat[index + 1] : null;
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const clean = (t: string) => t.replace(/#$/, '').trim();
+---
+<Base title={title} description={description} path={path}>
+  <div class="container docs">
+    <details class="docs-menu">
+      <summary><span set:html={icon('menu', 18)} /> Docs: {title}</summary>
+      <nav aria-label="Documentation (mobile)">
+        {pages.map((g) => (
+          <div class="nav-group">
+            <p class="nav-title">{g.group}</p>
+            <ul role="list">{g.items.map((p) => <li><a href={url(p.href)} aria-current={p.href === path ? 'page' : undefined}>{p.label}</a></li>)}</ul>
+          </div>
+        ))}
+      </nav>
+    </details>
+
+    <aside class="docs-sidebar" aria-label="Documentation">
+      <nav aria-label="Documentation">
+        {pages.map((g) => (
+          <div class="nav-group">
+            <p class="nav-title">{g.group}</p>
+            <ul role="list">
+              {g.items.map((p) => (
+                <li>
+                  <a href={url(p.href)} aria-current={p.href === path ? 'page' : undefined}>{p.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        <div class="nav-group">
+          <p class="nav-title">More</p>
+          <ul role="list">
+            <li><a href={url('security/')}>Security model</a></li>
+            <li><a href={url('changelog/')}>Changelog</a></li>
+            <li><a href={SITE.repo}>GitHub</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <article class="docs-main">
+      <div class="prose">
+        <slot />
+      </div>
+      <footer class="docs-foot">
+        {source && <a class="edit" href={`${SITE.repo}/blob/main/${source}`}><span set:html={icon('pencil', 15)} /> Edit this page on GitHub</a>}
+        <nav class="pager" aria-label="Previous and next page">
+          {prev ? <a class="pager-link" href={url(prev.href)}><span class="pager-dir">Previous</span><span class="pager-title">{prev.label}</span></a> : <span />}
+          {next && <a class="pager-link next" href={url(next.href)}><span class="pager-dir">Next</span><span class="pager-title">{next.label}</span></a>}
+        </nav>
+      </footer>
+    </article>
+
+    <aside class="docs-toc" aria-label="On this page">
+      {toc.length > 1 && (
+        <nav aria-label="On this page">
+          <p class="nav-title">On this page</p>
+          <ul role="list">
+            {toc.map((h) => <li class={`d${h.depth}`}><a href={`#${h.slug}`}>{clean(h.text)}</a></li>)}
+          </ul>
+        </nav>
+      )}
+    </aside>
+  </div>
+</Base>
+
+<style>
+  .docs { display: grid; grid-template-columns: 236px minmax(0, 1fr) 220px; gap: 48px; padding-top: 40px; padding-bottom: 32px; align-items: start; }
+  .docs-sidebar, .docs-toc { position: sticky; top: calc(var(--header-h) + 24px); max-height: calc(100vh - var(--header-h) - 48px); overflow-y: auto; overscroll-behavior: contain; padding-bottom: 24px; }
+  .docs-main { min-width: 0; max-width: 780px; }
+  .nav-group + .nav-group { margin-top: 26px; }
+  .nav-title { font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); margin-bottom: 8px; padding: 0 10px; }
+  .docs-sidebar ul, .docs-toc ul, .docs-menu ul { list-style: none; margin: 0; padding: 0; }
+  .docs-sidebar a, .docs-menu nav a {
+    display: block; padding: 6px 10px; border-radius: 8px; color: var(--text-2); text-decoration: none; font-size: 15px; line-height: 1.4;
+  }
+  .docs-sidebar a:hover, .docs-menu nav a:hover { color: var(--text); background: var(--bg-soft); }
+  .docs-sidebar a[aria-current="page"], .docs-menu nav a[aria-current="page"] { color: var(--accent-text); background: var(--accent-soft); font-weight: 600; }
+  .docs-sidebar .sub { margin: 4px 0 6px 10px; padding-left: 8px; border-left: 1px solid var(--border); }
+  .docs-sidebar .sub a { font-size: 13.75px; padding: 4px 10px; color: var(--text-3); }
+  .docs-sidebar .sub a:hover { color: var(--text); }
+  .docs-toc { padding-left: 4px; }
+  .docs-toc .nav-title { padding: 0; }
+  .docs-toc li a { display: block; padding: 4px 0; font-size: 13.75px; line-height: 1.45; color: var(--text-3); text-decoration: none; }
+  .docs-toc li.d3 a { padding-left: 12px; font-size: 13.25px; }
+  .docs-toc li a:hover { color: var(--text); }
+  .docs-toc li a.active { color: var(--accent-text); font-weight: 600; }
+
+  .docs-menu { display: none; }
+  .docs-foot { margin-top: 56px; padding-top: 24px; border-top: 1px solid var(--border); }
+  .edit { display: inline-flex; align-items: center; gap: 8px; font-size: 14.5px; color: var(--text-3); text-decoration: none; }
+  .edit:hover { color: var(--text); }
+  .edit :global(svg) { display: block; }
+  .pager { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pager-link { display: flex; flex-direction: column; gap: 2px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; text-decoration: none; background: var(--surface); min-width: 0; }
+  .pager-link:hover { border-color: var(--accent); }
+  .pager-link.next { text-align: right; grid-column: 2; }
+  .pager-dir { font-size: 13px; color: var(--text-3); }
+  .pager-title { font-weight: 650; color: var(--text); }
+
+  @media (max-width: 1180px) {
+    .docs { grid-template-columns: 220px minmax(0, 1fr); gap: 40px; }
+    .docs-toc { display: none; }
+  }
+  @media (max-width: 860px) {
+    .docs { grid-template-columns: minmax(0, 1fr); gap: 0; padding-top: 16px; }
+    .docs-sidebar { display: none; }
+    .docs-menu { display: block; margin-bottom: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
+    .docs-menu summary {
+      display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; cursor: pointer; list-style: none;
+      font-weight: 600; font-size: 15px; color: var(--text);
+    }
+    .docs-menu summary::-webkit-details-marker { display: none; }
+    .docs-menu summary :global(svg) { display: block; flex-shrink: 0; color: var(--text-3); }
+    .docs-menu nav { padding: 4px 8px 14px; border-top: 1px solid var(--border); }
+    .docs-menu .nav-group { margin-top: 14px; }
+    .docs-menu .nav-group + .nav-group { margin-top: 14px; }
+  }
+  @media (max-width: 480px) {
+    .pager { grid-template-columns: minmax(0, 1fr); }
+    .pager-link.next { grid-column: 1; }
+  }
+
+  .prose :global(figure) { margin: 1.5em 0 0; }
+  .prose :global(figure img) { max-width: 640px; }
+</style>
+
+<script>
+  // Highlight the section in view in "On this page".
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('.docs-toc a'));
+  if (links.length && 'IntersectionObserver' in window) {
+    const byId = new Map(links.map((a) => [decodeURIComponent(a.hash.slice(1)), a]));
+    const visible = new Set<string>();
+    const obs = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) visible.add(e.target.id); else visible.delete(e.target.id);
+      }
+      const first = Array.from(byId.keys()).find((id) => visible.has(id));
+      if (first) links.forEach((a) => a.classList.toggle('active', a === byId.get(first)));
+    }, { rootMargin: '-70px 0px -65% 0px' });
+    byId.forEach((_, id) => { const el = document.getElementById(id); if (el) obs.observe(el); });
+  }
+</script>

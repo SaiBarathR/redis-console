@@ -1,0 +1,20 @@
+---
+// Numbered steps: <Steps><li>…</li></Steps>
+---
+<ol class="steps"><slot /></ol>
+<style>
+  .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .steps > :global(li) { position: relative; counter-increment: step; padding: 0 0 30px 56px; min-width: 0; }
+  .steps > :global(li:last-child) { padding-bottom: 0; }
+  .steps > :global(li)::before {
+    content: counter(step); position: absolute; left: 0; top: -2px; width: 34px; height: 34px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font: 700 15px/1 var(--font);
+    background: var(--step-bg); color: var(--step-fg);
+  }
+  .steps > :global(li:not(:last-child))::after {
+    content: ''; position: absolute; left: 16.5px; top: 40px; bottom: 6px; width: 1px; background: var(--border-strong);
+  }
+  .steps :global(h3) { font-size: 18px; font-weight: 680; line-height: 1.5; }
+  .steps :global(p) { margin-top: 6px; color: var(--text-2); }
+  .steps :global(p + p), .steps :global(.note), .steps :global(.code-block), .steps :global(pre), .steps :global(figure) { margin-top: 12px; }
+</style>

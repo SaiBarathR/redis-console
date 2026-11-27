@@ -1,0 +1,42 @@
+---
+// A video with a poster. The file is optional: when public/media/<file> isn't there at build time, the poster is
+// shown with a "coming soon" label instead of a player (and the client hides a player whose file fails to load).
+import fs from 'node:fs';
+import path from 'node:path';
+import { url } from '../lib/site';
+import { icon } from '../lib/icons';
+
+interface Props { file: string; poster: string; title: string; caption?: string; }
+const { file, poster, title, caption } = Astro.props;
+const exists = fs.existsSync(path.resolve(process.cwd(), 'public/media', file));
+---
+<figure class="video">
+  <div class={`video-frame${exists ? '' : ' is-missing'}`}>
+    {exists ? (
+      <video controls preload="metadata" playsinline poster={url('media/' + poster)} data-fallback aria-label={title}>
+        <source src={url('media/' + file)} type="video/mp4" />
+      </video>
+    ) : null}
+    <img class="video-poster" src={url('media/' + poster)} width="1280" height="720" alt={`${title} (poster)`} loading="lazy" decoding="async" />
+    <span class="video-soon"><span set:html={icon('play', 16)} /> Video coming soon</span>
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .video { margin: 0; }
+  .video-frame { position: relative; aspect-ratio: 16 / 9; border-radius: 16px; overflow: hidden; border: 1px solid var(--border); background: #1c1c1e; box-shadow: var(--shadow-lg); }
+  .video-frame video, .video-frame .video-poster { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  .video-frame video { z-index: 1; background: #1c1c1e; }
+  .video-frame.is-missing video { display: none; }
+  .video-soon {
+    position: absolute; z-index: 2; left: 50%; bottom: 18px; transform: translateX(-50%);
+    display: none; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+    background: rgb(20 20 20 / 0.78); color: #fff; font-size: 14px; font-weight: 600; white-space: nowrap;
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .video-soon :global(svg) { width: 16px; height: 16px; display: block; }
+  .video-frame.is-missing .video-soon { display: inline-flex; }
+  figcaption { margin-top: 12px; font-size: 15px; color: var(--text-3); text-align: center; }
+  @media (max-width: 480px) { .video-soon { bottom: 10px; font-size: 13px; padding: 6px 12px; } }
+</style>
